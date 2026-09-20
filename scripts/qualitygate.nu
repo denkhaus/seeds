@@ -166,9 +166,9 @@ def check-loop-assets [] {
     # packager caught it). Parse EVERY workflow graph with graphviz when
     # available; fall back to `fabro validate` when the CLI is on PATH
     # (host); error when neither tool exists in neither form.
-    let dot = (do { ^dot -V } | complete)
-    let fabro_bin = (do { ^fabro version } | complete)
-    if $dot.exit_code == 0 {
+    let dot = ((which dot | length) > 0)
+    let fabro_bin = ((which fabro | length) > 0)
+    if $dot {
         for graph in (glob .fabro/workflows/*/workflow.fabro) {
             let res = (do { ^dot -Tcanon $graph } | complete)
             if $res.exit_code != 0 {
@@ -178,7 +178,7 @@ def check-loop-assets [] {
             }
         }
         print "workflow graphs parse (graphviz)"
-    } else if $fabro_bin.exit_code == 0 {
+    } else if $fabro_bin {
         for wfdir in (glob .fabro/workflows/*) {
             if ($wfdir | path type) != 'dir' { continue }
             let name = ($wfdir | path basename)
