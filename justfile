@@ -17,7 +17,15 @@ verify stage:
 run *args:
     nu scripts/run_workflow.nu {{ args }}
 
-# Build the run-sandbox toolchain image (context: repo root; the image
-# bakes no repo binaries at bootstrap — see .fabro/Dockerfile.toolchain).
-image:
-    docker build -f .fabro/Dockerfile.toolchain -t seeds-toolchain:latest .
+# Build the run image the server-managed environment references
+# (toolchain); content-hash gated, near-instant no-op when unchanged.
+run-images:
+    nu scripts/run-images.nu
+
+# Build + push the toolchain image to GHCR — server-managed environments
+# pin the pushed sha tag (ghcr.io/denkhaus/seeds-toolchain:<sha12>).
+# Requires a ghcr.io docker login with write:packages:
+#   gh auth refresh -s write:packages
+#   gh auth token | docker login ghcr.io -u denkhaus --password-stdin
+image-release:
+    nu scripts/run-images.nu --push
