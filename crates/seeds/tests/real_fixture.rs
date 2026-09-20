@@ -21,22 +21,6 @@ fn repo_seeds_dir() -> PathBuf {
 
 #[test]
 fn our_reader_agrees_with_sd_on_every_repo_record() {
-    let store = Store::open(repo_seeds_dir()).expect("read this repo's tracker");
-    assert!(
-        !store.issues.is_empty(),
-        "the repo tracker must have records to compare"
-    );
-
-    let snapshot: Value = serde_json::from_str(SD_LIST_SNAPSHOT).expect("valid snapshot JSON");
-    let reported = snapshot["issues"]
-        .as_array()
-        .expect("sd list JSON shape {success, command, issues}");
-    assert_eq!(
-        reported.len(),
-        store.issues.len(),
-        "sd and our reader must see the same number of records"
-    );
-
     // Volatile fields drift between fixture capture and CI: the snapshot
     // is a POINT-IN-TIME sd output, while the repo's tracker file keeps
     // moving (claim/close timestamps, status transitions, reassignment —
@@ -54,6 +38,22 @@ fn our_reader_agrees_with_sd_on_every_repo_record() {
         "blockedBy",
         "closedAt",
     ];
+
+    let store = Store::open(repo_seeds_dir()).expect("read this repo's tracker");
+    assert!(
+        !store.issues.is_empty(),
+        "the repo tracker must have records to compare"
+    );
+
+    let snapshot: Value = serde_json::from_str(SD_LIST_SNAPSHOT).expect("valid snapshot JSON");
+    let reported = snapshot["issues"]
+        .as_array()
+        .expect("sd list JSON shape {success, command, issues}");
+    assert_eq!(
+        reported.len(),
+        store.issues.len(),
+        "sd and our reader must see the same number of records"
+    );
 
     for issue in reported {
         let id = issue["id"].as_str().expect("sd always writes id");
