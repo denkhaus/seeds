@@ -7,7 +7,7 @@ workflow graph, not the prompts. A stale value here is loop friction:
 report it in the journal, never silently work around it.
 
 - Issue tracker — the `sd` CLI (Seeds, git-native in `.seeds/`). Seed ids
-  carry the prefix `seeds-` (e.g. `seeds-a1b2`); the supported read path
+  carry the prefix `seeds-` (e.g. `seeds-e218`); the supported read path
   is `sd show <id> --format json`. `sd search` matches title/description
   text only and is AND-strict: use ONE keyword per query (broaden by
   dropping words), and use `sd show` — never `sd search` — for id

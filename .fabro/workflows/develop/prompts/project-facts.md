@@ -27,7 +27,7 @@ friction: report it in the journal, never silently work around it.
 - Issue tracker: the `sd` CLI (Seeds, git-native in `.seeds/`). The develop
   line works EXCLUSIVELY on seeds assigned to assignee `fabro` — the
   assignee is the ownership switch (see `AGENTS.md`). Seed ids carry the
-  prefix `seeds-` (e.g. `seeds-a1b2`). The supported read path is
+  prefix `seeds-` (e.g. `seeds-e218`). The supported read path is
   `sd show <id> --format json`; never parse the raw tracker file
   (`.seeds/issues.jsonl`) by hand. Exact command reference (never invent
   flags):

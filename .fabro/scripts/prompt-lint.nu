@@ -28,14 +28,26 @@ def lint-files [] {
     | where {|p| ($p | path type) == 'file'}
 }
 
+# Tracker prefix: derived from .seeds/config.yaml (project name). Only
+# ids with THIS tracker's prefix are validated — foreign-prefix ids
+# (origin-loop lineage lore, documented in the develop PROJECT_FACTS
+# lineage bullet) are out of scope by design (ported from the origin
+# loop, where the prefix was `fabro-`).
+def tracker-prefix [] {
+    if (not ('.seeds/config.yaml' | path exists)) { return '' }
+    open .seeds/config.yaml | get project
+}
+
 def seed-ids-in [text] {
-    let matches = ($text | parse --regex 'fabro-(?<id>[0-9a-f]{4,})')
+    let prefix = (tracker-prefix)
+    if ($prefix | is-empty) { return [] }
+    let matches = ($text | parse --regex ($prefix + '-(?<id>[0-9a-f]{4,})'))
     if ($matches | is-empty) { return [] }
     # word-boundary guard: reject candidates directly followed by another
     # identifier char or dash (a longer non-seed word must not yield a
     # shorter hex-looking prefix)
     $matches.id | uniq | where {|id|
-        not ($text | parse --regex ('fabro-' + $id + '(?![0-9a-zA-Z-])') | is-empty)
+        not ($text | parse --regex ($prefix + '-' + $id + '(?![0-9a-zA-Z-])') | is-empty)
     }
 }
 
@@ -117,9 +129,10 @@ def main [] {
 
     for f in $files {
         let text = (open --raw $f)
-        # 1. seed ids must resolve
+        # 1. seed ids must resolve (this tracker's prefix only)
+        let tracker_proj = (tracker-prefix)
         for id in (seed-ids-in $text) {
-            let full = $"fabro-($id)"
+            let full = $"($tracker_proj)-($id)"
             let s = (do { sd show $full --format json } | complete)
             if $s.exit_code != 0 {
                 $errors = ($errors | append $"($f): seed id '($full)' does not resolve in the tracker")

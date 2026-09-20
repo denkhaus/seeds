@@ -144,17 +144,31 @@ def terminal-tip? [run: string, subject: string, age_sec: int, grace_min: float]
 # precision). Fail-open hard rule: any error degrades to zero claims
 # with a note, never blocks — a false claim mark is planner-adjudicated,
 # this table never closes or skips anything itself.
+# Tracker seed-id prefix: derived from .seeds/config.yaml (project name),
+# never hardcoded — this workflow is portable across trackers (ported from
+# the origin loop, where the prefix was `fabro-`; lineage lore ids in
+# comments stay as-is and never match this parse).
+def tracker-prefix [] {
+    if (not ('.seeds/config.yaml' | path exists)) { return '' }
+    let cfg = (open .seeds/config.yaml)
+    $cfg | get project
+}
+
 def journal-claims [sha: string, run: string] {
     let j = (do { ^git show $"($sha):.fabro/journal/($run).jsonl" } | complete)
     if $j.exit_code != 0 { return [] }
     let lines = ($j.stdout | lines | where {|l| $l | str contains '"node":"planner"'})
     if ($lines | is-empty) { return [] }
+    let prefix = (tracker-prefix)
+    # Regex built by concatenation: an interpolated $"..." string would
+    # treat the regex's parentheses as nu expression interpolations.
+    let pattern = ($prefix + '-(?<seed>(?:[a-z][a-z0-9]*-)?[0-9a-z]{4,})(?![0-9a-z-])')
     $lines
-    | parse --regex 'fabro-(?<seed>(?:[a-z][a-z0-9]*-)?[0-9a-z]{4,})(?![0-9a-z-])'
+    | parse --regex $pattern
     | get -o seed
     | default []
     | uniq
-    | each {|seed| $"fabro-($seed)"}
+    | each {|seed| $"($prefix)-($seed)"}
 }
 
 def in-flight-claims [remote: string, base: string, self_id: string] {
