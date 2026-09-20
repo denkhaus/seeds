@@ -1,0 +1,71 @@
+# Toolchain image for the seeds repo — adapted from denkhaus/fabro's
+# .fabro/Dockerfile.toolchain at bootstrap (2026-09-26, ADR-0023).
+# Standalone repo, no upstream fork, no generated TS client, no pytest
+# workflows: the fabro image's cargo-chef cook arms, pytest layer, and
+# staged fabro/fabro-validate binaries are deliberately NOT ported — the
+# develop line adds stages back when seeds demand them (loop-asset
+# evolution). Base ubuntu:24.04 (not buildpack-deps) per the fabro image's
+# CVE rationale. graphviz (workflow-graph validation/rendering) and the
+# mold linker anchor stay.
+FROM ubuntu:24.04
+
+ARG RUST_NIGHTLY=nightly-2026-04-14
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        bash git ca-certificates curl xz-utils \
+        build-essential pkg-config perl cmake \
+        graphviz mold; \
+    dot -V; \
+    mold --version; \
+    rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${RUST_NIGHTLY}; \
+    export PATH="/root/.cargo/bin:${PATH}"; \
+    rustup toolchain install ${RUST_NIGHTLY} --profile minimal --component clippy,rustfmt; \
+    cargo install cargo-nextest --locked
+
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# mold as the Rust linker for every build resolving cargo config from
+# /root/.cargo (run containers included).
+RUN set -eux; \
+    printf '[target.x86_64-unknown-linux-gnu]\nrustflags = ["-C", "link-arg=-fuse-ld=mold"]\n' \
+        > /root/.cargo/config.toml
+
+# Workspace toolset via mise: nushell (loop scripts), just (gate recipes),
+# ripgrep; sd/ml ride the mise bun into BUN_INSTALL. Tool-agnostic
+# layering (ADR-0017 in the fabro repo): the engine's clone contract
+# places this repository at /repos/denkhaus/seeds with a /workspace/seeds
+# execution symlink — the trust path pins exactly that.
+ARG MISE_VERSION=v2026.8.10
+ENV MISE_DATA_DIR=/mise \
+    MISE_TRUSTED_CONFIG_PATHS=/repos/denkhaus/seeds \
+    BUN_INSTALL=/mise/bun-global \
+    PATH=/mise/shims:/mise/bun-global/bin:${PATH}
+
+RUN set -eux; \
+    curl -fsSL "https://github.com/jdx/mise/releases/download/${MISE_VERSION}/mise-${MISE_VERSION}-linux-x64" \
+        -o /usr/local/bin/mise; \
+    chmod +x /usr/local/bin/mise; \
+    mise use -g \
+        bun@1.4.0 \
+        aqua:nushell/nushell@0.115.0 \
+        just@1.58.0 \
+        aqua:BurntSushi/ripgrep@15.2.0 \
+    && bun --version \
+    && nu --version \
+    && just --version \
+    && rg --version
+
+# Repo agent tooling: AGENTS.md asks agents to run `sd prime` / `ml prime`
+# at session start. Bootstrap phase (ADR-0023): pinned jayminwest CLIs —
+# read+write compatible target of this repo's own product. Installed
+# through the mise bun into BUN_INSTALL (lab exemplar path).
+RUN mise exec -- bun install -g \
+        @os-eco/seeds-cli@0.5.15 \
+        @os-eco/mulch-cli@0.10.7 \
+    && sd --version \
+    && ml --version

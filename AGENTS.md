@@ -1,0 +1,76 @@
+# AGENTS.md — seeds
+
+Native Rust implementation of the seeds git-native issue-tracker format.
+Format-compatibility contract and product direction live in `README.md`;
+the deciding record is ADR-0023 in denkhaus/fabro.
+
+## Build and test
+
+- `cargo build --workspace` — build
+- `cargo nextest run --workspace` — all tests
+- `cargo nextest run -p seeds -- <test_name>` — single test
+- `cargo +nightly-2026-04-14 fmt --check --all` — format check (pinned
+  nightly; install with `rustup toolchain install nightly-2026-04-14
+  --profile minimal --component clippy,rustfmt`)
+- `cargo +nightly-2026-04-14 clippy --workspace --all-targets -- -D warnings`
+- `just qualitygate` — the develop loop's touched-crates gate
+- `just image` — build the run-sandbox toolchain image
+
+The Rust toolchain is owned by rustup (pinned `nightly-2026-04-14`);
+mise owns just/bun/nushell/ripgrep and (bootstrap phase) the jayminwest
+sd/ml CLIs.
+
+## Issue tracking (Seeds)
+
+Work is tracked in Seeds (`sd` CLI, git-native in `.seeds/`), not GitHub
+Issues. Seed ids carry the prefix `seeds-`.
+
+- **Session start:** run `sd prime`.
+- **Filers file UNASSIGNED.** Agents that file seeds create them without
+  `--assignee` — new seeds land unassigned in the backlog.
+- **The develop line only works on seeds assigned to `fabro`.** The
+  planner lists candidates with `sd ready --assignee fabro --limit 200`.
+  Assignment is the user's ownership switch (veto: reassign or unassign).
+- **Claim:** `sd update <id> --status in_progress --assignee fabro`.
+- **Close:** never by hand from a run — the deterministic Closeout step
+  closes approved seeds; the planner's one exception is the superseded
+  close with a mandatory `--reason`.
+- Supported read path: `sd show <id> --format json`. Never parse
+  `.seeds/issues.jsonl` by hand.
+- **Never parse raw tracker files; never invent sd flags.**
+
+## Expertise (Mulch)
+
+- **Session start:** run `ml prime`.
+- Before finishing a task, record durable insights (`ml record <domain>
+  --type <convention|pattern|failure|decision|reference|guide>
+  --description "..."`); skip when nothing surfaced. Upserts by `--name`
+  merge outcomes — amend the existing record instead of filing a second
+  one for the same lesson.
+
+## Workflow assets
+
+The develop workflow lives in `.fabro/workflows/develop/` (graph, prompts,
+scripts, schemas) plus `.fabro/scripts/` and `.fabro/skills/` (vendored
+rust-style-guide, improve-codebase-architecture — the only skills a run's
+agent stages may load). All loop-asset evolution happens through the
+develop line itself (ADR-0012/0013 in denkhaus/fabro): report friction in
+the journal, never fix loop assets in-pass outside a seed that targets
+them. Run PRs integrate into `main` — there is no upstream mirror.
+
+`.fabro/`, `.seeds/`, `.mulch/`, `scripts/`, and `justfile` are fs_hide
+bound for file tools in runs; the shell reads and writes them normally
+(grep, sed, cat, python3 heredocs), and `sd`, `ml`, `just` keep working.
+
+## Clone layout
+
+The engine's clone contract places this repository at
+`/repos/denkhaus/seeds` with a `/workspace/seeds` execution symlink; the
+toolchain image's mise trust pins exactly that path
+(`.fabro/Dockerfile.toolchain`).
+
+## Rust style
+
+`.fabro/skills/rust-style-guide/SKILL.md` is the binding coding policy for
+every Rust diff — read it before writing or reviewing Rust. The workspace
+lints in `Cargo.toml` mirror it mechanically.
