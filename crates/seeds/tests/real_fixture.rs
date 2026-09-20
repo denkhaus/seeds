@@ -1,35 +1,44 @@
 //! Real-fixture agreement: our reader and `sd` must agree on every record
-//! of this repository's own tracker (`.seeds/issues.jsonl`).
+//! of this repository's own tracker format.
 //!
-//! The fixture (`fixtures/repo_issues_sd_list.json`) is a snapshot of
-//! `sd list --all --format json --limit 200` over the same file, generated
-//! by the fixture step; the test compares field-by-field.
+//! Hermetic fixture pair (run review 01M2ZYVQ, finding #2): the tracker
+//! copy (`fixtures/repo_seeds/`) and the `sd list --all --format json
+//! --limit 200` snapshot (`fixtures/repo_issues_sd_list.json`) are
+//! co-captured at one point in time, so live-tracker drift (claim/close
+//! timestamps, status transitions, record-count growth) can never break
+//! the test. The test materializes the captured store into a temp dir
+//! and compares field-by-field.
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::{fs, process};
 
 use seeds::Store;
 use serde_json::Value;
 
 const SD_LIST_SNAPSHOT: &str = include_str!("fixtures/repo_issues_sd_list.json");
+const ISSUES_JSONL: &str = include_str!("fixtures/repo_seeds/issues.jsonl");
+const CONFIG_YAML: &str = include_str!("fixtures/repo_seeds/config.yaml");
 
-fn repo_seeds_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../.seeds")
-        .canonicalize()
-        .expect("repo .seeds/ directory")
+/// Materializes the captured tracker into a fresh temp `.seeds/` dir.
+fn captured_seeds_dir() -> PathBuf {
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+    let unique = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("seeds-real-fixture-{}-{unique}", process::id()));
+    fs::create_dir_all(&dir).expect("create temp .seeds dir");
+    fs::write(dir.join("issues.jsonl"), ISSUES_JSONL).expect("write captured issues.jsonl");
+    fs::write(dir.join("config.yaml"), CONFIG_YAML).expect("write captured config.yaml");
+    dir
 }
 
 #[test]
 fn our_reader_agrees_with_sd_on_every_repo_record() {
-    // Volatile fields drift between fixture capture and CI: the snapshot
-    // is a POINT-IN-TIME sd output, while the repo's tracker file keeps
-    // moving (claim/close timestamps, status transitions, reassignment —
-    // seeds-48db: the 2026-09-26 first cycle captured the fixture after
-    // its own sd experiments and broke CI on updatedAt). Equivalence is
-    // asserted on the STABLE projection only.
-    // blockedBy/closedAt drift with lifecycle too: closing a blocker
-    // removes its dep edges from the file (sd close housekeeping), so a
-    // pre-close snapshot disagrees with the post-close repo file.
+    // The fixture pair is co-captured, so even volatile fields agree at
+    // capture time; the stable-projection skip is retained so a future
+    // regeneration of one half alone (snapshot or tracker copy) still
+    // compares safely. blockedBy/closedAt drift with lifecycle too:
+    // closing a blocker removes its dep edges from the file (sd close
+    // housekeeping).
     const VOLATILE_FIELDS: &[&str] = &[
         "updatedAt",
         "createdAt",
@@ -39,10 +48,10 @@ fn our_reader_agrees_with_sd_on_every_repo_record() {
         "closedAt",
     ];
 
-    let store = Store::open(repo_seeds_dir()).expect("read this repo's tracker");
+    let store = Store::open(captured_seeds_dir()).expect("read the captured tracker");
     assert!(
         !store.issues.is_empty(),
-        "the repo tracker must have records to compare"
+        "the captured tracker must have records to compare"
     );
 
     let snapshot: Value = serde_json::from_str(SD_LIST_SNAPSHOT).expect("valid snapshot JSON");
