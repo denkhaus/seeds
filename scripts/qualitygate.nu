@@ -161,6 +161,38 @@ def check-loop-assets [] {
             return false
         }
     }
+    # Graph-parse arm (2026-09-26, truncated-conductor incident: a regex
+    # edit cut the DOT edges off workflow.fabro and only the server-side
+    # packager caught it). Parse EVERY workflow graph with graphviz when
+    # available; fall back to `fabro validate` when the CLI is on PATH
+    # (host); error when neither tool exists in neither form.
+    let dot = (do { ^dot -V } | complete)
+    let fabro_bin = (do { ^fabro version } | complete)
+    if $dot.exit_code == 0 {
+        for graph in (glob .fabro/workflows/*/workflow.fabro) {
+            let res = (do { ^dot -Tcanon $graph } | complete)
+            if $res.exit_code != 0 {
+                print $"workflow graph PARSE FAILED: ($graph)"
+                print ($res.stderr | str trim | str substring 0..160)
+                return false
+            }
+        }
+        print "workflow graphs parse (graphviz)"
+    } else if $fabro_bin.exit_code == 0 {
+        for wfdir in (glob .fabro/workflows/*) {
+            if ($wfdir | path type) != 'dir' { continue }
+            let name = ($wfdir | path basename)
+            let res = (do { ^fabro validate $name } | complete)
+            if $res.exit_code != 0 {
+                print $"workflow VALIDATE FAILED: ($name)"
+                print (($res.stdout | str trim) + ($res.stderr | str trim) | str substring 0..160)
+                return false
+            }
+        }
+        print "workflow graphs validate (fabro cli)"
+    } else {
+        print "warn: neither graphviz nor fabro available — workflow graph parse skipped"
+    }
     print "loop-asset scripts green"
     true
 }
