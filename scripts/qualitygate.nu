@@ -147,6 +147,10 @@ def check-loop-assets [] {
         # planner-preflight anchor battery (fabro-83df report-only
         # end-to-end case included; 0.5s measured 2026-09-19)
         '.fabro/scripts/planner-preflight-anchor-fixtures.nu'
+        # revisor overflow-ledger battery: fixture revision file with
+        # open + consumed overflows drives open/consume selection
+        # deterministically.
+        '.fabro/workflows/revisor/scripts/overflow-ledger-fixtures.nu'
     ]
     for battery in $batteries {
         let res = (do { ^nu $battery } | complete)

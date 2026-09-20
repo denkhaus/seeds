@@ -1,0 +1,88 @@
+digraph Conductor {
+    graph [
+        goal="Run the serialized seeds line: one pass = one develop+revisor cycle; children are created only after the previous child merged",
+        inspects="develop,revisor",
+        rankdir=LR,
+        // fabro-0e11: legal blocking fabro_run_wait (60m) and long gate shells
+        // must not trip the default 1800s stall watchdog.
+        stall_timeout="63m",
+        max_node_visits=12,
+        preamble_budget_kb=12,
+        cycle_counter_reset_key="pass_id"
+    ]
+
+    start [shape=Mdiamond, label="Start"]
+    exit  [shape=Msquare, label="Exit"]
+
+    // Survey (cheap): route this pass (Work by default) and
+    // pre-register the develop + revisor workflow versions while it has
+    // slack. No upstream exists in this repo — there is no merge leg.
+    survey [
+        label="Survey",
+        prompt="@prompts/survey.md",
+        // fabro-f84f: opt into vendored-skill discovery — the
+        // session loads `.fabro/skills` (rust-style-guide and
+        // friends) through the UseSkill tool.
+        skills="discover",
+        output_schema="routing",
+        output_retries=2,
+        retry_policy="standard",
+        reasoning_effort="low",
+        project_memory=false,
+        preamble_stages_ignore="survey",
+        fs_write="",
+        // fabro_workflow_version_create (fabro-978d): the survey
+        // pre-registers the develop + revisor workflow versions while it
+        // has slack, so the legs pass only the content-addressed id
+        // instead of transcribing ~118 KB of closure through tool
+        // arguments on the critical path.
+        fabro_tools="fabro_runs_list,fabro_workflow_version_create"
+    ]
+
+
+    // Develop leg: one seed implementation through gate+review+PR.
+    develop [
+        label="Develop leg",
+        prompt="@prompts/develop-leg.md",
+        // fabro-f84f: opt into vendored-skill discovery — the
+        // session loads `.fabro/skills` (rust-style-guide and
+        // friends) through the UseSkill tool.
+        skills="discover",
+        // fabro-3196: file schema (fabro-017f teeth pattern) — keeps
+        // the routing contract AND rejects a revise-handoff routing
+        // ('Develop integrated' / 'Gate stuck — revise anyway')
+        // without a non-empty context_updates.child_run_id (run
+        // 01M2X6AT3V4CPSJC08SMCVB172 dropped it; the revise leg then
+        // failed pass continuity and the child went unreviewed).
+        output_schema="@schemas/develop-output.schema.json",
+        output_retries=2,
+        retry_policy="standard",
+        reasoning_effort="low",
+        project_memory=false,
+        preamble_stages_ignore="survey,develop",
+        fs_write="",
+        fabro_tools="fabro_workflow_version_create,fabro_run_create,fabro_run_get,fabro_run_wait,fabro_runs_list"
+    ]
+
+    // Revise leg: revisor revises the newest develop run.
+    revise [
+        label="Revise leg",
+        prompt="@prompts/revise-leg.md",
+        // fabro-f84f: opt into vendored-skill discovery — the
+        // session loads `.fabro/skills` (rust-style-guide and
+        // friends) through the UseSkill tool.
+        skills="discover",
+        output_schema="routing",
+        output_retries=2,
+        retry_policy="standard",
+        reasoning_effort="low",
+        project_memory=false,
+        preamble_stages_ignore="survey,develop,revise",
+        fs_write="",
+        fabro_tools="fabro_workflow_version_create,fabro_run_create,fabro_run_get,fabro_run_wait,fabro_runs_list"
+    ]
+
+    start -> survey
+    survey -> develop [label="Work", condition="preferred_label=\"Work\""]
+    survey -> exit    [label="Nothing to do", condition="preferred_label=\"Nothing to do\""]
+    survey -> exit    [kind="soft", label="Survey failed", condition="outcome=failed"]
