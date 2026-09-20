@@ -69,3 +69,15 @@ RUN mise exec -- bun install -g \
         @os-eco/mulch-cli@0.10.7 \
     && sd --version \
     && ml --version
+
+# python3 (stdlib only, late layer to preserve cache): LOAD-BEARING for
+# the loop — the dup-run-check fixture battery's schema-ban check shells
+# out to python3 (first seeds cycle 01M2ZW7TT6KK died 3x deterministic
+# on 'Command python3 not found', 2026-09-26), and python3 heredocs are
+# the documented fs_hide escape hatch in the develop prompts. No
+# pip/pytest at bootstrap (no python deps yet).
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends python3; \
+    python3 --version; \
+    rm -rf /var/lib/apt/lists/*
