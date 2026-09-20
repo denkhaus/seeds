@@ -7,7 +7,8 @@
 # 01M2SN3TE4FZ / 01M2SRK0PCDX / 01M2SW12V6WK) parks the run EARLY instead
 # of burning a 20-30 min implementer cycle and dying at the evidence node.
 # When the key exists, this script only asserts it is non-empty and
-# well-formed (fabro- seed id prefix).
+# well-formed (this tracker's seed id prefix, derived from
+# .seeds/config.yaml — ported from the origin loop where it was fabro-).
 
 def main []: nothing -> nothing {
     # Non-tty stdin: nu's `input` only works on a tty; the engine pipes the
@@ -18,8 +19,9 @@ def main []: nothing -> nothing {
         print -e "claim-check: stdin carried no seed id (stdin_source misconfigured?)"
         exit 1
     }
-    if not ($seed_id | str starts-with "fabro-") {
-        print -e $"claim-check: stdin value is not a seed id: ($seed_id)"
+    let prefix = (open .seeds/config.yaml | get project)
+    if not ($seed_id | str starts-with ($prefix + "-")) {
+        print -e $"claim-check: stdin value is not a seed id of this tracker \(prefix ($prefix)-\): ($seed_id)"
         exit 1
     }
     print $"claim-check: ok ($seed_id)"

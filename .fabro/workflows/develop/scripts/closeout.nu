@@ -109,7 +109,7 @@ def warn-dockerfile-diff [seed_id: string]: nothing -> nothing {
     if $res.exit_code != 0 { return }
     let hits = (dockerfile-hits ($res.stdout | lines | compact))
     if ($hits | is-empty) { return }
-    let msg = $"closeout: WARNING — diff touches Dockerfile path\(s\): ($hits | str join ', '). This fix is INERT until the fabro-toolchain:noble image is rebuilt — run sandboxes build that image and never mount it live."
+    let msg = $"closeout: WARNING — diff touches Dockerfile path\(s\): ($hits | str join ', '). This fix is INERT until the seeds-toolchain:noble image is rebuilt — run sandboxes build that image and never mount it live."
     print -e $msg
     print $msg
 }
@@ -143,7 +143,7 @@ def warn-dockerfile-diff [seed_id: string]: nothing -> nothing {
 # Pure: distinctive demand tokens from a seed title — lowercase
 # alphanumeric runs of length >= 4, minus function-word stopwords.
 def demand-tokens [title: string]: nothing -> list<string> {
-    let stopwords = [seed task fabro with from that this when then they them will must into else only than have been does were what which where while about]
+    let stopwords = [seed task fabro seeds with from that this when then they them will must into else only than have been does were what which where while about]
     $title | str lowercase | split row --regex '[^a-z0-9]+' | where {|t|
         ($t | str length) >= 4 and not ($t in $stopwords)
     } | uniq
