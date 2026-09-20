@@ -7,13 +7,20 @@
 //! `blockedBy` arrays on the record; unknown record fields are preserved
 //! on every write, and additive fields are the only sanctioned extension
 //! mechanism.
+//!
+//! The store is map-backed: every record keeps its parsed
+//! [`serde_json::Map`](serde_json::Map) (with the `preserve_order`
+//! feature) as the serialization source of truth, so a load→save cycle
+//! reproduces sd's compact JSONL byte for byte, unknown fields included.
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn workspace_smoke() {
-        // Bootstrap placeholder: the format core (reader/writer +
-        // round-trip suite) lands as the first product seed.
-        assert_eq!(2 + 2, 4);
-    }
-}
+mod config;
+mod error;
+mod id;
+mod model;
+mod store;
+
+pub use config::Config;
+pub use error::{Error, IdError, RecordError};
+pub use id::{PlanId, SeedId, TemplateId};
+pub use model::{Fields, PlanRecord, Priority, SeedRecord, SeedType, Status, TemplateRecord};
+pub use store::Store;
