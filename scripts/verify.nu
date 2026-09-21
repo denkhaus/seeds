@@ -96,6 +96,26 @@ def touched [] {
     {code: $crates, tests: $test_crates}
 }
 
+# sd-0.5.15 compat reference provisioning (seeds-25b5): the seeds
+# crate's compat/differential suites skip-with-note when the reference
+# is missing — before this stage RUNS that crate's suite, provision it
+# via the pinned bun.lock and fail hard when it does not answer 0.5.15
+# (silent skips are gate-unacceptable; local nextest keeps the note).
+def provision-sd-reference [] {
+    print '== provisioning sd-0.5.15 compat reference (seeds compat + differential suites) =='
+    let dir = 'crates/seeds/tests/fixtures/sd-reference'
+    let install = (do { cd $dir; ^bun install --frozen-lockfile } | complete)
+    let version = (do { cd $dir; ^./sd --version } | complete)
+    let ok = ($install.exit_code == 0) and ($version.exit_code == 0) and (($version.stdout | str trim) == '0.5.15')
+    if not $ok {
+        print "verify: FAIL sd-0.5.15 reference provisioning — provision crates/seeds/tests/fixtures/sd-reference (bun install); see its README.md"
+        print ($install.stdout + $install.stderr | str trim -r -c "\n" | lines | last 10)
+        return false
+    }
+    print 'verify: PASS sd-0.5.15 reference answers'
+    true
+}
+
 def stage-implementer [] {
     let t = (touched)
     if ($t.code | is-empty) {
@@ -136,6 +156,9 @@ def stage-implementer [] {
             return
         }
         print $"verify: PASS compile ($c)"
+    }
+    if ('seeds' in $t.tests) {
+        if not (provision-sd-reference) { return }
     }
     for c in $t.tests {
         let label = ("== nextest -p " + $c + " (full crate suite: test files touched) ==")

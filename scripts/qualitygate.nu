@@ -206,6 +206,34 @@ def check-loop-assets [] {
     true
 }
 
+# sd-0.5.15 compat reference provisioning (seeds-25b5): the compat and
+# differential suites skip-with-note when the reference is missing — in
+# the GATE that silent skip is unacceptable (the battery must actually
+# run). Provision via the pinned bun.lock; a missing bun, a failed
+# install, or a wrong --version answer FAILS the gate with a clear
+# message. Mirrors the CI step in .github/workflows/ci.yml.
+def provision-sd-reference [] {
+    print '== provisioning sd-0.5.15 compat reference (compat + differential batteries) =='
+    let dir = 'crates/seeds/tests/fixtures/sd-reference'
+    let install = (do { cd $dir; ^bun install --frozen-lockfile } | complete)
+    let version = (do { cd $dir; ^./sd --version } | complete)
+    let ok = ($install.exit_code == 0) and ($version.exit_code == 0) and (($version.stdout | str trim) == '0.5.15')
+    if not $ok {
+        print "gate FAIL: sd-0.5.15 reference provisioning failed — the compat/differential batteries cannot run (silent skip is not acceptable in the gate; see crates/seeds/tests/fixtures/sd-reference/README.md)"
+        print ($install.stdout + $install.stderr | str trim -r -c "\n" | lines | last 10)
+        print ($version.stdout + $version.stderr | str trim -r -c "\n")
+        return false
+    }
+    print 'sd-0.5.15 reference answers (0.5.15)'
+    true
+}
+
+# Provision only when the seeds crate's tests are in the gated set.
+def provision-sd-reference-if-needed [crates: list<string>] {
+    if not ('seeds' in $crates) { return true }
+    provision-sd-reference
+}
+
 def check-clippy [crates: list<string>] {
     if ($crates | is-empty) { return true }
     # '-p' and the crate name MUST be separate argv elements: a single
@@ -288,7 +316,7 @@ def main [] {
         exit 1
     }
     print $"touched crates: ($crates | str join ', ')"
-    let green = ((check-loop-assets) and (check-fmt) and (check-clippy $crates) and (build-renderer-if-needed $crates) and (check-tests $crates))
+    let green = ((check-loop-assets) and (check-fmt) and (provision-sd-reference-if-needed $crates) and (check-clippy $crates) and (build-renderer-if-needed $crates) and (check-tests $crates))
     if $green {
         print "GATE GREEN"
         exit 0

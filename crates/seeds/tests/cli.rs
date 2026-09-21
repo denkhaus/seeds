@@ -178,22 +178,21 @@ fn show_multi_json_uses_issues_array() {
 }
 
 #[test]
-fn show_missing_id_reports_error_json_and_nonzero_exit() {
+fn show_missing_id_reports_stderr_error_and_nonzero_exit() {
     let dir = temp_store("show-missing");
     write_records(&dir, &standard());
     let output = run(&dir, &["show", "tst-zzzz", "--format", "json"]);
-    // The reference exits non-zero on errors (its loop scripts depend
-    // on it); JSON mode additionally carries success:false.
+    // sd 0.5.15 reports show errors on stderr (`Error: …`) with an
+    // EMPTY stdout — even in --format json mode, no JSON envelope on
+    // this path (pinned by the differential battery, seeds-25b5).
     assert_eq!(output.status.code(), Some(1));
-    let value = stdout_json(&output);
-    assert_eq!(value["success"], json!(false));
-    assert_eq!(value["command"], json!("show"));
     assert!(
-        value["error"]
-            .as_str()
-            .expect("error")
-            .contains("Issue not found")
+        output.stdout.is_empty(),
+        "stdout stays empty: {}",
+        String::from_utf8_lossy(&output.stdout)
     );
+    let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8 stderr");
+    assert!(stderr.contains("Issue not found"), "stderr: {stderr}");
 }
 
 // ---------------------------------------------------------------------------
@@ -740,4 +739,65 @@ fn help_and_version_match_reference_surface() {
             "{command} --help mentions {needle}"
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// help honesty (seeds-25b5)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn global_help_lists_only_implemented_commands() {
+    let dir = temp_store("help-honesty");
+    write_records(&dir, &standard());
+    let output = run(&dir, &["--help"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    for command in [
+        "create", "show", "list", "ready", "search", "update", "close", "dep", "prime", "dedupe",
+    ] {
+        assert!(text.contains(command), "--help lists {command}");
+    }
+    // Unimplemented reference commands must not appear as listed
+    // commands (only inside the explicit not-implemented note).
+    let commands_section = text
+        .split("Unimplemented reference commands")
+        .next()
+        .unwrap_or_default();
+    for absent in ["stats", "onboard", "migrate-from-beads"] {
+        assert!(
+            !commands_section.contains(absent),
+            "--help must not list unimplemented '{absent}' as a command"
+        );
+    }
+}
+
+#[test]
+fn planned_commands_answer_not_implemented_yet() {
+    let dir = temp_store("planned");
+    write_records(&dir, &standard());
+    for command in [
+        "label", "blocked", "stats", "sync", "doctor", "tpl", "plan", "config",
+    ] {
+        let output = run(&dir, &[command]);
+        assert_eq!(output.status.code(), Some(1), "{command} exits 1");
+        let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
+        assert!(
+            stderr.contains("not implemented yet"),
+            "{command} stderr: {stderr}"
+        );
+    }
+    // dep remove/list: implemented surface is `dep add` only.
+    let output = run(&dir, &["dep", "remove", "tst-0001", "tst-0002"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        String::from_utf8(output.stderr.clone())
+            .expect("utf-8")
+            .contains("not implemented yet")
+    );
+    // A genuinely unknown command keeps the generic error.
+    let output = run(&dir, &["frobnicate"]);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
+    assert!(stderr.contains("unknown command"), "stderr: {stderr}");
+    assert!(!stderr.contains("not implemented yet"));
 }
