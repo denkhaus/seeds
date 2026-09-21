@@ -1,0 +1,7 @@
+# Toolchain image context (self-hosting cutover, seeds-3791): the image
+# needs only the workspace manifests and the seeds crate source — see
+# the COPY lines in .fabro/Dockerfile.toolchain.
+*
+!Cargo.toml
+!Cargo.lock
+!crates

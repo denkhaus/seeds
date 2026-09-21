@@ -6,8 +6,13 @@
 # pushes to ghcr.io/denkhaus/seeds-toolchain:<git-sha12> — the tag form
 # the server-managed environment pins (same convention as the origin
 # loop's fabro-toolchain push in denkhaus/fabro scripts/run-images.nu;
-# simplified: the seeds bootstrap toolchain stages no binaries and no
-# cargo-chef cook context — nothing is COPYed from the build context).
+# simplified: no cargo-chef cook context. Self-hosting cutover
+# (seeds-3791): the Dockerfile COPYs the seeds crate source and bakes
+# the `seeds` binary, so the build context is the REPO ROOT (pruned by
+# the root .dockerignore) and the rebuild gate hashes the Dockerfile
+# PLUS the copied sources (Cargo.toml, Cargo.lock, crates/) via
+# `git ls-files -s` blob hashes — a crate change with an unchanged
+# Dockerfile still rebuilds).
 #
 # Requires a ghcr.io docker login with write:packages:
 #   gh auth refresh -s write:packages
@@ -18,8 +23,12 @@ def build-one [dockerfile: string, tag: string, push: bool] {
         print $"run-images: skip ($tag) \(($dockerfile) missing\)"
         return
     }
-    let content = (open --raw $dockerfile)
-    let hash = ($content | hash sha256)
+    # Content hash: Dockerfile text plus the crate sources the image
+    # bakes in (git blob hashes from the index — working-tree clean is
+    # assumed when releasing an image).
+    let dockerfile_hash = (open --raw $dockerfile | hash sha256)
+    let sources = (^git ls-files -s -- Cargo.toml Cargo.lock crates | str trim)
+    let hash = ($"($dockerfile_hash)\n($sources)" | hash sha256)
     let label = "sh.seeds.toolchain.sha256"
     let wanted = $"($label)=($hash)"
     let inspect = (do {
@@ -33,7 +42,9 @@ def build-one [dockerfile: string, tag: string, push: bool] {
         }
     }
     print $"run-images: building ($tag) from ($dockerfile) ..."
-    let context = ($dockerfile | path dirname)
+    # Repo root as context: the Dockerfile COPYs crate source (the root
+    # .dockerignore prunes everything else out of the context upload).
+    let context = "."
     ^docker build --file $dockerfile --tag $tag --label $wanted $context
     print $"run-images: ($tag) built \(sha ($hash | str substring 0..11)\)"
     if $push {

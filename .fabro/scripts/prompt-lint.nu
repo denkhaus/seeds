@@ -5,7 +5,7 @@
 #
 # Checks (.fabro/workflows/{conductor,develop,revisor}/ prompts + graph +
 # toml, plus .fabro/scripts/*.nu):
-#   1. every `fabro-<hex>{4,}` literal resolves in the tracker (`sd show`)
+#   1. every `fabro-<hex>{4,}` literal resolves in the tracker (`seeds show`)
 #      — an unresolvable id is provenance rot. Errors.
 #   2. every `justfile:<line>` anchor must point at a NON-comment line —
 #      a comment line means the anchor drifted (the planner qualitygate
@@ -133,7 +133,7 @@ def main [] {
         let tracker_proj = (tracker-prefix)
         for id in (seed-ids-in $text) {
             let full = $"($tracker_proj)-($id)"
-            let s = (do { sd show $full --format json } | complete)
+            let s = (do { seeds show $full --format json } | complete)
             if $s.exit_code != 0 {
                 $errors = ($errors | append $"($f): seed id '($full)' does not resolve in the tracker")
             }

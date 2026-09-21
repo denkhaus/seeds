@@ -1,0 +1,7 @@
+#!/bin/sh
+# sd-0.5.15 compat reference launcher (crates/seeds/tests/compat.rs).
+# Runs @os-eco/seeds-cli@0.5.15 under bun, mirroring the mise
+# bun-global bin wiring this repo used before the self-hosting cutover
+# (seeds-3791). Provisioning: `bun install` in this directory (package.json
+# pins the version; node_modules is gitignored). Requires bun on PATH.
+exec bun "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/node_modules/@os-eco/seeds-cli/src/index.ts" "$@"

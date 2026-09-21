@@ -1,0 +1,8 @@
+{
+  "name": "sd-reference",
+  "private": true,
+  "description": "Pinned sd-0.5.15 compat reference for crates/seeds/tests/compat.rs — see README.md",
+  "dependencies": {
+    "@os-eco/seeds-cli": "0.5.15"
+  }
+}
