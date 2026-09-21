@@ -17,6 +17,18 @@
 # Requires a ghcr.io docker login with write:packages:
 #   gh auth refresh -s write:packages
 #   gh auth token | docker login ghcr.io -u denkhaus --password-stdin
+#
+# Operator runbook (docker-equipped host — NOT runnable in the dev-loop
+# sandbox; deferred from seeds-b56f):
+#   1. gh auth refresh -s write:packages
+#      gh auth token | docker login ghcr.io -u denkhaus --password-stdin
+#   2. just image-release   # builds .fabro/Dockerfile.toolchain, pushes
+#      # ghcr.io/denkhaus/seeds-toolchain:<sha12> at current HEAD
+#   3. Verify the pushed tag exists and works:
+#      docker run --rm ghcr.io/denkhaus/seeds-toolchain:<sha12> seeds --version
+#   4. Final step is OUTSIDE this repo: the server-managed environment's
+#      pinned toolchain tag must be repinned to the new <sha12> by the
+#      operator (seeds-b56f deferred follow-up from seeds-3791).
 
 def build-one [dockerfile: string, tag: string, push: bool] {
     if not ($dockerfile | path exists) {
