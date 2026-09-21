@@ -1,0 +1,2 @@
+{"$schema":"fabro-journal-v1","run_id":"01M3254P2ADKFQGPHEYZ9GH48D","node":"start","visit":1,"status":"succeeded","ts":"2026-09-21T14:15:28Z","data":{}}
+{"$schema":"fabro-journal-v1","run_id":"01M3254P2ADKFQGPHEYZ9GH48D","node":"select","visit":1,"status":"succeeded","ts":"2026-09-21T14:15:59Z","data":{"painpoints":[],"observations":["137 develop runs listed; 1 selected. ~130 older runs are stale-evidence (version drift) or sandbox-unavailable and remain unrevisable; fabro-repo runs are out of scope for this repo's revisor. No active develop run at selection time."]}}
