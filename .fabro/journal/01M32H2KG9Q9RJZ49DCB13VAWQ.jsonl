@@ -1,0 +1,2 @@
+{"$schema":"fabro-journal-v1","run_id":"01M32H2KG9Q9RJZ49DCB13VAWQ","node":"start","visit":1,"status":"succeeded","ts":"2026-09-21T17:44:03Z","data":{}}
+{"$schema":"fabro-journal-v1","run_id":"01M32H2KG9Q9RJZ49DCB13VAWQ","node":"select","visit":1,"status":"succeeded","ts":"2026-09-21T17:44:36Z","data":{"painpoints":[],"observations":["Selected newest unrevised run on baseline version ff257a89; 1 older run already revised, remaining backlog runs are stale-evidence (version drift e3c92fec) or sandbox-less"]}}
