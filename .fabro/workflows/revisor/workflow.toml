@@ -37,7 +37,7 @@ provider = "zai"
 name = "glm-5.3"
 
 # NO prepare steps: the toolchain environment bakes everything (rust
-# nightly pin, clippy/rustfmt, nextest, just, nu, rg, bun, sd/ml —
+# nightly pin, clippy/rustfmt, nextest, just, nu, rg, bun, seeds/ml —
 # .fabro/Dockerfile.toolchain). Runs start instantly; a prepare no-op
 # check would only burn tester time.
 
