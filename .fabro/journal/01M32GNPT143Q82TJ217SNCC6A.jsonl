@@ -5,3 +5,4 @@
 {"$schema":"fabro-journal-v1","run_id":"01M32GNPT143Q82TJ217SNCC6A","node":"claim_check","visit":1,"status":"succeeded","ts":"2026-09-21T17:38:45Z","data":{}}
 {"$schema":"fabro-journal-v1","run_id":"01M32GNPT143Q82TJ217SNCC6A","node":"implementer","visit":1,"status":"succeeded","ts":"2026-09-21T17:39:38Z","data":{"painpoints":[],"observations":["The `seeds` binary's own `--help` usage line still reads `Usage: sd <command> [options]` (crates/seeds v0.5.15) — a cosmetic inherited-argv0 label from the sd-compat lineage, harmless here but worth a look whenever a prompt is rewritten to key on usage strings."]}}
 {"$schema":"fabro-journal-v1","run_id":"01M32GNPT143Q82TJ217SNCC6A","node":"tester","visit":1,"status":"succeeded","ts":"2026-09-21T17:39:43Z","data":{}}
+{"$schema":"fabro-journal-v1","run_id":"01M32GNPT143Q82TJ217SNCC6A","node":"evidence","visit":1,"status":"succeeded","ts":"2026-09-21T17:39:45Z","data":{}}
