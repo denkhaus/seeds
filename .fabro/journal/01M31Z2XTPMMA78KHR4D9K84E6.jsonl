@@ -2,3 +2,4 @@
 {"$schema":"fabro-journal-v1","run_id":"01M31Z2XTPMMA78KHR4D9K84E6","node":"tracker_guard","visit":1,"status":"succeeded","ts":"2026-09-21T12:29:40Z","data":{}}
 {"$schema":"fabro-journal-v1","run_id":"01M31Z2XTPMMA78KHR4D9K84E6","node":"preflight","visit":1,"status":"succeeded","ts":"2026-09-21T12:29:44Z","data":{}}
 {"$schema":"fabro-journal-v1","run_id":"01M31Z2XTPMMA78KHR4D9K84E6","node":"planner","visit":1,"status":"succeeded","ts":"2026-09-21T12:30:34Z","data":{"painpoints":[],"observations":["Commit a1558d0's subject says 'Fix dup-run-check script to default base to origin/main' but it only touched .seeds/issues.jsonl (seed filing) — no code change; nearly caused a false already-landed adjudication. Preflight anchors flagged mismatch only due to line-wrapped quoting, paths/lines are correct."]}}
+{"$schema":"fabro-journal-v1","run_id":"01M31Z2XTPMMA78KHR4D9K84E6","node":"claim_check","visit":1,"status":"succeeded","ts":"2026-09-21T12:30:37Z","data":{}}
