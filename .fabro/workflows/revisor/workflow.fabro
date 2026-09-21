@@ -91,7 +91,7 @@ digraph Revisor {
         context_allow_keys="revision_findings,journal"
     ]
 
-    // File: deterministic bookkeeping. sd create per finding (English
+    // File: deterministic bookkeeping. seeds create per finding (English
     // seeds, one change each), the revision report doubles as the
     // bookkeeping marker (.fabro/revisions/<run-id>.md — no marker on the
     // base branch = run not yet revised), then git add+commit of exactly
@@ -109,7 +109,7 @@ digraph Revisor {
         // bookkeeping needs no repo memory; inert until fabro-9588.
         project_memory=false,
         preamble_stages_ignore="select,analyze,file",
-        // .seeds hidden from FILE tools too: sd create/list and the git
+        // .seeds hidden from FILE tools too: seeds create/list and the git
         // commit run via shell (the documented escape hatch), so the
         // write-allowlist stays the artifact trees only.
         fs_hide="lib/**,apps/**,docs/**,.seeds/**",
