@@ -48,18 +48,27 @@ def run-base [] {
 def touched-crates [] {
     let base = (run-base).base
     let paths = (git diff --name-only $base | lines | compact)
-    let crate_paths = ($paths | where {|p| $p | str starts-with 'lib/' })
-    if ($crate_paths | is-empty) {
-        return []
-    }
+    let crate_paths = ($paths | where {|p| ($p | str starts-with 'lib/') or ($p | str starts-with 'crates/') })
     # `parse` yields a table PER input string, so `each` would nest the
     # result (list<list<record>> — the run-1 gate crash). flatten first.
+    # crates/<name>/** is this repo's layout (seeds-9482); the lib/... arms
+    # stay for portability of the pattern.
     let crates = ($crate_paths
-        | each {|p| $p | parse --regex '^lib/(?:apps|components|foundation)/(?P<crate>[^/]+)/' }
+        | each {|p| $p | parse --regex '^(?:lib/(?:apps|components|foundation)|crates)/(?P<crate>[^/]+)/' }
         | flatten
         | get -o crate
         | uniq
         | compact)
+    # Loud failure (seeds-9482): an all-Rust diff that derives no crate used
+    # to fall through to "no crates touched" and exit green.
+    let rs_touched = ($paths | where {|p| $p | str ends-with '.rs' } | is-not-empty)
+    if $rs_touched and ($crates | is-empty) {
+        print "gate FAIL: diff touches *.rs files but no workspace crate could be derived (expected lib/... or crates/<name>/... paths)"
+        exit 1
+    }
+    if ($crate_paths | is-empty) {
+        return []
+    }
     let root_touched = ($paths | where {|p|
         ($p in ['Cargo.toml' 'Cargo.lock' 'rust-toolchain.toml'])
     } | is-not-empty)

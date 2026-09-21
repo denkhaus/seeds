@@ -70,20 +70,29 @@ def run-base [] {
 def touched [] {
     let base = (run-base).base
     let paths = (git diff --name-only $base | lines | compact)
-    let crate_paths = ($paths | where {|p| $p | str starts-with 'lib/' })
+    # crates/<name>/** is this repo's layout (seeds-9482); the lib/... arms
+    # stay for portability of the pattern.
+    let crate_paths = ($paths | where {|p| ($p | str starts-with 'lib/') or ($p | str starts-with 'crates/') })
     let crates = ($crate_paths
-        | each {|p| $p | parse --regex '^lib/(?:apps|components|foundation)/(?P<crate>[^/]+)/' }
+        | each {|p| $p | parse --regex '^(?:lib/(?:apps|components|foundation)|crates)/(?P<crate>[^/]+)/' }
         | flatten
         | get -o crate
         | uniq
         | compact)
     let test_crates = ($crate_paths
         | where {|p| is-test-file $p }
-        | each {|p| $p | parse --regex '^lib/(?:apps|components|foundation)/(?P<crate>[^/]+)/' }
+        | each {|p| $p | parse --regex '^(?:lib/(?:apps|components|foundation)|crates)/(?P<crate>[^/]+)/' }
         | flatten
         | get -o crate
         | uniq
         | compact)
+    # Loud failure (seeds-9482): an all-Rust diff that derives no crate used
+    # to fall through to "nothing to verify" and exit green.
+    let rs_touched = ($paths | where {|p| $p | str ends-with '.rs' } | is-not-empty)
+    if $rs_touched and ($crates | is-empty) {
+        print "verify: FAIL diff touches *.rs files but no workspace crate could be derived (expected lib/... or crates/<name>/... paths)"
+        exit 1
+    }
     {code: $crates, tests: $test_crates}
 }
 
