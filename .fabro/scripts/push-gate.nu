@@ -1,6 +1,6 @@
 #!/usr/bin/env nu
 # Push gate for the local iterate/line-watch cycle (user directive
-# 2026-09-17: NEVER push to denkhaus while a pass runs).
+# 2026-09-17: NEVER push to main while a pass runs).
 #
 # Two conditions, both must hold for OPEN:
 #   (a) NO active run on the production server (status.kind not in the
