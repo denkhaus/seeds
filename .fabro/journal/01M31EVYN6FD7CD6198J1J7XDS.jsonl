@@ -2,3 +2,4 @@
 {"$schema":"fabro-journal-v1","run_id":"01M31EVYN6FD7CD6198J1J7XDS","node":"tracker_guard","visit":1,"status":"succeeded","ts":"2026-09-21T07:46:14Z","data":{}}
 {"$schema":"fabro-journal-v1","run_id":"01M31EVYN6FD7CD6198J1J7XDS","node":"preflight","visit":1,"status":"succeeded","ts":"2026-09-21T07:46:18Z","data":{}}
 {"$schema":"fabro-journal-v1","run_id":"01M31EVYN6FD7CD6198J1J7XDS","node":"planner","visit":1,"status":"succeeded","ts":"2026-09-21T07:47:16Z","data":{"painpoints":[],"observations":["seeds-9482 basis verified against current tree: both scripts still use the ported lib/(?:apps|components|foundation)/ regex that matches nothing under crates/; seed body paths and line numbers are accurate","seed blocks seeds-facc, so this claim unblocks follow-on work"]}}
+{"$schema":"fabro-journal-v1","run_id":"01M31EVYN6FD7CD6198J1J7XDS","node":"claim_check","visit":1,"status":"succeeded","ts":"2026-09-21T07:47:18Z","data":{}}
