@@ -20,6 +20,7 @@ use seeds::{Fields, SeedRecord, SeedType, Status, Store};
 use serde_json::{Map, Value, json};
 
 mod args;
+mod dedupe;
 mod helptext;
 mod render;
 mod timeutil;
@@ -92,6 +93,7 @@ fn dispatch(argv: &[String]) -> ExitCode {
         "dep" => run_dep(rest),
         "prime" => run_prime(rest),
         "search" => run_search(rest),
+        "dedupe" => run_dedupe(rest),
         other => {
             eprintln!("error: unknown command '{other}'");
             ExitCode::FAILURE
@@ -124,18 +126,24 @@ fn parsed_or_help(args: &[String], spec: &[OptSpec], help: &str) -> Option<Parse
     }
 }
 
-/// Finds the `.seeds/` store at or above the current directory.
-fn open_store() -> Result<Store, String> {
+/// Finds the `.seeds/` directory at or above the current directory.
+fn find_seeds_dir() -> Result<std::path::PathBuf, String> {
     let mut dir = std::env::current_dir().map_err(|error| error.to_string())?;
     loop {
         let candidate = dir.join(".seeds");
         if candidate.join("config.yaml").is_file() {
-            return Store::open(&candidate).map_err(|error| error.to_string());
+            return Ok(candidate);
         }
         if !dir.pop() {
             return Err("No .seeds directory found (run from the project root)".to_owned());
         }
     }
+}
+
+/// Finds the `.seeds/` store at or above the current directory.
+fn open_store() -> Result<Store, String> {
+    let root = find_seeds_dir()?;
+    Store::open(&root).map_err(|error| error.to_string())
 }
 
 fn json_mode(parsed: &Parsed) -> bool {
@@ -949,4 +957,154 @@ fn run_prime(args: &[String]) -> ExitCode {
         println!("{}", helptext::PRIME_FULL);
     }
     ExitCode::SUCCESS
+}
+
+// ---------------------------------------------------------------------------
+// dedupe (native, beyond sd parity — ADR-0023 additive)
+// ---------------------------------------------------------------------------
+
+/// One file's dedupe outcome for reporting.
+struct DedupeFile {
+    name:          &'static str,
+    duplicates:    Vec<dedupe::Duplicate>,
+    dropped_lines: usize,
+}
+
+impl DedupeFile {
+    fn duplicate_ids(&self) -> usize {
+        self.duplicates.len()
+    }
+
+    fn duplicates_value(&self) -> Value {
+        Value::Array(
+            self.duplicates
+                .iter()
+                .map(|duplicate| {
+                    json!({
+                        "id": duplicate.id,
+                        "count": duplicate.count,
+                        "keptUpdatedAt": duplicate.kept_updated_at,
+                        "droppedUpdatedAts": duplicate.dropped_updated_ats,
+                    })
+                })
+                .collect(),
+        )
+    }
+}
+
+fn run_dedupe(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::DEDUPE_SPEC, helptext::DEDUPE) else {
+        return ExitCode::FAILURE;
+    };
+    let json = json_mode(&parsed);
+    let write = parsed.flags.contains("write");
+    let result = (|| -> Result<Vec<DedupeFile>, CommandError> {
+        let message_of = |text: String| CommandError::new("dedupe", text, json);
+        let root = find_seeds_dir().map_err(&message_of)?;
+        let mut files = Vec::new();
+        for name in dedupe::TRACKER_FILES {
+            let path = root.join(name);
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                continue; // a missing store file is empty, nothing to heal
+            };
+            let lines: Vec<&str> = text
+                .lines()
+                .map(|line| line.trim_end_matches(['\r', '\n']))
+                .filter(|line| !line.is_empty())
+                .collect();
+            let (healed, duplicates) = dedupe::heal_lines(&lines);
+            let dropped_lines = lines.len() - healed.len();
+            if write && !duplicates.is_empty() {
+                let body = format!("{}\n", healed.join("\n"));
+                dedupe::write_atomic(&path, &body).map_err(|source| {
+                    message_of(format!("writing {}: {source}", path.display()))
+                })?;
+            }
+            files.push(DedupeFile {
+                name,
+                duplicates,
+                dropped_lines,
+            });
+        }
+        Ok(files)
+    })();
+    let files = match result {
+        Ok(files) => files,
+        Err(error) => return error.report(),
+    };
+
+    let duplicate_ids: usize = files.iter().map(DedupeFile::duplicate_ids).sum();
+    let dropped_total: usize = files.iter().map(|file| file.dropped_lines).sum();
+    if json {
+        let mut extra = vec![
+            ("write", json!(write)),
+            (
+                "files",
+                Value::Array(
+                    files
+                        .iter()
+                        .map(|file| {
+                            json!({
+                                "file": file.name,
+                                "duplicates": file.duplicates_value(),
+                            })
+                        })
+                        .collect(),
+                ),
+            ),
+            ("duplicateIds", json!(duplicate_ids)),
+        ];
+        if write {
+            extra.push(("droppedLines", json!(dropped_total)));
+            extra.push(("written", json!(duplicate_ids > 0)));
+        }
+        println!("{}", envelope_pretty("dedupe", &extra));
+    } else if write {
+        for file in files.iter().filter(|file| file.dropped_lines > 0) {
+            println!(
+                "{}: dropped {} duplicate lines ({} ids)",
+                file.name,
+                file.dropped_lines,
+                file.duplicate_ids()
+            );
+        }
+        if duplicate_ids == 0 {
+            println!("✓ no duplicate ids found (nothing to write)");
+        } else {
+            println!("✓ healed {duplicate_ids} duplicate ids, dropped {dropped_total} lines");
+        }
+    } else {
+        for file in &files {
+            if file.duplicates.is_empty() {
+                continue;
+            }
+            println!("{}: {} duplicate ids", file.name, file.duplicate_ids());
+            for duplicate in &file.duplicates {
+                let kept = duplicate
+                    .kept_updated_at
+                    .as_deref()
+                    .unwrap_or("(no updatedAt)");
+                let dropped = duplicate
+                    .dropped_updated_ats
+                    .iter()
+                    .map(|value| value.as_deref().unwrap_or("(no updatedAt)"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                println!(
+                    "  {} ×{} kept updatedAt={} dropped: {}",
+                    duplicate.id, duplicate.count, kept, dropped
+                );
+            }
+        }
+        if duplicate_ids == 0 {
+            println!("✓ no duplicate ids found");
+        }
+    }
+    // Report mode is gate-friendly: non-zero exactly when duplicates
+    // remain; `--write` heals by definition and always succeeds.
+    if !write && duplicate_ids > 0 {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
 }

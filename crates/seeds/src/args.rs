@@ -106,6 +106,8 @@ pub(crate) static DEP_ADD_SPEC: &[OptSpec] = &[flag("json")];
 
 pub(crate) static PRIME_SPEC: &[OptSpec] = &[flag("compact"), flag("export"), flag("json")];
 
+pub(crate) static DEDUPE_SPEC: &[OptSpec] = &[flag("write"), flag("json")];
+
 /// The parsed command line: positionals, value options (canonical long
 /// name → value, aliases folded), and boolean flags.
 #[derive(Debug, Default)]

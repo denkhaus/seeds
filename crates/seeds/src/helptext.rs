@@ -30,6 +30,7 @@ Commands:
   unblock <id>      Remove blockers from an issue
   plan              Plan management
   config            Read, write, and inspect .seeds/config.yaml
+  dedupe            Report and heal duplicate ids in .seeds JSONL stores
 
 Options:
   -h, --help        Show help
@@ -323,3 +324,18 @@ sd sync                   # Stage + commit .seeds/
 **Planning:** Use `sd plan` for ambiguous or large work — built-in templates: `feature`, `bug`, `refactor`.
 
 **Before finishing:** `sd close <ids> && sd sync && git push`";
+
+pub(crate) const DEDUPE: &str = "\
+Usage: sd dedupe [options]
+
+Report and heal duplicate record ids in the tracker JSONL stores
+(issues, plans, templates) — a native seeds addition beyond sd parity.
+
+Semantics: one record per id per file; the record with the newest
+updatedAt wins (ties: later line wins); survivors keep first-seen
+order.
+
+Options:
+  --write              Apply the heal in place (atomic temp-file + rename)
+  --json               Output as JSON
+  -h, --help           display help for command";
