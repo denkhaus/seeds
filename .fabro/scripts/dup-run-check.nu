@@ -6,7 +6,7 @@
 #
 # Usage:
 #   nu .fabro/scripts/dup-run-check.nu <seed-id> [<seed-id>...] [--base <ref>] [--self <run-id>]
-#   (default base: origin/denkhaus — the FACTS merge-target branch)
+#   (default base: origin/main — the FACTS merge-target branch)
 #
 # Mechanical classification, no LLM judgment:
 #   - tracker-authoritative: `sd show <id>` status closed -> duplicate,
@@ -206,7 +206,7 @@ def resolve-closing [base, id, self_id] {
      closure: (classify-closure $trailer_run $self_id)}
 }
 
-def main [...ids: string, --base: string = "origin/denkhaus", --self: string] {
+def main [...ids: string, --base: string = "origin/main", --self: string] {
     if ($ids | is-empty) {
         print -e "dup-run-check: no seed id given — usage: nu .fabro/scripts/dup-run-check.nu <seed-id>... [--base <ref>] [--self <run-id>]"
         exit 2
