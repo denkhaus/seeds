@@ -70,6 +70,21 @@ RUN mise exec -- bun install -g \
         @os-eco/mulch-cli@0.10.7 \
     && ml --version
 
+# sd-0.5.15 compat reference (seeds-a9e7): installed globally under the
+# mise bun as `sd-ref` — NEVER `sd` (the PATH `sd` name is retired at
+# the self-hosting cutover, seeds-3791; compat.rs resolves the reference
+# via SEEDS_COMPAT_SD, not PATH). The mv renames bun's bin link so no
+# `sd` binary stays resolvable anywhere on PATH.
+RUN set -eux; \
+    mise exec -- bun install -g @os-eco/seeds-cli@0.5.15; \
+    mv /mise/bun-global/bin/sd /mise/bun-global/bin/sd-ref; \
+    sd-ref --version | grep -qx '0.5.15'; \
+    ! command -v sd
+
+# Point compat.rs at the baked reference by absolute path — no PATH
+# lookups at test time.
+ENV SEEDS_COMPAT_SD=/mise/bun-global/bin/sd-ref
+
 # Self-hosting cutover (seeds-3791): build this repo's own `seeds`
 # binary and install it onto PATH. Build context is the REPO ROOT (see
 # scripts/run-images.nu; the root .dockerignore keeps the context to
@@ -81,6 +96,15 @@ RUN mise exec -- bun install -g \
 # the python3 fix).
 COPY Cargo.toml Cargo.lock /src/
 COPY crates /src/crates
+
+# Warm the bun global cache with the sd-0.5.15 fixture deps (seeds-a9e7)
+# so the gate's test-time `bun install` in the cloned
+# crates/seeds/tests/fixtures/sd-reference costs zero network. The
+# node_modules created here live under /src and are removed with it by
+# the layer below; only the cache persists.
+RUN set -eux; \
+    mise exec -- bun install --cwd /src/crates/seeds/tests/fixtures/sd-reference --frozen-lockfile; \
+    /src/crates/seeds/tests/fixtures/sd-reference/sd --version | grep -qx '0.5.15'
 RUN set -eux; \
     cargo install --path /src/crates/seeds --locked --root /usr/local; \
     seeds --version; \
@@ -97,3 +121,9 @@ RUN set -eux; \
     apt-get install -y --no-install-recommends python3; \
     python3 --version; \
     rm -rf /var/lib/apt/lists/*
+
+# DEPLOY NOTE (seeds-a9e7): after merge the operator runs
+# `just image-release` and repins the environment seeds-toolchain image
+# ref (same procedure as seeds-b56f). Run agents do NOT run
+# image-release; the repinned image is what makes SEEDS_COMPAT_SD and
+# the warmed bun cache ambient.
