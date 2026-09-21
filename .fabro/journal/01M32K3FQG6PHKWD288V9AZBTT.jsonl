@@ -1,0 +1,2 @@
+{"$schema":"fabro-journal-v1","run_id":"01M32K3FQG6PHKWD288V9AZBTT","node":"start","visit":1,"status":"succeeded","ts":"2026-09-21T18:19:29Z","data":{}}
+{"$schema":"fabro-journal-v1","run_id":"01M32K3FQG6PHKWD288V9AZBTT","node":"select","visit":1,"status":"succeeded","ts":"2026-09-21T18:20:13Z","data":{"painpoints":[],"observations":["9 runs already revised; latest 01M32GNPT… covered; backlog of ~131 older runs remains unrevised, all stale-evidence (version drift) or no live sandbox — none revisable until engine provisions fresh analyst sandboxes"]}}
