@@ -17,6 +17,12 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
+      - uses: oven-sh/setup-bun@v2
+      - name: Provision sd-0.5.15 compat reference (fail-hard in gate context)
+        working-directory: crates/seeds/tests/fixtures/sd-reference
+        run: |
+          bun install --frozen-lockfile
+          ./sd --version | grep -q '0.5.15' || { echo "gate FAIL: sd-0.5.15 reference did not answer correctly"; exit 1; }
       - run: cargo +nightly-2026-04-14 fmt --check --all
       - run: cargo +nightly-2026-04-14 clippy --workspace --all-targets -- -D warnings
       - run: cargo nextest run --workspace
