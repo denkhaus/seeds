@@ -5,8 +5,7 @@ seeds v0.5.15 — Git-native issue tracking
 
 Usage: sd <command> [options]
 
-Commands:
-  init              Initialize .seeds/ in current directory
+Commands (implemented in this build):
   create            Create a new issue
   show <id> [ids]   Show one or more issues
   list              List issues with filters
@@ -14,23 +13,13 @@ Commands:
   search <query>    Full-text search title + description
   update <id>       Update issue fields
   close <id> [ids]  Close one or more issues
-  dep               Manage issue dependencies
-  label             Manage issue labels
-  blocked           Show all blocked issues
-  stats             Project statistics
-  sync              Stage and commit .seeds/ changes
-  doctor            Check project health and data integrity
-  tpl               Manage issue templates (molecules)
-  migrate-from-beads  Migrate issues from beads issue tracker
+  dep add           Add an issue dependency (dep remove/list: not yet)
   prime             Output AI agent context
-  onboard           Add seeds section to CLAUDE.md / AGENTS.md
-  upgrade           Upgrade seeds to the latest version from npm
-  completions <shell>  Output shell completion script
-  block <id>        Add a blocker to an issue
-  unblock <id>      Remove blockers from an issue
-  plan              Plan management
-  config            Read, write, and inspect .seeds/config.yaml
   dedupe            Report and heal duplicate ids in .seeds JSONL stores
+
+Unimplemented reference commands (init, label, blocked, stats, sync,
+doctor, tpl, migrate-from-beads, onboard, upgrade, completions, block,
+unblock, plan, config) answer 'not implemented yet' when invoked.
 
 Options:
   -h, --help        Show help
@@ -42,6 +31,28 @@ Options:
   --timing          Show command execution time
 
 Run 'sd <command> --help' for command-specific help.";
+
+/// sd-0.5.15 surface commands this build does NOT implement yet (help
+/// honesty, seeds-25b5): `seeds --help` lists only implemented commands,
+/// and invoking one of these answers with a clear "not implemented yet"
+/// message instead of a generic unknown-command error.
+pub(crate) const PLANNED: &[&str] = &[
+    "init",
+    "label",
+    "blocked",
+    "stats",
+    "sync",
+    "doctor",
+    "tpl",
+    "migrate-from-beads",
+    "onboard",
+    "upgrade",
+    "completions",
+    "block",
+    "unblock",
+    "plan",
+    "config",
+];
 
 pub(crate) const CREATE: &str = "\
 Usage: sd create [options]
@@ -339,3 +350,12 @@ Options:
   --write              Apply the heal in place (atomic temp-file + rename)
   --json               Output as JSON
   -h, --help           display help for command";
+
+/// The `sd prime --json` sections beyond the five core ones (mode,
+/// title, contextRecovery, closeProtocol, rules), captured verbatim
+/// from sd 0.5.15 — pinned by the differential battery (seeds-25b5).
+pub(crate) const PRIME_JSON_FULL_EXTRA: &str = r#"{"commandGroups":[{"name":"Finding Work","commands":[{"command":"sd ready","description":"Show issues ready to work (no blockers)"},{"command":"sd list --status=open","description":"All open issues"},{"command":"sd list --status=in_progress","description":"Your active work"},{"command":"sd show <id> [<id2> ...]","description":"Detailed issue view; multi-id shows each separated by a divider (`--json` returns `issues: [...]`)"}]},{"name":"Creating & Updating","commands":[{"command":"sd create --title=\"...\" --type=task|bug|feature|epic --priority=2","description":"New issue\n  - Priority: 0-4 or P0-P4 (0=critical, 2=medium, 4=backlog)"},{"command":"sd update <id> --status=in_progress","description":"Claim work"},{"command":"sd update <id> --assignee=username","description":"Assign to someone"},{"command":"sd close <id>","description":"Mark complete"},{"command":"sd close <id1> <id2> ...","description":"Close multiple issues at once"}]},{"name":"Dependencies & Blocking","commands":[{"command":"sd dep add <issue> <depends-on>","description":"Add dependency"},{"command":"sd dep remove <issue> <depends-on>","description":"Remove dependency"},{"command":"sd blocked","description":"Show all blocked issues"}]},{"name":"Labels","commands":[{"command":"sd label add <id> bug ui","description":"Add labels to an issue"},{"command":"sd label remove <id> bug","description":"Remove labels"},{"command":"sd label list <id>","description":"List labels on an issue"},{"command":"sd label list-all","description":"Show all labels in project"},{"command":"sd list --label=bug","description":"Filter by label (AND, comma-separated)"},{"command":"sd list --label-any=bug,ui","description":"Filter by label (OR)"},{"command":"sd list --unlabeled","description":"Issues with no labels"},{"command":"sd create --title=\"...\" --labels=bug,ui","description":"Create with labels"}]},{"name":"Sync & Project Health","commands":[{"command":"sd sync","description":"Stage and commit .seeds/ changes"},{"command":"sd sync --status","description":"Check without committing"},{"command":"sd stats","description":"Project statistics"},{"command":"sd doctor","description":"Check for data integrity issues"}]},{"name":"Planning","notes":["Use `sd plan` when work is large or ambiguous enough to benefit from structured decomposition. The plan spawns one child seed per step; `step.blocks` uses forward semantics (step i with `blocks: [j]` means step i blocks step j). Each step accepts an optional `labels: string[]` field (normalized lowercase/trim/dedup) that flows to the spawned child or merges additively into an adopted seed — useful for tagging agent-spawned children (e.g. `\"labels\": [\"nightwatch\"]`) without follow-up `sd label add` calls. For small, well-scoped tasks, just `sd create` directly."],"commands":[{"command":"sd plan templates","description":"List built-in templates (`feature`, `bug`, `refactor`) plus custom ones"},{"command":"sd plan prompt <seed-id>","description":"Emit prompt JSON for the LLM to fill"},{"command":"sd plan submit <seed-id> --plan <file>","description":"Validate + spawn children"},{"command":"sd plan show <pl-id>","description":"Sections, children, nested sub-plans"},{"command":"sd plan create <seed-id>","description":"Adopt-only plan (zero spawned children); populate via 'sd plan adopt' + 'sd plan reorder'"},{"command":"sd plan adopt <pl-id> <seed-id...> [--step|--at|--before|--after]","description":"Adopt existing seeds into a plan; --at/--before/--after control children position"},{"command":"sd plan reorder <pl-id> <seed-id...>","description":"Set the exact plan.children order (permutation of current children)"},{"command":"sd plan edit <id> [--name|--section <n> <t>|--step <i> --title/--priority/--type]","description":"In-place field edits; bumps revision. Structural changes still need --overwrite."},{"command":"sd plan outcome <pl-id> --result success|partial|failure","description":"Storage-only outcome"},{"command":"sd plan review <pl-id> --by <name>","description":"Optional reviewer (informational)"}]}],"workflows":[{"name":"Starting work","commands":["sd ready                              # Find available work","sd show <id>                          # Review issue details","sd update <id> --status=in_progress   # Claim it"]},{"name":"Completing work","commands":["sd close <id1> <id2> ...    # Close all completed issues at once","sd sync                     # Stage + commit .seeds/","git push                    # Push to remote"]},{"name":"Creating dependent work","commands":["sd create --title=\"Implement feature X\" --type=feature","sd create --title=\"Write tests for X\" --type=task","sd dep add <test-id> <feature-id>   # Tests depend on feature"]}]}"#;
+
+/// The compact-mode `sd prime --compact --json` sections, captured
+/// verbatim from sd 0.5.15 (a different section set, not a subset).
+pub(crate) const PRIME_JSON_COMPACT: &str = r#"{"mode":"compact","title":"Seeds Quick Reference","commands":[{"command":"sd ready","description":"Find unblocked work"},{"command":"sd show <id> [id...]","description":"View one or more issues"},{"command":"sd create --title \"...\"","description":"Create issue (--type, --priority)"},{"command":"sd update <id> --status in_progress","description":"Claim work"},{"command":"sd close <id>","description":"Complete work"},{"command":"sd dep add <a> <b>","description":"a depends on b"},{"command":"sd blocked","description":"Show blocked issues"},{"command":"sd label add <id> <l...>","description":"Add labels"},{"command":"sd list --label=bug","description":"Filter by label"},{"command":"sd plan prompt <seed>","description":"Plan large/ambiguous work; spawns child seeds"},{"command":"sd plan submit <seed> --plan <file>","description":"Submit + spawn children"},{"command":"sd sync","description":"Stage + commit .seeds/"}],"planningNote":"**Planning:** Use `sd plan` for ambiguous or large work — built-in templates: `feature`, `bug`, `refactor`.","closingNote":"**Before finishing:** `sd close <ids> && sd sync && git push`"}"#;

@@ -11,6 +11,49 @@ mechanism. The CLI surface (`seeds create/show/list/ready/update/close/dep/
 prime/search`) mirrors the reference tool until this repo's own line
 replaces it (self-hosting cutover, ADR-0023 in denkhaus/fabro).
 
+## CLI surface contract
+
+The `seeds` binary mirrors the reference CLI command-for-command where
+the reference is the product: flags, JSON envelope shapes
+(`{success, command, …}` incl. `count` and show's `results`/`errors`
+arrays), filter and limit semantics, exit codes, and written tracker
+state are pinned by the live differential battery
+(`crates/seeds/tests/differential.rs`) against the provisioned sd-0.5.15
+reference. Provisioning lives in `crates/seeds/tests/fixtures/sd-reference`
+(see its README); the gate provisions it (`scripts/qualitygate.nu`,
+`scripts/verify.nu`) — a missing reference FAILS the gate there, while
+plain local `cargo nextest` runs keep the skip-with-note. The battery's
+case list is driven by one `IMPLEMENTED_COMMANDS` matrix, so every
+future command inherits differential coverage by convention.
+
+### DEVIATIONS
+
+Deliberate divergences from the reference — each documented here and
+carrying its own expectation, never a silent split:
+
+- **Help honesty:** `seeds --help` lists only implemented commands;
+  unimplemented-but-planned reference commands (`init`, `label`,
+  `blocked`, `stats`, `sync`, `doctor`, `tpl`, `migrate-from-beads`,
+  `onboard`, `upgrade`, `completions`, `block`, `unblock`, `plan`,
+  `config`) answer a clear `not implemented yet` message instead of the
+  reference's real implementations. Same for `dep remove` / `dep list`.
+- **show's `--json` vs `--format json` error quirk (pinned, not
+  diverged):** for a single missing id the reference answers a failure
+  envelope under `--json` but a plain stderr `Error: …` under
+  `--format json` — this build reproduces both forms exactly.
+- **stdout JSON key order:** `show`'s issue objects follow the store's
+  canonical key order; the reference's projection moves
+  `labels`/`assignee` ahead of the timestamps. Parsed content is
+  identical (the battery compares parsed JSON, not formatting).
+- **Exit codes:** no divergence observed on the covered surface — both
+  binaries exit 1 on every error path (including show's partial
+  multi-id failure envelope).
+- **Canonical write order:** no divergence observed — both writers emit
+  identical `issues.jsonl` bytes for every covered mutation (volatile
+  timestamps aside).
+- **doctor heal:** not ported; the native `seeds dedupe` (report +
+  `--write`) is this repo's integrity tool beyond parity.
+
 Format credit: [jayminwest/seeds](https://github.com/jayminwest/seeds) —
 this repository is an independent implementation of that format, not a fork.
 

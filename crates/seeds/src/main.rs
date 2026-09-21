@@ -95,7 +95,18 @@ fn dispatch(argv: &[String]) -> ExitCode {
         "search" => run_search(rest),
         "dedupe" => run_dedupe(rest),
         other => {
-            eprintln!("error: unknown command '{other}'");
+            // Help honesty (seeds-25b5): planned sd-parity commands
+            // answer with a clear "not implemented yet", not a generic
+            // unknown-command error.
+            if helptext::PLANNED.contains(&other) {
+                eprintln!(
+                    "error: command '{other}' is not implemented yet (planned \
+                     sd-0.5.15 parity) — run 'seeds --help' for the \
+                     implemented commands"
+                );
+            } else {
+                eprintln!("error: unknown command '{other}'");
+            }
             ExitCode::FAILURE
         }
     }
@@ -318,43 +329,104 @@ fn run_show(args: &[String]) -> ExitCode {
     let Some(parsed) = parsed_or_help(args, args::SHOW_SPEC, helptext::SHOW) else {
         return ExitCode::FAILURE;
     };
-    let json = json_mode(&parsed);
-    let result = (|| -> Result<Vec<SeedRecord>, CommandError> {
-        if parsed.positionals.is_empty() {
-            return Err(CommandError::new(
-                "show",
-                "usage: sd show <id> [ids...]",
-                json,
-            ));
-        }
-        let store = open_store().map_err(|message| CommandError::new("show", message, json))?;
-        let mut records = Vec::with_capacity(parsed.positionals.len());
-        for id in &parsed.positionals {
-            let record = store
-                .issue(id)
-                .ok_or_else(|| CommandError::new("show", format!("Issue not found: {id}"), json))?;
-            records.push(record.clone());
-        }
-        Ok(records)
-    })();
-    match result {
-        Ok(records) => {
-            if json {
-                if records.len() == 1 {
-                    let issue = issue_value(&records[0]);
-                    println!("{}", envelope_pretty("show", &[("issue", issue)]));
-                } else {
-                    let issues: Vec<Value> = records.iter().map(issue_value).collect();
-                    println!("{}", envelope_pretty("show", &[("issues", json!(issues))]));
-                }
-            } else {
-                let text = render::show_text(&records, render_mode(&parsed));
-                print!("{text}");
-            }
-            ExitCode::SUCCESS
-        }
-        Err(error) => error.report(),
+    if parsed.positionals.is_empty() {
+        // sd: a usage error on stderr, no envelope — in every mode.
+        eprintln!("error: missing required argument 'id'");
+        return ExitCode::FAILURE;
     }
+    let json = json_mode(&parsed);
+    // The reference's show quirk (DEVIATIONS-pinned, seeds-25b5): for a
+    // SINGLE missing id, `--json` answers a failure envelope while
+    // `--format json` reports on stderr — the alias is not equivalent
+    // there. Every show error path exits 1.
+    let json_flag = parsed.flags.contains("json");
+    let store = match open_store() {
+        Ok(store) => store,
+        Err(message) => {
+            if json {
+                let error = CommandError::new("show", message, true);
+                return error.report();
+            }
+            eprintln!("Error: {message}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let mut found = Vec::with_capacity(parsed.positionals.len());
+    let mut missing = Vec::new();
+    for id in &parsed.positionals {
+        match store.issue(id) {
+            Some(record) => found.push(record.clone()),
+            None => missing.push(id.clone()),
+        }
+    }
+    let not_found = |id: &str| format!("Issue not found: {id}");
+    if json {
+        let issues: Vec<Value> = found.iter().map(issue_value).collect();
+        let results: Vec<Value> = found
+            .iter()
+            .map(|record| json!({ "issue": issue_value(record) }))
+            .collect();
+        if missing.is_empty() {
+            if found.len() == 1 {
+                println!(
+                    "{}",
+                    envelope_pretty("show", &[("issue", issues[0].clone())])
+                );
+            } else {
+                println!(
+                    "{}",
+                    envelope_pretty("show", &[
+                        ("issues", json!(issues)),
+                        ("results", json!(results)),
+                    ])
+                );
+            }
+            return ExitCode::SUCCESS;
+        }
+        if found.is_empty() && missing.len() == 1 {
+            // Single missing id: envelope only for the `--json` form.
+            if json_flag {
+                let error = CommandError::new("show", not_found(&missing[0]), true);
+                return error.report();
+            }
+            eprintln!("Error: {}", not_found(&missing[0]));
+            return ExitCode::FAILURE;
+        }
+        // Multi-show with missing ids: a partial failure envelope with
+        // per-id errors; every error path exits 1.
+        let errors: Vec<Value> = missing
+            .iter()
+            .map(|id| json!({ "id": id, "error": not_found(id) }))
+            .collect();
+        let mut failure = Map::new();
+        failure.insert("success".to_owned(), Value::Bool(false));
+        failure.insert("command".to_owned(), json!("show"));
+        failure.insert("issues".to_owned(), json!(issues));
+        failure.insert("results".to_owned(), json!(results));
+        failure.insert("errors".to_owned(), json!(errors));
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&Value::Object(failure))
+                .expect("envelope always serializes")
+        );
+        return ExitCode::FAILURE;
+    }
+    if missing.is_empty() {
+        let text = render::show_text(&found, render_mode(&parsed));
+        print!("{text}");
+        return ExitCode::SUCCESS;
+    }
+    if found.is_empty() && missing.len() == 1 {
+        eprintln!("Error: {}", not_found(&missing[0]));
+        return ExitCode::FAILURE;
+    }
+    // Partial multi-show: the found records, then a per-missing ✗ line.
+    let text = render::show_text(&found, render_mode(&parsed));
+    print!("{text}");
+    for id in &missing {
+        eprintln!("✗ {id}: {}", not_found(id));
+    }
+    ExitCode::FAILURE
 }
 
 // ---------------------------------------------------------------------------
@@ -594,7 +666,14 @@ fn run_query(
         let store = open_store().map_err(|message| CommandError::new(command, message, json))?;
         let query = parsed.positionals.first().cloned();
         if command == "search" && query.is_none() {
-            return Err(CommandError::new(command, "usage: sd search <query>", json));
+            // sd reports a missing search argument on stderr without a
+            // JSON envelope, even in --format json mode (differential
+            // battery, seeds-25b5).
+            return Err(CommandError::new(
+                command,
+                "missing required argument 'query'",
+                false,
+            ));
         }
         let mut selected = filters.apply(&store, command == "ready");
         if command == "search" {
@@ -616,7 +695,10 @@ fn run_query(
             let mode = render_mode(&parsed);
             if json {
                 let issues: Vec<Value> = records.iter().map(issue_value).collect();
-                let mut extra: Vec<(&str, Value)> = vec![("issues", json!(issues))];
+                // The reference's query envelopes end with the result
+                // count (pinned by the differential battery, seeds-25b5).
+                let mut extra: Vec<(&str, Value)> =
+                    vec![("issues", json!(issues)), ("count", json!(issues.len()))];
                 if let Some(query) = &query {
                     extra.insert(0, ("query", json!(query)));
                 }
@@ -844,7 +926,10 @@ fn run_dep(args: &[String]) -> ExitCode {
             ExitCode::SUCCESS
         }
         Some(other) => {
-            eprintln!("error: unknown dep subcommand '{other}' (this build implements `dep add`)");
+            eprintln!(
+                "error: dep subcommand '{other}' is not implemented yet \
+                 (this build implements `dep add`)"
+            );
             ExitCode::FAILURE
         }
     }
@@ -927,29 +1012,67 @@ fn run_prime(args: &[String]) -> ExitCode {
     };
     if json_mode(&parsed) {
         let compact = parsed.flags.contains("compact");
-        let sections = json!({
-            "mode": if compact { "compact" } else { "full" },
-            "title": "Seeds Workflow Context",
-            "contextRecovery": "Run `sd prime` after compaction, clear, or new session",
-            "closeProtocol": {
-                "warning": "Before saying \"done\" or \"complete\", you MUST run this checklist:",
-                "steps": [
-                    "Close completed issues:    sd close <id1> <id2> ...",
-                    "File issues for remaining:  sd create --title \"...\"",
-                    "Run quality gates:          bun test && bun run lint && bun run typecheck",
-                    "Sync and push:              sd sync && git push",
-                    "Verify:                     git status (must show \"up to date with origin\")"
-                ],
-                "footer": "**NEVER skip this.** Work is not done until pushed."
-            },
-            "rules": [
-                "**Default**: Use seeds for ALL task tracking (`sd create`, `sd ready`, `sd close`)",
-                "**Prohibited**: Do NOT use TodoWrite, TaskCreate, or markdown files for task tracking",
-                "**Workflow**: Create issues BEFORE writing code, mark in_progress when starting",
-                "Git workflow: run `sd sync` at session end"
-            ]
-        });
-        println!("{}", envelope_pretty("prime", &[("sections", sections)]));
+        // The reference's JSON sections (differential-pinned,
+        // seeds-25b5): full mode is the five core sections PLUS the
+        // captured commandGroups/workflows; compact mode is a different
+        // section set entirely.
+        let sections = if compact {
+            serde_json::from_str::<Value>(helptext::PRIME_JSON_COMPACT)
+                .expect("captured compact sections are valid JSON")
+        } else {
+            let mut sections = json!({
+                "mode": "full",
+                "title": "Seeds Workflow Context",
+                "contextRecovery": "Run `sd prime` after compaction, clear, or new session",
+                "closeProtocol": {
+                    "warning": "Before saying \"done\" or \"complete\", you MUST run this checklist:",
+                    "steps": [
+                        "Close completed issues:    sd close <id1> <id2> ...",
+                        "File issues for remaining:  sd create --title \"...\"",
+                        "Run quality gates:          bun test && bun run lint && bun run typecheck",
+                        "Sync and push:              sd sync && git push",
+                        "Verify:                     git status (must show \"up to date with origin\")"
+                    ],
+                    "footer": "**NEVER skip this.** Work is not done until pushed."
+                },
+                "rules": [
+                    "**Default**: Use seeds for ALL task tracking (`sd create`, `sd ready`, `sd close`)",
+                    "**Prohibited**: Do NOT use TodoWrite, TaskCreate, or markdown files for task tracking",
+                    "**Workflow**: Create issues BEFORE writing code, mark in_progress when starting",
+                    "Git workflow: run `sd sync` at session end"
+                ]
+            });
+            let extra = serde_json::from_str::<Value>(helptext::PRIME_JSON_FULL_EXTRA)
+                .expect("captured extra sections are valid JSON");
+            let Value::Object(map) = &mut sections else {
+                unreachable!("sections is an object");
+            };
+            let Value::Object(extra) = extra else {
+                unreachable!("captured extra sections are an object");
+            };
+            for (key, value) in extra {
+                map.insert(key, value);
+            }
+            sections
+        };
+        // The reference's envelope carries BOTH the structured sections
+        // and the raw template text under `content` (full or compact
+        // template matching the mode, trailing newline included).
+        let content = format!(
+            "{}\n",
+            if compact {
+                helptext::PRIME_COMPACT
+            } else {
+                helptext::PRIME_FULL
+            }
+        );
+        println!(
+            "{}",
+            envelope_pretty("prime", &[
+                ("sections", sections),
+                ("content", json!(content)),
+            ])
+        );
     } else if parsed.flags.contains("compact") {
         println!("{}", helptext::PRIME_COMPACT);
     } else {
