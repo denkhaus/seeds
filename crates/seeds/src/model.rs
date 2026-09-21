@@ -155,7 +155,13 @@ impl SeedRecord {
             field:   "id",
             message: "missing or not a string".to_owned(),
         })?;
-        let id = SeedId::try_new(id_text)?;
+        // Read-path parity with sd 0.5.15: any non-empty id loads (the
+        // reference validates nothing on read); strictness lives on the
+        // generation side only.
+        let id = SeedId::read(id_text).ok_or_else(|| RecordError::Field {
+            field:   "id",
+            message: "empty".to_owned(),
+        })?;
 
         str_field(&fields, "title").ok_or_else(|| RecordError::Field {
             field:   "title",

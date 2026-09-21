@@ -11,7 +11,7 @@
 # renders inline in the implementer's ## Context section.
 #
 # Best-effort semantics (the bounce must never be stranded): every internal
-# failure — sd unavailable, unreadable tail — prints a brace-free warning and
+# failure — seeds unavailable, unreadable tail — prints a brace-free warning and
 # exits 0 with empty hits. Warnings MUST stay brace-free: the engine merges
 # stderr into the captured stdout (`exec 2>&1`) and the output_schema
 # validator scans for balanced JSON objects, so braces in warnings would
@@ -107,16 +107,16 @@ def main []: nothing -> nothing {
         return
     }
 
-    if (which sd | is-empty) {
-        warn "sd not on PATH — no known-bug enrichment"
+    if (which seeds | is-empty) {
+        warn "seeds not on PATH — no known-bug enrichment"
         empty_hits
         return
     }
 
-    let res = (do { sd list --format json --limit 200 } | complete)
+    let res = (do { seeds list --format json --limit 200 } | complete)
     if $res.exit_code != 0 {
         let detail = ($res.stderr | str trim | str replace --all '{' '' | str replace --all '}' '')
-        warn $"sd list unavailable: ($detail) — no known-bug enrichment"
+        warn $"seeds list unavailable: ($detail) — no known-bug enrichment"
         empty_hits
         return
     }

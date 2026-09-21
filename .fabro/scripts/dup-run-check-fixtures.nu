@@ -1,7 +1,7 @@
 #!/usr/bin/env nu
 # Fixture battery for dup-run-check.nu (fabro-4b76): exercises the closure
 # identity (--self) semantics end-to-end against a synthetic git repo — no
-# /tmp sd wrappers, no dependence on the live tracker or the real
+# /tmp seeds wrappers, no dependence on the live tracker or the real
 # merge-target branch. Fixture seed ids (seeds-fix*) do not exist in the
 # tracker, so the tracker arm degrades to `unknown` and the verdicts below
 # are driven purely by the landed-PR history the battery fabricates —
@@ -92,15 +92,15 @@ def preflight [script: path, candidates: string, self: string] {
     $out.stdout | lines | last | from json
 }
 
-# Read one seed from the scratch seeds tracker via sd (parsed issue
+# Read one seed from the scratch seeds tracker via seeds (parsed issue
 # record; null on failure) — never parse .seeds/issues.jsonl by hand.
-def sd-stat [id: string] {
-    let r = (do { sd show $id --format json } | complete)
+def seeds-stat [id: string] {
+    let r = (do { seeds show $id --format json } | complete)
     if $r.exit_code != 0 { null } else { $r.stdout | from json | get issue }
 }
 
 # Fabricate one scratch-tracker row: the exact compact-JSON-per-line
-# shape sd itself writes (verified against sd init/create output), for
+# shape seeds itself writes (verified against seeds init/create output), for
 # the (l)-(n) live close-arm cases.
 def fixture-row [id: string, status: string] {
     # concat, not $"($id)" interpolation: the literal parentheses around
@@ -292,7 +292,7 @@ def main [] {
         expect 'j: merged run branch never marks' $j2row.in_flight false
 
         # (l)-(n) fabro-83df report-only: scratch seeds tracker in the
-        # work clone (CWD) — sd resolves .seeds relative to CWD. The
+        # work clone (CWD) — seeds resolves .seeds relative to CWD. The
         # script must NEVER write it: duplicates of every shape route
         # "Preflight done" as advisory verdicts and the rows stay
         # untouched (the planner owns decisions and closures).
@@ -316,8 +316,8 @@ def main [] {
         expect 'l: legend maps duplicate' ($lrep.legend.duplicate | str contains 'merge-target base') true
         expect 'l: legend maps clean' ($lrep.legend.clean | str contains 'no landed implementation') true
         expect 'l: legend maps degraded' ($lrep.legend.degraded | str contains 'check failed') true
-        expect 'l: clean top stays open' (sd-stat 'seeds-fix003').status 'open'
-        expect 'l: non-top duplicate stays open' (sd-stat 'seeds-fix010').status 'open'
+        expect 'l: clean top stays open' (seeds-stat 'seeds-fix003').status 'open'
+        expect 'l: non-top duplicate stays open' (seeds-stat 'seeds-fix010').status 'open'
 
         # (m) ambiguous duplicate: fix009 is tracker-closed with no
         # landed implementation and no closing evidence — verdict
@@ -328,7 +328,7 @@ def main [] {
         let mrep = ($m.context_updates | get 'output.preflight')
         expect 'm: ambiguous duplicate verdict reported' ($mrep.candidates | first | get verdict) 'duplicate'
         expect 'm: ambiguous duplicate sha null' ($mrep.candidates | first | get sha) null
-        let mrow = (sd-stat 'seeds-fix009')
+        let mrow = (seeds-stat 'seeds-fix009')
         expect 'm: tracker description untouched' $mrow.description 'fixture body (seeds-fix009)'
         expect 'm: no spurious closeReason' ($mrow | get -o closeReason | default null) null
         expect 'm: status still closed (fixture state)' $mrow.status 'closed'
@@ -341,7 +341,7 @@ def main [] {
         expect 'n: top duplicate routes to planner' $n.preferred_next_label 'Preflight done'
         let nrep = ($n.context_updates | get 'output.preflight')
         expect 'n: duplicate sha still reported' (($nrep.candidates | first | get sha | default null | str length) >= 7) true
-        expect 'n: tracker shows top seed still open' (sd-stat 'seeds-fix012').status 'open'
+        expect 'n: tracker shows top seed still open' (seeds-stat 'seeds-fix012').status 'open'
 
         # (k) fabro-9ec3 arm 3: schema ban semantics + graph wiring.
         let wf = ($FIXTURES_DIR | path join '..' 'workflows' 'develop')

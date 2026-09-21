@@ -2,6 +2,9 @@
 //!
 //! Seed ids are `<project>-<hex4>` where `<hex4>` is exactly four lowercase
 //! hex digits; plan ids are `pl-<hex4>` and template ids `tpl-<hex4>`.
+//! That shape is the generation-side contract (ids we mint); the READ
+//! path accepts any non-empty id — parity with sd 0.5.15, which
+//! validates nothing when loading a store (see [`SeedId::read`]).
 
 use std::fmt;
 use std::str::FromStr;
@@ -41,6 +44,21 @@ impl SeedId {
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+
+    /// Constructs a seed id as read from a store record.
+    ///
+    /// Read-path parity with the reference (sd 0.5.15): the reference
+    /// validates nothing when loading ids — `seeds-fix003`, `nohyphen`,
+    /// even `seeds--` all list (probed against the pinned fixture
+    /// reference, seeds-3791). Only emptiness is rejected. Ids this
+    /// codebase generates are always `<project>-<hex4>` ([`Self::try_new`]
+    /// keeps that strict contract for generation-side validation).
+    ///
+    /// Returns `None` for an empty id.
+    #[must_use]
+    pub fn read(value: &str) -> Option<Self> {
+        (!value.is_empty()).then(|| Self(value.to_owned()))
     }
 }
 
@@ -148,6 +166,17 @@ mod tests {
                 "{bad}"
             );
         }
+    }
+
+    #[test]
+    fn read_path_accepts_any_non_empty_id() {
+        // sd 0.5.15 validates nothing on load (probed against the
+        // fixture reference): the reader must agree on every record.
+        for shape in ["seeds-fix003", "nohyphen", "seeds--", "seeds-a1b2c3", "x"] {
+            let id = SeedId::read(shape).expect("any non-empty id loads");
+            assert_eq!(id.as_str(), shape);
+        }
+        assert_eq!(SeedId::read(""), None, "only emptiness is rejected");
     }
 
     #[test]

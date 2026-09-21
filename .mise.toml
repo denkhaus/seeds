@@ -1,16 +1,20 @@
 # Local development toolset, managed by mise (mirrors the toolchain image
 # .fabro/Dockerfile.toolchain). The Rust toolchain is owned by rustup
-# (pinned nightly-2026-04-14, see AGENTS.md).
+# (pinned nightly-2026-04-14, see AGENTS.md). The tracker is this repo's
+# own `seeds` binary (self-hosting cutover, seeds-3791): install it with
+# `cargo install --path crates/seeds` — rustup's cargo bin dir is already
+# on PATH, so no mise entry is needed.
 
 [tools]
 just = "1.58.0"
 bun = "1.4.0"
 "aqua:nushell/nushell" = "0.115.0"
 "aqua:BurntSushi/ripgrep" = "15.2.0"
-# Bootstrap phase (ADR-0023): jayminwest CLIs — the read+write compatible
-# target this repo reimplements; replaced by this repo's own binary at the
-# self-hosting cutover.
-"npm:@os-eco/seeds-cli" = "0.5.15"
+# Bootstrap phase remainder (ADR-0023): the jayminwest mulch CLI, the
+# read+write compatible expertise target, until the mulch phase replaces
+# it. The seeds CLI (@os-eco/seeds-cli) was dropped at the
+# self-hosting cutover (seeds-3791); the sd-0.5.15 compat reference for
+# the round-trip suite lives in crates/seeds/tests/fixtures/sd-reference.
 "npm:@os-eco/mulch-cli" = "0.10.7"
 
 [settings.npm]

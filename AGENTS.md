@@ -18,26 +18,29 @@ the deciding record is ADR-0023 in denkhaus/fabro.
 
 The Rust toolchain is owned by rustup (pinned `nightly-2026-04-14`);
 mise owns just/bun/nushell/ripgrep and (bootstrap phase) the jayminwest
-sd/ml CLIs.
+ml CLI. The tracker is this repo's own `seeds` binary (self-hosting
+cutover, seeds-3791): `cargo install --path crates/seeds` puts it on
+PATH via rustup's cargo bin; the toolchain image bakes it in.
 
 ## Issue tracking (Seeds)
 
-Work is tracked in Seeds (`sd` CLI, git-native in `.seeds/`), not GitHub
-Issues. Seed ids carry the prefix `seeds-`.
+Work is tracked in Seeds (the `seeds` binary, built from `crates/seeds`,
+git-native in `.seeds/`), not GitHub Issues. Seed ids carry the prefix
+`seeds-`.
 
-- **Session start:** run `sd prime`.
+- **Session start:** run `seeds prime`.
 - **Filers file UNASSIGNED.** Agents that file seeds create them without
   `--assignee` — new seeds land unassigned in the backlog.
 - **The develop line only works on seeds assigned to `fabro`.** The
-  planner lists candidates with `sd ready --assignee fabro --limit 200`.
+  planner lists candidates with `seeds ready --assignee fabro --limit 200`.
   Assignment is the user's ownership switch (veto: reassign or unassign).
-- **Claim:** `sd update <id> --status in_progress --assignee fabro`.
+- **Claim:** `seeds update <id> --status in_progress --assignee fabro`.
 - **Close:** never by hand from a run — the deterministic Closeout step
   closes approved seeds; the planner's one exception is the superseded
   close with a mandatory `--reason`.
-- Supported read path: `sd show <id> --format json`. Never parse
+- Supported read path: `seeds show <id> --format json`. Never parse
   `.seeds/issues.jsonl` by hand.
-- **Never parse raw tracker files; never invent sd flags.**
+- **Never parse raw tracker files; never invent seeds flags.**
 
 ## Expertise (Mulch)
 
@@ -60,7 +63,8 @@ them. Run PRs integrate into `main` — there is no upstream mirror.
 
 `.fabro/`, `.seeds/`, `.mulch/`, `scripts/`, and `justfile` are fs_hide
 bound for file tools in runs; the shell reads and writes them normally
-(grep, sed, cat, python3 heredocs), and `sd`, `ml`, `just` keep working.
+(grep, sed, cat, python3 heredocs), and `seeds`, `ml`, `just` keep
+working.
 
 ## Clone layout
 

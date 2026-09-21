@@ -36,10 +36,10 @@ RUN set -eux; \
         > /root/.cargo/config.toml
 
 # Workspace toolset via mise: nushell (loop scripts), just (gate recipes),
-# ripgrep; sd/ml ride the mise bun into BUN_INSTALL. Tool-agnostic
-# layering (ADR-0017 in the fabro repo): the engine's clone contract
-# places this repository at /repos/denkhaus/seeds with a /workspace/seeds
-# execution symlink — the trust path pins exactly that.
+# ripgrep. Tool-agnostic layering (ADR-0017 in the fabro repo): the
+# engine's clone contract places this repository at /repos/denkhaus/seeds
+# with a /workspace/seeds execution symlink — the trust path pins exactly
+# that.
 ARG MISE_VERSION=v2026.8.10
 ENV MISE_DATA_DIR=/mise \
     MISE_TRUSTED_CONFIG_PATHS=/repos/denkhaus/seeds \
@@ -60,15 +60,31 @@ RUN set -eux; \
     && just --version \
     && rg --version
 
-# Repo agent tooling: AGENTS.md asks agents to run `sd prime` / `ml prime`
-# at session start. Bootstrap phase (ADR-0023): pinned jayminwest CLIs —
-# read+write compatible target of this repo's own product. Installed
-# through the mise bun into BUN_INSTALL (lab exemplar path).
+# Repo agent tooling: AGENTS.md asks agents to run `seeds prime` / `ml
+# prime` at session start. Mulch keeps the bootstrap-phase jayminwest CLI
+# (ADR-0023; read+write compatible target until the mulch phase),
+# installed through the mise bun into BUN_INSTALL. The seeds tracker CLI
+# was dropped here at the self-hosting cutover (seeds-3791): the tracker
+# is this repo's own Rust binary, built from source below.
 RUN mise exec -- bun install -g \
-        @os-eco/seeds-cli@0.5.15 \
         @os-eco/mulch-cli@0.10.7 \
-    && sd --version \
     && ml --version
+
+# Self-hosting cutover (seeds-3791): build this repo's own `seeds`
+# binary and install it onto PATH. Build context is the REPO ROOT (see
+# scripts/run-images.nu; the root .dockerignore keeps the context to
+# Cargo.toml, Cargo.lock, and crates/). The clone at
+# /repos/denkhaus/seeds at run time does not shadow /usr/local/bin, so
+# the baked binary stays available; the content-hash gate in
+# scripts/run-images.nu covers the copied sources, so any crate change
+# rebuilds the image (repin the pushed sha tag after merge, same flow as
+# the python3 fix).
+COPY Cargo.toml Cargo.lock /src/
+COPY crates /src/crates
+RUN set -eux; \
+    cargo install --path /src/crates/seeds --locked --root /usr/local; \
+    seeds --version; \
+    rm -rf /src
 
 # python3 (stdlib only, late layer to preserve cache): LOAD-BEARING for
 # the loop — the dup-run-check fixture battery's schema-ban check shells
