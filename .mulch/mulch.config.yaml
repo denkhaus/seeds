@@ -3,6 +3,7 @@ domains:
   dev-loop: {}
   seeds-compat: {}
   testing: {}
+  nushell: {}
 governance:
   max_entries: 100
   warn_entries: 150

@@ -87,6 +87,15 @@
 #     pattern: a brief containing `just qualitygate` or its
 #     byte-equivalent body fails validation and burns an output retry,
 #     never passes silently.
+#   arm 4 (seeds-7e57, 2026-09-21): publish_blocked_risk — a seed whose
+#     description targets `.github/workflows/**` is unpublishable while
+#     the fabro GitHub App lacks the Workflows permission (incident run
+#     01M32J3AF: six rejected pushes, seed closed inside an unpushed
+#     commit). The arm resolves the EFFECTIVE permission (env flag, gh
+#     installation probe, then the operator marker file) and flags
+#     candidates — advisory, fail-open — ONLY on a POSITIVE "absent"
+#     verdict; "unknown" never flags: no static blanket-block on
+#     workflow targets after the operator grant.
 
 # Anchor verification helpers (fabro-7daf): cited file:line anchors in
 # seed descriptions are checked against the current worktree so rotted
@@ -208,12 +217,90 @@ def in-flight-claims [remote: string, base: string, self_id: string] {
     {claims: $dedup, note: null}
 }
 
+# --- publish_blocked_risk arm (seeds-7e57, 2026-09-21) ---------------
+# A seed targeting `.github/workflows/**` cannot land while the fabro
+# GitHub App lacks the Workflows permission (incident run 01M32J3AF:
+# every push rejected with 'refusing to allow a GitHub App to create or
+# update workflow ... without workflows permission'). The arm resolves
+# the effective permission ONCE per preflight and flags workflow-
+# targeting candidates ONLY on a positive "absent" verdict. Fail-open
+# hard rule: "unknown" (no probe possible, no marker set) NEVER flags —
+# this is not a static blanket-block on workflow targets.
+#
+# Resolution precedence (first definitive answer wins):
+#   1. env flag  FABRO_GH_WORKFLOWS_PERMISSION = granted|absent
+#   2. gh probe  `gh api repos/{owner}/{repo}/installation` — the
+#      installation payload's permissions.workflows field ("write" =
+#      granted, anything else = absent); a failed probe falls through.
+#      Read-only: no writes, no tokens handled here — gh uses the
+#      engine-injected auth surface (ADR-0019: permission changes are
+#      engine-mediated/operator-granted only, no raw clients).
+#   3. operator marker file `.fabro/github-app-workflows-permission`
+#      (repo root; contents `granted` or `absent`) — the documented
+#      fallback the operator sets after granting/revoking the App
+#      permission when no cheap probe is available.
+#   4. none of the above -> "unknown" -> fail-open, no flag.
+
+def permission-normalize [v: string]: nothing -> string {
+    let t = ($v | str trim | str lowercase)
+    if $t in ["granted" "absent"] { $t } else { "unknown" }
+}
+
+def permission-from-probe [res: record]: nothing -> string {
+    if ($res.exit_code? | default 1) != 0 { return "unknown" }
+    let j = (try { $res.stdout | from json } catch { null })
+    # leniency guard: from json happily yields a scalar (e.g. a bare
+    # string) for non-object payloads — only a record can carry the
+    # permissions field.
+    if not ($j | describe | str starts-with "record") { return "unknown" }
+    if (($j | get -o permissions | default {} | get -o workflows | default "") == "write") {
+        "granted"
+    } else {
+        "absent"
+    }
+}
+
+def probe-workflows-permission [remote: string]: nothing -> string {
+    # cheap read-only installation probe via gh; ANY failure at all —
+    # no gh on PATH (a spawn error here does NOT stay inside complete),
+    # no auth, network, unparseable remote — falls through to the
+    # marker ("unknown"), never blocks the run and never skips the
+    # marker fallback.
+    try {
+        let url = (do { ^git remote get-url $remote } | complete)
+        if $url.exit_code != 0 { return "unknown" }
+        let m = ($url.stdout | parse --regex '(?:github\.com[/:])(?P<repo>[^/\s]+/[^/\s]+?)(?:\.git)?\s*$')
+        if ($m | is-empty) { return "unknown" }
+        let res = (do { ^gh api $"repos/($m | first | get repo)/installation" } | complete)
+        permission-from-probe $res
+    } catch { "unknown" }
+}
+
+def resolve-workflows-permission [root: string, remote: string]: nothing -> string {
+    let envv = (permission-normalize ($env.FABRO_GH_WORKFLOWS_PERMISSION? | default ""))
+    if $envv != "unknown" { return $envv }
+    let probe = (probe-workflows-permission $remote)
+    if $probe != "unknown" { return $probe }
+    let marker = ($root | path join '.fabro' 'github-app-workflows-permission')
+    if (not ($marker | path exists)) { return "unknown" }
+    permission-normalize (open --raw $marker)
+}
+
+def workflow-target? [desc: string]: nothing -> bool {
+    ($desc | str contains '.github/workflows/')
+}
+
+def publish-blocked-risk [desc: string, perm: string]: nothing -> bool {
+    # pure decision: flag ONLY on positive absence (fail-open on unknown)
+    (workflow-target? $desc) and ($perm == "absent")
+}
+
 # Bounded per-candidate row for the planner-facing report. Anchor fields
 # (fabro-7daf): anchors_ok is false when ANY cited file:line anchor in
 # the description is missing/rotted/mismatched; anchor_flags carries the
 # per-anchor detail. The verdict itself is unchanged — anchor rot routes
 # through planner adjudication, never through this script's close path.
-def row [v: record, desc: string, root: string, claims: list] {
+def row [v: record, desc: string, root: string, claims: list, perm: string] {
     let m = ($v.implementation_matches? | default [] | first | default {})
     let ce = ($v.closing_evidence? | default {})
     let flags = ((extract-anchors $desc | each {|a| check-anchor $a $root} | append (check-bare-paths $desc $root)) | where {|f| $f.status != "ok"})
@@ -227,6 +314,8 @@ def row [v: record, desc: string, root: string, claims: list] {
      filed_only_matches: ($v.filed_only_matches? | default 0),
      anchors_ok: (($flags | length) == 0),
      anchor_flags: $flags,
+     workflow_target: (workflow-target? $desc),
+     publish_blocked_risk: (publish-blocked-risk $desc $perm),
      in_flight: ($hit != null),
      in_flight_run: (if $hit == null { null } else { $hit.run })}
 }
@@ -307,6 +396,11 @@ def main [--base: string = "origin/main", --candidates: string, --top: int = 5]:
     let remote = ($base | split row '/' | first)
     let inflight = (try { in-flight-claims $remote $base ($run_id | default null) } catch { {claims: [], note: "in-flight arm degraded (fail-open)"} })
 
+    # publish_blocked_risk arm (seeds-7e57): resolve the effective GitHub
+    # App Workflows permission once; any resolution failure degrades to
+    # "unknown", which never flags (fail-open, advisory-only).
+    let perm = (try { resolve-workflows-permission ($SCRIPT_DIR | path join '../../../..') $remote } catch { "unknown" })
+
     # Report-only (fabro-83df, 2026-09-19): no closures, no early exit.
     # The former mechanical superseded-close block (fabro-ead4) is
     # retired — the planner's ALREADY LANDED arm owns decisions and
@@ -316,10 +410,12 @@ def main [--base: string = "origin/main", --candidates: string, --top: int = 5]:
     # the script header to interpret the table.
     let legend = {duplicate: "advisory: implementation possibly already in merge-target base (or tracker-closed without resolvable evidence) — planner judges acceptance criteria and closes per the two-branch rule",
                   clean: "no landed implementation found",
-                  degraded: "check failed (fetch/tracker error)"}
+                  degraded: "check failed (fetch/tracker error)",
+                  publish_blocked_risk: "advisory: seed targets .github/workflows/** and the fabro GitHub App Workflows permission resolved 'absent' (env flag, gh probe, or operator marker .fabro/github-app-workflows-permission) — planner should route Blocked at claim time; 'unknown' permission never flags"}
     let report = {mode: $mode,
                   run_id: ($run_id | default null),
-                  candidates: ($verdicts | enumerate | each {|e| row $e.item ($cdesc | get -o $e.index | default "") ($SCRIPT_DIR | path join '../../../..') ($inflight.claims | default [])}),
+                  candidates: ($verdicts | enumerate | each {|e| row $e.item ($cdesc | get -o $e.index | default "") ($SCRIPT_DIR | path join '../../../..') ($inflight.claims | default []) $perm}),
+                  workflow_permission: $perm,
                   legend: $legend,
                   degraded_reason: (if ($degraded_reason | is-empty) { null } else { $degraded_reason }),
                   in_flight_note: ($inflight.note? | default null)}
