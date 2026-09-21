@@ -21,6 +21,12 @@ lines (dogfooding per ADR-0012/0023): the develop workflow in `.fabro/`
 drives all implementation; its own work is tracked in this repo's `.seeds/`
 tracker from day one.
 
+## Operator notes
+
+- [GitHub App Workflows permission](docs/workflows-permission.md) — the
+  `.fabro/github-app-workflows-permission` marker: what it is, why it is
+  currently `absent`, and the staleness contract tied to fabro-11d9.
+
 ## Build & test
 
 ```

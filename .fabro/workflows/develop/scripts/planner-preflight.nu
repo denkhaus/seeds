@@ -227,6 +227,17 @@ def in-flight-claims [remote: string, base: string, self_id: string] {
 # hard rule: "unknown" (no probe possible, no marker set) NEVER flags —
 # this is not a static blanket-block on workflow targets.
 #
+# The operator marker file `.fabro/github-app-workflows-permission`
+# (repo root; contents `granted` or `absent`) is the PRIMARY,
+# deterministic source for this verdict: the operator's explicit
+# statement of the fabro GitHub App's effective Workflows permission,
+# set after granting/revoking it (see docs/workflows-permission.md for
+# the operator contract, including the staleness rule tied to fabro-11d9).
+# The tiers below are conveniences layered on top of that source — the
+# resolution order only decides which convenience wins when several are
+# present; it never demotes the marker's authority as the documented
+# operator source.
+#
 # Resolution precedence (first definitive answer wins):
 #   1. env flag  FABRO_GH_WORKFLOWS_PERMISSION = granted|absent
 #   2. gh probe  `gh api repos/{owner}/{repo}/installation` — the
@@ -235,10 +246,8 @@ def in-flight-claims [remote: string, base: string, self_id: string] {
 #      Read-only: no writes, no tokens handled here — gh uses the
 #      engine-injected auth surface (ADR-0019: permission changes are
 #      engine-mediated/operator-granted only, no raw clients).
-#   3. operator marker file `.fabro/github-app-workflows-permission`
-#      (repo root; contents `granted` or `absent`) — the documented
-#      fallback the operator sets after granting/revoking the App
-#      permission when no cheap probe is available.
+#   3. operator marker file (the primary source itself — also the
+#      last-resort tier when no env flag or probe answers).
 #   4. none of the above -> "unknown" -> fail-open, no flag.
 
 def permission-normalize [v: string]: nothing -> string {
