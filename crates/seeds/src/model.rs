@@ -346,6 +346,12 @@ impl SeedRecord {
         self.set_field("blockedBy", Value::Array(ids));
     }
 
+    /// Removes a field entirely (sd omits empty labels, cleared
+    /// extensions, and similar instead of writing empty values).
+    pub fn remove_field(&mut self, name: &str) {
+        self.fields.remove(name);
+    }
+
     /// Reads any field (known or unknown) by name.
     #[must_use]
     pub fn field(&self, name: &str) -> Option<&Value> {
