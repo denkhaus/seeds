@@ -135,6 +135,8 @@ Report through `context_updates.journal` on EVERY pass. Silence is a missing rep
 
 {"journal": {"painpoints": [{"text": "<what hurt, where, evidence, fix idea>"}], "observations": ["<what the next bookkeeper should know; 'none' is valid when unremarkable>"]}}
 
+Journal appends (any hand-written line in a `.fabro/journal/*.jsonl` file) are fabro-journal-v1 records ONLY — exactly the fields `$schema, run_id, node, visit, status, ts, data`; free-text notes ride inside `data` (e.g. `data.note`), never as sibling top-level fields and never as a hand-rolled `{stage, seed, note}` shape (a foreign record crashed the develop tracker guard, run 01M332792GNEPNR45GMEXV12WW, seeds-aa89).
+
 ## Outcome contract
 
 - `succeeded` + "Staged": seeds filed (or none), marker written, artifacts committed.

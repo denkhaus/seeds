@@ -112,6 +112,26 @@ if (stale-claim-ids [$boundary] [] $now 6.0 "") != [] { fail "exact-threshold ag
 let legacy_claims = [{seed: "fabro-x4", ts: ("2026-09-19T08:30:00Z" | into datetime)}]
 if (stale-claim-ids [$s_term_claim] $legacy_claims $now 6.0 "") != [] { fail "terminal-absent claim must default live" }
 
+# --- develop-claims mixed-schema regression (seeds-aa89) ---
+# A journal mixing fabro-journal-v1 records with a foreign
+# {stage,run_id,seed,note} line (the run 01M332792GNEPNR45GMEXV12WW
+# shape) must yield a verdict, not a column_not_found error; the
+# verdict runs over v1 records only (foreign lines never count as
+# planner claims and never break the ts read).
+let mixed_dir = (mktemp -d)
+let foreign_line = '{"stage":"planner","run_id":"01M332792GNEPNR45GMEXV12WW","seed":"seeds-t1","note":"foreign shape"}'
+($foreign_line + "\n" | save --append $"($mixed_dir)/01M332792GNEPNR45GMEXV12WW.jsonl")
+('{"$schema":"fabro-journal-v1","run_id":"01M332792GNEPNR45GMEXV12WW","node":"planner","visit":1,"status":"succeeded","ts":"2026-09-20T00:00:00Z","data":{"observations":["claimed seeds-t1"]}}' + "\n" | save --append $"($mixed_dir)/01M332792GNEPNR45GMEXV12WW.jsonl")
+('{"$schema":"fabro-journal-v1","run_id":"01M332792GNEPNR45GMEXV12WW","node":"closeout","visit":1,"status":"succeeded","ts":"2026-09-20T00:05:00Z","data":{}}' + "\n" | save --append $"($mixed_dir)/01M332792GNEPNR45GMEXV12WW.jsonl")
+# all-foreign journal: no planner v1 record -> no claims, no error.
+($foreign_line + "\n" | save $"($mixed_dir)/01M33999000000000000000000.jsonl")
+let mixed = (develop-claims $mixed_dir [seeds-t1, seeds-t2] "01M3NONE0000000000000000000")
+if $mixed.degraded { fail "mixed-schema journal dir wrongly degraded" }
+if ($mixed.claims | length) != 1 { fail $"mixed-schema claims wrong count: ($mixed.claims | to json -r)" }
+if $mixed.claims.0.seed != "seeds-t1" { fail "mixed-schema claim wrong seed" }
+if not $mixed.claims.0.terminal { fail "closeout-tipped v1 tail must be terminal" }
+rm -r $mixed_dir
+
 # --- Preflight in-flight arm (fabro-32db): terminal-tip? pure logic ---
 # Sourcing planner-preflight.nu alongside tracker-guard.nu is safe: the
 # smoke exits before either auto-invoked `def main` shells out.

@@ -78,6 +78,9 @@ lines because answering was optional. Always emit BOTH keys:
 
 {"journal": {"painpoints": [{"text": "<what hurt and a concrete suggestion, self-contained: where (file/line), what happened, evidence (run id), fix idea>"}], "observations": ["<what the next planner should know: a surprise in the tracker or spec, a stale seed, a contradiction you resolved in the brief>"]}}
 
+
+Journal appends (any hand-written line in `.fabro/journal/<run_id>.jsonl`) are fabro-journal-v1 records ONLY — exactly the fields `$schema, run_id, node, visit, status, ts, data`; free-text notes ride inside `data` (e.g. `data.note`), never as sibling top-level fields and never as a hand-rolled `{stage, seed, note}` shape (a foreign record crashed the tracker guard, run 01M332792GNEPNR45GMEXV12WW, seeds-aa89).
+
 - `painpoints`: friction in the dev loop itself (workflow, scripts, gate).
   Do not fix loop assets — report them here. `[]` when nothing hurt.
 - `observations`: at least one entry. The literal `"none"` is a valid
