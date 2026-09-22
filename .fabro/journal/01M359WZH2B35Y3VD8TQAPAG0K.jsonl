@@ -1,0 +1,2 @@
+{"$schema":"fabro-journal-v1","run_id":"01M359WZH2B35Y3VD8TQAPAG0K","node":"start","visit":1,"status":"succeeded","ts":"2026-09-22T19:36:22Z","data":{}}
+{"$schema":"fabro-journal-v1","run_id":"01M359WZH2B35Y3VD8TQAPAG0K","node":"select","visit":1,"status":"succeeded","ts":"2026-09-22T19:36:58Z","data":{"painpoints":[],"observations":["23 runs carry revision markers; of the unrevised remainder, nearly all are stale-evidence (version drift) or sandbox_available=false — backlog blocked on fresh analyst sandboxes, not on selector policy"]}}
