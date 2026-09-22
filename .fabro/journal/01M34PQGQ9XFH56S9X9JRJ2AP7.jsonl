@@ -5,3 +5,4 @@
 {"$schema":"fabro-journal-v1","run_id":"01M34PQGQ9XFH56S9X9JRJ2AP7","node":"claim_check","visit":1,"status":"succeeded","ts":"2026-09-22T14:02:44Z","data":{}}
 {"$schema":"fabro-journal-v1","run_id":"01M34PQGQ9XFH56S9X9JRJ2AP7","node":"implementer","visit":1,"status":"succeeded","ts":"2026-09-22T14:04:36Z","data":{"painpoints":[],"observations":["ml record does not print the mx-id; it had to be recovered by grepping `.mulch/expertise/conventions.jsonl` after the fact — printing the id at record time would save a lookup round."]}}
 {"$schema":"fabro-journal-v1","run_id":"01M34PQGQ9XFH56S9X9JRJ2AP7","node":"tester","visit":1,"status":"succeeded","ts":"2026-09-22T14:04:42Z","data":{}}
+{"$schema":"fabro-journal-v1","run_id":"01M34PQGQ9XFH56S9X9JRJ2AP7","node":"evidence","visit":1,"status":"succeeded","ts":"2026-09-22T14:04:44Z","data":{}}
