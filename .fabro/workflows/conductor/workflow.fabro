@@ -93,18 +93,27 @@ digraph Conductor {
     // in the web interviewer dock. FAIL-CLOSED: while the question is
     // pending the conductor run blocks HERE — no identical child fires
     // are spawned; an unanswered gate is never treated as consent to
-    // continue burning fires. Self-heal: after timeout_seconds the
-    // human.default_choice "skip" fires ([S]), the pass ends softly,
-    // and the next cron fire proceeds to the NEXT seed — the parked
-    // seed stays open and unassigned in the tracker.
+    // continue burning fires.
+    //
+    // Syntax note (2026-09-22 packaging outage, seeds-7cd1 session):
+    // the gate is written in the engine's REAL attribute model — the
+    // question text is this node's label, the options are the outgoing
+    // edges ([S]/[P] labels, accelerator keys parsed from the
+    // brackets), freeform is an edge flag, and the deadline is
+    // timeout="86400s". The first landing (PR #35) invented
+    // human.question/human.options/human.freeform/timeout_seconds
+    // node attrs: those exist in NO engine rev, and their quoted-key
+    // spelling broke the server packager's DOT parser, silently
+    // stalling every fire (packaging errors do not trip the 3-strike
+    // breaker). human.default_choice is dropped for now: the server
+    // parser needs the key unquoted while the tester's `dot -Tcanon`
+    // arm needs it quoted — irreconcilable in one file; on timeout the
+    // gate retry-classifies instead of auto-skipping. Restoring a
+    // timeout default needs the gate-parse reconciliation first.
     needs_operator [
-        label="Needs operator: seed requires host/operator capability",
+        label="Needs operator: a seed needs host/operator capability (e.g. docker host, gh write:packages). Skip the seed and continue the line, or park the line?",
         shape=hexagon,
-        "human.question"="Seed <seed-id> needs host/operator capability (e.g. docker host, gh write:packages). Skip the seed and continue the line, or park the line?",
-        "human.options"="skip:[S] Skip seed & continue line | park:[P] Park line",
-        "human.freeform"="note",
-        "human.default_choice"="skip",
-        timeout_seconds=86400
+        timeout="86400s"
     ]
 
     start -> survey
@@ -128,9 +137,9 @@ digraph Conductor {
     // next fire claims the NEXT seed (the parked seed stays open);
     // [P] park ends the pass softly for a human decision; a freeform
     // note is journaled and takes the skip semantics (continue line).
-    needs_operator -> exit [kind="soft", label="Skip seed & continue line", condition="human.choice=\"skip\""]
-    needs_operator -> exit [kind="soft", label="Park line", condition="human.choice=\"park\""]
-    needs_operator -> exit [kind="soft", label="Operator note (skip + journaled note)", condition="human.freeform"]
+    needs_operator -> exit [kind="soft", label="[S] Skip seed & continue line"]
+    needs_operator -> exit [kind="soft", label="[P] Park line"]
+    needs_operator -> exit [kind="soft", label="[N] Operator note (skip + journaled note)", freeform=true]
     revise -> exit [label="Cycle complete"]
     revise -> exit [kind="soft", label="Revisor child failed", condition="preferred_label=\"Revisor child failed\""]
     // Unconditional safety nets (validator rule all_conditional_edges):

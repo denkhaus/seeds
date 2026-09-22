@@ -37,7 +37,10 @@ class). The sandbox cannot provide it.
 4. **conductor graph** — edge
    `develop -> needs_operator [label="Needs operator",
    condition="preferred_label=\"Needs operator\""]` matches; the run
-   enters the `needs_operator` hexagon human gate. The conductor runs
+   enters the `needs_operator` hexagon human gate. The question text is
+   the node label; the options are the gate's outgoing edges
+   (`[S]`/`[P]` labels — the bracket prefix is the accelerator key; the
+   `[N]` edge carries `freeform=true`). The conductor runs
    approval=prompt, so the question lands in the web interviewer dock
    (mirtuell.net run page): ONE human question instead of repeated
    identical fires.
@@ -49,18 +52,24 @@ class). The sandbox cannot provide it.
    failures, and no terminal failure occurs while the gate is pending —
    the class is unreachable through this path.
 
-6. **Timeout path (self-heal)** — after `timeout_seconds=86400` with no
-   answer, `human.default_choice="skip"` fires option [S]
-   ("Skip seed & continue line"): edge
-   `needs_operator -> exit [kind="soft", label="Skip seed & continue
-   line", condition="human.choice=\"skip\""]`. The pass ends softly; the
-   next cron fire claims the NEXT seed. The parked seed remains open and
-   unassigned in the tracker.
+6. **Timeout path** — the gate deadline is `timeout="86400s"` on the
+   node. The engine's `human.default_choice` self-heal (auto-take [S]
+   after the deadline) is NOT wired: the server packager's DOT parser
+   and the tester's `dot -Tcanon` arm disagree on how a dotted
+   attribute key must be spelled, so no single file satisfies both.
+   With no default the gate retry-classifies on timeout — an unanswered
+   gate eventually ends the pass as a failure, which the 3-strike
+   breaker DOES count. Answer the dock question; do not let it sit for
+   24h (restoring the auto-skip default is tracked follow-up work).
 
-7. **Human answers** — [S] skip: same soft exit as the timeout default.
-   [P] park: `needs_operator -> exit [kind="soft", label="Park line"]` —
-   the line parks for a human. Freeform note: the note is journaled and
-   the walk takes the skip semantics (continue line).
+7. **Human answers** — [S] skip: the chosen edge ends the pass softly;
+   `needs_operator -> exit [kind="soft", label="[S] Skip seed &
+   continue line"]`. The next cron fire claims the NEXT seed; the
+   parked seed remains open and unassigned in the tracker.
+   [P] park: `needs_operator -> exit [kind="soft", label="[P] Park
+   line"]` — the line parks for a human. [N] note (freeform=true): the
+   note is journaled with the answer context and the walk takes the
+   skip semantics (continue line).
 
 ## Why the gate lives in the conductor (closeout note)
 
