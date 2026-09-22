@@ -148,6 +148,67 @@ if ((journal-nonblocking "/nonexistent/.fabro/journal/none2.jsonl") | is-not-emp
     fail "null-path journal degradation drifted"
 }
 
+# --- Actionable-marker filing gate (seeds-81cd) ------------------------
+# The predicate: literal case-insensitive `residual:` PREFIX on the
+# observation text (leading whitespace tolerated).
+if not (is-actionable-residual "residual: retry semantics are now per-tenant") {
+    fail "is-actionable-residual dropped the 'residual:' prefix"
+}
+if not (is-actionable-residual "  Residual: ordering assumption in the sweep loop") {
+    fail "is-actionable-residual dropped case-insensitive/leading-space 'Residual:'"
+}
+if (is-actionable-residual "Non-blocking: plain informational note, no marker") {
+    fail "is-actionable-residual matched a plain non-blocking note"
+}
+if (is-actionable-residual "a mid-sentence residual: mention is not a marker") {
+    fail "is-actionable-residual matched a mid-sentence 'residual:' mention"
+}
+
+# Journal extraction: only marker-matching reviewer observations are
+# actionable; plain non-blocking notes stay journal-visible only.
+let al = (
+    actionable-from-journal (
+        [
+            '{"node":"reviewer","data":{"observations":["Non-blocking: Latin-1 mis-decode of quoted paths, harmless for the sole consumer."]}}'
+            '{"node":"reviewer","data":{"observations":["residual: unbounded retry loop in the sync client, approve with follow-up."]}}'
+            '{"node":"implementer","data":{"observations":["residual: wrong node must never file"]}}'
+        ] | str join "\n"
+    )
+)
+if ($al | length) != 1 {
+    fail $"actionable-from-journal wrong count: ($al | to json -r)"
+}
+if not ($al.0 | str contains "unbounded retry") {
+    fail "actionable-from-journal dropped the marker finding text"
+}
+
+# Filing gate, file-level (tmp fixture): a marker-matching observation
+# is extracted (would file); a plain non-blocking note is NOT (absence
+# of filing is the behavior — it stays journal-visible only).
+let gtmp = (mktemp -t closeout-gate.XXXXXX.jsonl)
+[
+    '{"node":"reviewer","data":{"painpoints":[],"observations":["Residual: contract change rippled to two callers, follow-up needed."]}}'
+] | str join "\n" | save -f $gtmp
+if ((journal-actionable $gtmp) | length) != 1 {
+    fail "marker-matching observation not actionable (would NOT file)"
+}
+rm -f $gtmp
+
+let ptmp = (mktemp -t closeout-plain.XXXXXX.jsonl)
+[
+    '{"node":"reviewer","data":{"painpoints":[],"observations":["Noted but not blocking: style nit in a comment, purely informational."]}}'
+] | str join "\n" | save -f $ptmp
+if ((journal-actionable $ptmp) | is-not-empty) {
+    fail "plain non-blocking note is actionable (would file — seeds-ad6c/seeds-436a waste class)"
+}
+if ((journal-actionable $ptmp) | is-not-empty) or ((journal-nonblocking $ptmp) | is-empty) {
+    fail "plain note visibility drifted (must stay non-blocking, never actionable)"
+}
+rm -f $ptmp
+if ((journal-actionable "/nonexistent/.fabro/journal/none3.jsonl") | is-not-empty) {
+    fail "missing journal did not degrade to empty (actionable path)"
+}
+
 # --- Deferred-action sweep (fabro-7aac) --------------------------------
 # Marker matching: `deferred-action:` at the START, case-insensitive,
 # whitespace-tolerant; mid-sentence mentions and plain observations

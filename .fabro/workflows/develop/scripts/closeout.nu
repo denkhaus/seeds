@@ -174,17 +174,21 @@ def seed-demand-visible [seed_id: string]: nothing -> bool {
 }
 
 # ---------------------------------------------------------------------------
-# Reviewer-journal non-blocking sweep (fabro-22fa)
+# Reviewer-journal actionable-residual sweep (fabro-22fa, gated seeds-81cd)
 #
 # WHY: a reviewer that approves with residual defects notes them in its
-# journal observations with explicit non-blocking wording ("non-blocking",
-# "noted but not blocking", "not blocking"). Before fabro-22fa those
-# findings lived only in `.fabro/journal/<run_id>.jsonl` — when closeout
-# ran `seeds close`, the finding died with the closed seed: no open brief
-# existed to fold the follow-up into. This sweep re-files each explicitly
-# non-blocking reviewer observation as a NEW open seed BEFORE the close,
+# journal observations. Before fabro-22fa those findings lived only in
+# `.fabro/journal/<run_id>.jsonl` — when closeout ran `seeds close`, the
+# finding died with the closed seed: no open brief existed to fold the
+# follow-up into. But UNCONDITIONAL filing of every non-blocking note
+# minted seeds for mere observations (the seeds-ad6c / seeds-436a waste
+# class): plain notes are informational, not work. The sweep is now
+# GATED on an explicit actionable marker: only reviewer observations
+# carrying a literal case-insensitive `residual:` prefix (per
+# is-actionable-residual) are filed as a NEW open seed BEFORE the close,
 # with provenance (finding text, closed seed id, source run id) in the
-# body so the finding survives closure traceably.
+# body so the finding survives closure traceably. Plain non-blocking
+# notes stay journal-visible only — absence of filing IS the behavior.
 #
 # ADVISORY ONLY: every failure (journal missing, JSON unparsable, seeds
 # create error) logs to stderr and NEVER blocks the close — same
@@ -201,6 +205,15 @@ def seed-demand-visible [seed_id: string]: nothing -> bool {
 def is-nonblocking [obs: string]: nothing -> bool {
     let low = ($obs | str lowercase)
     ($low | str contains "non-blocking") or ($low | str contains "not blocking")
+}
+
+# Pure: does a reviewer observation carry the explicit actionable
+# marker (seeds-81cd)? Matches a literal case-insensitive `residual:`
+# PREFIX in the observation text — only the reviewer deliberately
+# marking an observation as actionable residual gets a seed; plain
+# non-blocking notes (and mid-sentence "residual:" mentions) do not.
+def is-actionable-residual [obs: string]: nothing -> bool {
+    ($obs | str trim | str lowercase | str starts-with "residual:")
 }
 
 # Pure: non-blocking findings from journal JSONL text — reviewer-node
@@ -223,6 +236,27 @@ def journal-nonblocking [journal_path: string]: nothing -> list<string> {
     do -i { nonblocking-from-journal (open --raw $journal_path) } | default []
 }
 
+# Pure: actionable-residual findings from journal JSONL text —
+# reviewer-node records only, their observations, filtered by
+# is-actionable-residual (the seeds-81cd filing gate).
+def actionable-from-journal [text: string]: nothing -> list<string> {
+    let obs = (
+        $text | lines | compact
+        | each {|l| do -i { $l | from json } }
+        | where {|r| ($r | describe | str starts-with "record") and (($r | get -o node | default '') == "reviewer")}
+        | get -o data
+        | where {|d| $d != null}
+        | each {|d| $d | get -o observations | default []}
+        | flatten
+    )
+    $obs | where {|o| is-actionable-residual $o}
+}
+
+# Best-effort file-level read: missing/unreadable journal -> empty list.
+def journal-actionable [journal_path: string]: nothing -> list<string> {
+    do -i { actionable-from-journal (open --raw $journal_path) } | default []
+}
+
 # Pure: run id from the run branch (`fabro/run/<run_id>`), '' off-run.
 def current-run-id []: nothing -> string {
     current-branch | parse --regex 'fabro/run/(?P<id>[^/]+)$' | get -o id.0 | default ''
@@ -241,13 +275,15 @@ def residual-seed-labels []: nothing -> list<string> {
     ["residual"]
 }
 
-# Advisory sweep: file each non-blocking reviewer finding as an open
-# seed (type bug, assignee fabro so the develop line can pick it up,
+# Advisory sweep: file each ACTIONABLE reviewer finding (literal
+# case-insensitive `residual:` prefix, seeds-81cd) as an open seed
+# (type bug, assignee fabro so the develop line can pick it up,
 # labels `residual` so the planner sees the machine-filed provenance).
-# Never raises: caller wraps in `do -i`; internal seeds failures print to
-# stderr and continue.
+# Plain non-blocking notes are NOT filed — they stay journal-visible
+# only. Never raises: caller wraps in `do -i`; internal seeds failures
+# print to stderr and continue.
 def sweep-reviewer-findings [seed_id: string, run_id: string, journal_path: string]: nothing -> nothing {
-    for finding in (journal-nonblocking $journal_path) {
+    for finding in (journal-actionable $journal_path) {
         let desc = $"Residual defect the reviewer explicitly flagged as non-blocking while approving ($seed_id).\n\nFinding text: \"($finding)\"\n\nOrigin: closed seed ($seed_id), reviewer journal ($journal_path).\nBasis: run ($run_id), closed seed ($seed_id)"
         let res = (do { seeds create --title (finding-title $finding $seed_id) --description $desc --type bug --assignee fabro --labels (residual-seed-labels | str join ",") } | complete)
         if $res.exit_code != 0 {

@@ -9,6 +9,7 @@ domains:
   fabro: {}
   devloop: {}
   loop-assets: {}
+  conventions: {}
 governance:
   max_entries: 100
   warn_entries: 150
