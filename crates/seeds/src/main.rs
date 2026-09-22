@@ -1,7 +1,10 @@
 //! The `seeds` binary: sd 0.5.15-compatible CLI over the format core.
 //!
 //! Nine-command parity surface (README compat contract, ADR-0023):
-//! create, show, list, ready, update, close, dep add, prime, search.
+//! create, show, list, ready, update, close, dep add, prime, search —
+//! plus `sync` with sd-parity behavior and the README-documented
+//! deliberate improvements (per-file preview, push-gate safety,
+//! shortstat commit body).
 //! Flag names, JSON envelope shapes (`{success, command, …}`), filter and
 //! limit semantics, and error behavior (JSON `success:false` plus a
 //! non-zero exit, exactly as the pinned reference behaves) mirror
@@ -14,7 +17,8 @@
 #![allow(clippy::print_stderr, reason = "CLI diagnostics belong on stderr")]
 
 use std::collections::HashSet;
-use std::process::ExitCode;
+use std::path::Path;
+use std::process::{Command, ExitCode};
 
 use seeds::{Fields, SeedRecord, SeedType, Status, Store};
 use serde_json::{Map, Value, json};
@@ -94,6 +98,7 @@ fn dispatch(argv: &[String]) -> ExitCode {
         "prime" => run_prime(rest),
         "search" => run_search(rest),
         "dedupe" => run_dedupe(rest),
+        "sync" => run_sync(rest),
         other => {
             // Help honesty (seeds-25b5): planned sd-parity commands
             // answer with a clear "not implemented yet", not a generic
@@ -1230,4 +1235,225 @@ fn run_dedupe(args: &[String]) -> ExitCode {
     } else {
         ExitCode::SUCCESS
     }
+}
+
+// ---------------------------------------------------------------------------
+// sync
+// ---------------------------------------------------------------------------
+
+/// One `seeds sync` outcome, rendered per mode (seeds-540e).
+enum SyncOutcome {
+    /// Nothing dirty under `.seeds/` — plain and `--dry-run` runs.
+    NoChanges,
+    /// `--status`: the per-file change preview (never commits).
+    Status(String),
+    /// `--dry-run` on a dirty store (never commits).
+    DryRun { changes: String, message: String },
+    /// A commit was created.
+    Committed(String),
+}
+
+impl SyncOutcome {
+    fn report(&self, json: bool) -> ExitCode {
+        match self {
+            SyncOutcome::NoChanges => {
+                if json {
+                    println!(
+                        "{}",
+                        envelope_pretty("sync", &[
+                            ("committed", json!(false)),
+                            ("message", json!("Nothing to commit"))
+                        ],)
+                    );
+                } else {
+                    println!("✓ No changes to commit.");
+                }
+            }
+            SyncOutcome::Status(changes) => {
+                if json {
+                    println!(
+                        "{}",
+                        envelope_pretty("sync", &[
+                            ("hasChanges", json!(!changes.is_empty())),
+                            ("changes", json!(changes)),
+                        ],)
+                    );
+                } else if changes.is_empty() {
+                    println!("✓ No uncommitted .seeds/ changes.");
+                } else {
+                    println!("✓ Uncommitted .seeds/ changes:");
+                    println!("{changes}");
+                }
+            }
+            SyncOutcome::DryRun { changes, message } => {
+                if json {
+                    println!(
+                        "{}",
+                        envelope_pretty("sync", &[
+                            ("dryRun", json!(true)),
+                            ("wouldCommit", json!(true)),
+                            ("message", json!(message)),
+                            ("changes", json!(changes)),
+                        ],)
+                    );
+                } else {
+                    println!("✓ Dry run — would commit:");
+                    println!("{changes}");
+                    println!("Commit message: {message}");
+                }
+            }
+            SyncOutcome::Committed(message) => {
+                if json {
+                    println!(
+                        "{}",
+                        envelope_pretty("sync", &[
+                            ("committed", json!(true)),
+                            ("message", json!(message))
+                        ],)
+                    );
+                } else {
+                    println!("✓ Committed: {message}");
+                }
+            }
+        }
+        ExitCode::SUCCESS
+    }
+}
+
+fn run_sync(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::SYNC_SPEC, helptext::SYNC) else {
+        return ExitCode::FAILURE;
+    };
+    let json = json_mode(&parsed);
+    let status = parsed.flags.contains("status");
+    let dry_run = parsed.flags.contains("dry-run");
+    let force = parsed.flags.contains("force");
+    let result = (|| -> Result<SyncOutcome, CommandError> {
+        let message_of = |text: String| CommandError::new("sync", text, json);
+        let seeds_dir = find_seeds_dir()
+            .map_err(|_| message_of("Not in a seeds project. Run `sd init` first.".to_owned()))?;
+        let Some(repo) = git_repo_root(seeds_dir.parent().unwrap_or(Path::new("."))) else {
+            // The reference's observed behavior outside a git worktree.
+            return Ok(SyncOutcome::NoChanges);
+        };
+        let seeds_path = seeds_dir.to_string_lossy().into_owned();
+        let changes = git(&repo, &[
+            "status",
+            "--porcelain",
+            "-uall",
+            "--",
+            &seeds_path,
+        ])
+        .map_err(message_of)?;
+        let changes = changes
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n");
+        if status {
+            return Ok(SyncOutcome::Status(changes));
+        }
+        if changes.is_empty() {
+            return Ok(SyncOutcome::NoChanges);
+        }
+        let message = format!("seeds: sync {}", timeutil::today_utc());
+        if dry_run {
+            return Ok(SyncOutcome::DryRun { changes, message });
+        }
+        // Push-gate safety (seeds-540e): in fabro repos the tracker
+        // must not race a running pass — a refused gate blocks the
+        // commit; `--force` is the human override.
+        if !force {
+            let gate = repo.join(".fabro").join("scripts").join("push-gate.nu");
+            if gate.is_file()
+                && let Some(reason) = push_gate_refusal(&repo, &gate)
+            {
+                return Err(message_of(format!(
+                    "push gate refused — not committing .seeds/ while a pass \
+                     may be running: {reason} (override with --force)"
+                )));
+            }
+        }
+        git(&repo, &["add", "-A", "--", &seeds_path]).map_err(message_of)?;
+        // The shortstat body line makes sync history greppable by size.
+        let shortstat = git(&repo, &[
+            "diff",
+            "--cached",
+            "--shortstat",
+            "--",
+            &seeds_path,
+        ])
+        .map_err(message_of)?;
+        let shortstat = shortstat.trim();
+        let mut commit_args = vec!["commit", "-m", message.as_str()];
+        if !shortstat.is_empty() {
+            commit_args.push("-m");
+            commit_args.push(shortstat);
+        }
+        git(&repo, &commit_args).map_err(message_of)?;
+        Ok(SyncOutcome::Committed(message))
+    })();
+    match result {
+        Ok(outcome) => outcome.report(json),
+        Err(error) => error.report(),
+    }
+}
+
+/// Runs `git` in `repo`, returning trimmed stdout; a non-zero exit
+/// carries git's stderr.
+fn git(repo: &Path, args: &[&str]) -> Result<String, String> {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(repo)
+        .output()
+        .map_err(|source| format!("spawning git: {source}"))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+    if output.status.success() {
+        Ok(stdout)
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        Err(if stderr.is_empty() {
+            format!("git {} failed", args.join(" "))
+        } else {
+            format!("git {}: {stderr}", args.join(" "))
+        })
+    }
+}
+
+/// The repository root containing `dir`, or `None` outside a worktree.
+fn git_repo_root(dir: &Path) -> Option<std::path::PathBuf> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .current_dir(dir)
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| std::path::PathBuf::from(String::from_utf8_lossy(&output.stdout).trim()))
+}
+
+/// Runs the fabro push gate; `Some(reason)` when it refused (non-zero
+/// exit). A gate that cannot run at all (no `nu`) does not block sync
+/// — documented in the README's DEVIATIONS section.
+fn push_gate_refusal(repo: &Path, gate: &Path) -> Option<String> {
+    let output = Command::new("nu")
+        .arg(gate)
+        .current_dir(repo)
+        .output()
+        .ok()?;
+    if output.status.success() {
+        return None;
+    }
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let reason = text
+        .lines()
+        .find(|line| line.contains("GATE REFUSED"))
+        .map_or_else(|| "gate exited non-zero".to_owned(), str::to_owned);
+    Some(reason)
 }

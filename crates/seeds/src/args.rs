@@ -108,6 +108,9 @@ pub(crate) static PRIME_SPEC: &[OptSpec] = &[flag("compact"), flag("export"), fl
 
 pub(crate) static DEDUPE_SPEC: &[OptSpec] = &[flag("write"), flag("json")];
 
+pub(crate) static SYNC_SPEC: &[OptSpec] =
+    &[flag("status"), flag("dry-run"), flag("json"), flag("force")];
+
 /// The parsed command line: positionals, value options (canonical long
 /// name → value, aliases folded), and boolean flags.
 #[derive(Debug, Default)]

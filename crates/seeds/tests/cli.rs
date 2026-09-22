@@ -776,7 +776,7 @@ fn planned_commands_answer_not_implemented_yet() {
     let dir = temp_store("planned");
     write_records(&dir, &standard());
     for command in [
-        "label", "blocked", "stats", "sync", "doctor", "tpl", "plan", "config",
+        "label", "blocked", "stats", "doctor", "tpl", "plan", "config",
     ] {
         let output = run(&dir, &[command]);
         assert_eq!(output.status.code(), Some(1), "{command} exits 1");

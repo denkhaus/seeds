@@ -33,10 +33,27 @@ carrying its own expectation, never a silent split:
 
 - **Help honesty:** `seeds --help` lists only implemented commands;
   unimplemented-but-planned reference commands (`init`, `label`,
-  `blocked`, `stats`, `sync`, `doctor`, `tpl`, `migrate-from-beads`,
+  `blocked`, `stats`, `doctor`, `tpl`, `migrate-from-beads`,
   `onboard`, `upgrade`, `completions`, `block`, `unblock`, `plan`,
   `config`) answer a clear `not implemented yet` message instead of the
   reference's real implementations. Same for `dep remove` / `dep list`.
+- **sync per-file staging preview:** `seeds sync --status` /
+  `--dry-run` list every changed file individually
+  (`git status --porcelain -uall`); the reference collapses untracked
+  directories to a single `?? .seeds/` entry. The tracked-file cases
+  stay byte-identical (differential-pinned); the untracked-dir
+  expansion is the deliberate per-file preview.
+- **sync push-gate safety:** when `.fabro/scripts/push-gate.nu`
+  exists at the repo root, `seeds sync` runs it before committing and
+  exits non-zero with a clear message while the gate refuses — the
+  tracker must not race running passes. `--force` overrides; a gate
+  that cannot run (no `nu` on PATH) does not block.
+- **sync commit body:** the sync commit's body carries the
+  `git diff --cached --shortstat` line, making sync history greppable
+  by size; the reference commits with a subject only.
+- **Atomic tracker writes:** every store save lands via
+  temp-file+rename, so a crash can never leave a partial JSONL store
+  observable; the reference rewrites files in place.
 - **show's `--json` vs `--format json` error quirk (pinned, not
   diverged):** for a single missing id the reference answers a failure
   envelope under `--json` but a plain stderr `Error: …` under
