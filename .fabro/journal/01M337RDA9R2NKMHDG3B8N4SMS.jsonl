@@ -1,0 +1,2 @@
+{"$schema":"fabro-journal-v1","run_id":"01M337RDA9R2NKMHDG3B8N4SMS","node":"start","visit":1,"status":"succeeded","ts":"2026-09-22T00:20:27Z","data":{}}
+{"$schema":"fabro-journal-v1","run_id":"01M337RDA9R2NKMHDG3B8N4SMS","node":"select","visit":1,"status":"succeeded","ts":"2026-09-22T00:21:01Z","data":{"painpoints":[],"observations":["Selected newest unrevised run; 133 of 146 runs are stale-evidence (version drift) and most older runs also lack live sandboxes — they stay unrevised until the engine provisions fresh analyst sandboxes or ages out"]}}
