@@ -5,3 +5,4 @@
 {"$schema":"fabro-journal-v1","run_id":"01M35GF84EPCHM7FD7AHPDCEG0","node":"claim_check","visit":1,"status":"succeeded","ts":"2026-09-22T21:32:09Z","data":{}}
 {"$schema":"fabro-journal-v1","run_id":"01M35GF84EPCHM7FD7AHPDCEG0","node":"implementer","visit":1,"status":"succeeded","ts":"2026-09-22T21:33:08Z","data":{"painpoints":[],"observations":["The dup-run-check preflight, prompt read, and edit all flowed through the shell fs_hide carve-out without friction; the change is a single-line prompt edit whose effect will only be observable in the NEXT develop run's planner stage (seq cost of the fabro_runs_list call)."]}}
 {"$schema":"fabro-journal-v1","run_id":"01M35GF84EPCHM7FD7AHPDCEG0","node":"tester","visit":1,"status":"succeeded","ts":"2026-09-22T21:33:13Z","data":{}}
+{"$schema":"fabro-journal-v1","run_id":"01M35GF84EPCHM7FD7AHPDCEG0","node":"evidence","visit":1,"status":"succeeded","ts":"2026-09-22T21:33:15Z","data":{}}
