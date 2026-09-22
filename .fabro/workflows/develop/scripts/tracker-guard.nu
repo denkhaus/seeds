@@ -161,15 +161,22 @@ def develop-claims [journal_dir: string, seed_ids: list, self_run: string]: noth
         if $stem == $self_run { return [] }
         let content = (open --raw $f)
         let recs = ($content | lines | each {|l| try { $l | from json } catch { null } } | where {|r| $r != null })
-        if not ($recs | any {|r| $r.node? == "planner" }) { return [] }
-        let planner_text = ($recs | where {|r| $r.node? == "planner" } | to json)
-        let last_ts = ($recs | get ts | last)
-        # fabro-32db: terminal = the journal's last record is the
+        # seeds-aa89: journals may carry foreign non-v1 records (no
+        # ts/node columns — e.g. a hand-appended {stage,run_id,seed,note}
+        # line). The verdict runs over v1 records ONLY: filter to
+        # records carrying BOTH ts and node before any column access, so
+        # mixed-schema journals never fail the stage.
+        let v1 = ($recs | where {|r| ($r.ts? != null) and ($r.node? != null) })
+        if ($v1 | is-empty) { return [] }
+        if not ($v1 | any {|r| $r.node == "planner" }) { return [] }
+        let planner_text = ($v1 | where {|r| $r.node == "planner" } | to json)
+        let last_ts = ($v1 | get ts | last)
+        # fabro-32db: terminal = the journal's last v1 record is the
         # workflow's terminal node (closeout) — the run completed its
         # graph, so its claims are not in flight. A journal ending at an
         # intermediate node is live-or-crashed: unprovable, keeps the
         # silence clock.
-        let terminal = (($recs | last | get -o node? | default "") == "closeout")
+        let terminal = (($v1 | last | get -o node? | default "") == "closeout")
         $seed_ids | each {|sid|
             if ($planner_text | str contains $sid) { {seed: $sid, ts: ($last_ts | into datetime), terminal: $terminal} }
         } | flatten
