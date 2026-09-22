@@ -32,7 +32,7 @@ use serde_json::{Value, json};
 /// driver. `create` is covered by the dedicated tailored case (random
 /// ids make a plain argv comparison meaningless there).
 const IMPLEMENTED_COMMANDS: &[&str] = &[
-    "create", "show", "list", "ready", "search", "update", "close", "dep", "prime",
+    "create", "show", "list", "ready", "search", "update", "close", "dep", "prime", "sync",
 ];
 
 /// Fields whose values are stamped `now` by both binaries at run time;
@@ -570,12 +570,21 @@ fn matrix_covers_every_implemented_command() {
     // future) command carries live differential coverage.
     // Commands whose comparison is TAILORED (not a plain matrix case)
     // are named here with their test:
-    const TAILORED: &[(&str, &str)] = &[(
-        // Random `<project>-<hex4>` ids and `now` stamps make a plain
-        // argv comparison meaningless — the tailored test normalizes.
-        "create",
-        "differential_create_matches_sd",
-    )];
+    const TAILORED: &[(&str, &str)] = &[
+        (
+            // Random `<project>-<hex4>` ids and `now` stamps make a plain
+            // argv comparison meaningless — the tailored test normalizes.
+            "create",
+            "differential_create_matches_sd",
+        ),
+        (
+            // sync mutates git history, needs a committer identity, and
+            // carries one documented deviation (untracked-dir expansion)
+            // — the tailored test pins parity per scenario.
+            "sync",
+            "differential_sync_matches_sd",
+        ),
+    ];
     let cases = matrix();
     for command in IMPLEMENTED_COMMANDS {
         let in_matrix = cases.iter().any(|case| case.command == *command);
@@ -673,4 +682,128 @@ fn new_record_normalized(dir: &Path) -> Value {
     normalize_volatile(&mut record);
     record["id"] = Value::String("<new>".to_owned());
     record
+}
+
+/// `sync` tailors the comparison (seeds-540e): it mutates git history,
+/// needs a committer identity, and carries one documented deviation —
+/// untracked directories are expanded to per-file entries. This test
+/// pins parity per scenario: commit path (stdout, store, commit
+/// subject), no-op path, `--status`/`--dry-run` on tracked changes,
+/// JSON envelopes, and the not-in-a-project error; the untracked-dir
+/// expansion is asserted as the deliberate deviation.
+#[test]
+fn differential_sync_matches_sd() {
+    let Some(reference) = reference() else {
+        skip_note();
+        return;
+    };
+    let pair = fixture_pair("sync");
+    for dir in [&pair.reference_dir, &pair.ours_dir] {
+        for (key, value) in [
+            ("user.email", "diff@t.local"),
+            ("user.name", "Diff Battery"),
+        ] {
+            let ok = Command::new("git")
+                .args(["config", key, value])
+                .current_dir(dir)
+                .output()
+                .expect("spawn git config")
+                .status
+                .success();
+            assert!(ok, "git config {key} failed in {}", dir.display());
+        }
+    }
+
+    // Untracked store: the deliberate per-file preview deviation —
+    // sd collapses to `?? .seeds/`, ours lists every file.
+    let sd_status = capture(&pair.reference_dir, &reference, &["sync", "--status"]);
+    let ours_status = capture(&pair.ours_dir, &our_binary(), &["sync", "--status"]);
+    assert_eq!(sd_status.status.code(), ours_status.status.code());
+    let sd_text = String::from_utf8_lossy(&sd_status.stdout);
+    let ours_text = String::from_utf8_lossy(&ours_status.stdout);
+    assert!(
+        sd_text.contains("?? .seeds/"),
+        "sd collapses untracked dirs: {sd_text}"
+    );
+    assert!(
+        ours_text.contains(".seeds/config.yaml") && ours_text.contains(".seeds/issues.jsonl"),
+        "ours expands untracked dirs per file: {ours_text}"
+    );
+
+    // Commit path: identical stdout, exit code, store, and subject.
+    let sd = capture(&pair.reference_dir, &reference, &["sync"]);
+    let ours = capture(&pair.ours_dir, &our_binary(), &["sync"]);
+    assert_output_parity("sync_commit", &sd, &ours);
+    assert_store_parity("sync_commit", &pair);
+    assert_eq!(
+        commit_subject(&pair.reference_dir),
+        commit_subject(&pair.ours_dir)
+    );
+
+    // No-op path (clean tree) and its JSON envelope.
+    for args in [
+        vec!["sync"],
+        vec!["sync", "--dry-run"],
+        vec!["sync", "--status"],
+        vec!["sync", "--json"],
+    ] {
+        let sd = capture(&pair.reference_dir, &reference, &args);
+        let ours = capture(&pair.ours_dir, &our_binary(), &args);
+        assert_output_parity(&format!("sync_clean_{}", args.join("_")), &sd, &ours);
+    }
+
+    // Tracked modification: per-file listings are byte-identical here
+    // (no untracked-dir collapsing involved) — full parity holds for
+    // --status, --dry-run, and the JSON commit envelope.
+    let extra = fixture_record("tst-0007", "Late addition", serde_json::json!({})).to_string();
+    for dir in [&pair.reference_dir, &pair.ours_dir] {
+        let path = dir.join(".seeds/issues.jsonl");
+        let mut text = fs::read_to_string(&path).expect("issues.jsonl");
+        text.push_str(&extra);
+        text.push('\n');
+        fs::write(path, text).expect("append record");
+    }
+    for args in [
+        vec!["sync", "--status"],
+        vec!["sync", "--status", "--json"],
+        vec!["sync", "--dry-run"],
+        vec!["sync", "--json"],
+    ] {
+        let sd = capture(&pair.reference_dir, &reference, &args);
+        let ours = capture(&pair.ours_dir, &our_binary(), &args);
+        assert_output_parity(&format!("sync_dirty_{}", args.join("_")), &sd, &ours);
+    }
+    assert_store_parity("sync_dirty", &pair);
+    assert_eq!(
+        commit_subject(&pair.reference_dir),
+        commit_subject(&pair.ours_dir)
+    );
+
+    // Not-in-a-seeds-project error parity (fresh dirs, no .seeds).
+    let bare = std::env::temp_dir().join(format!(
+        "seeds-differential-sync-bare-{}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&bare).expect("bare dir");
+    let sd = capture(&bare, &reference, &["sync"]);
+    let ours = capture(&bare, &our_binary(), &["sync"]);
+    assert_eq!(sd.status.code(), ours.status.code());
+    assert_eq!(
+        String::from_utf8_lossy(&sd.stderr).trim(),
+        String::from_utf8_lossy(&ours.stderr).trim(),
+        "not-in-a-project error diverged"
+    );
+    fs::remove_dir_all(&bare).ok();
+    fs::remove_dir_all(&pair.reference_dir).ok();
+    fs::remove_dir_all(&pair.ours_dir).ok();
+}
+
+/// The HEAD commit subject in `dir`.
+fn commit_subject(dir: &Path) -> String {
+    let output = Command::new("git")
+        .args(["log", "-1", "--format=%s"])
+        .current_dir(dir)
+        .output()
+        .expect("spawn git log");
+    String::from_utf8_lossy(&output.stdout).trim().to_owned()
 }

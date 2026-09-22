@@ -16,8 +16,9 @@ Commands (implemented in this build):
   dep add           Add an issue dependency (dep remove/list: not yet)
   prime             Output AI agent context
   dedupe            Report and heal duplicate ids in .seeds JSONL stores
+  sync              Stage and commit .seeds/ changes
 
-Unimplemented reference commands (init, label, blocked, stats, sync,
+Unimplemented reference commands (init, label, blocked, stats,
 doctor, tpl, migrate-from-beads, onboard, upgrade, completions, block,
 unblock, plan, config) answer 'not implemented yet' when invoked.
 
@@ -41,7 +42,6 @@ pub(crate) const PLANNED: &[&str] = &[
     "label",
     "blocked",
     "stats",
-    "sync",
     "doctor",
     "tpl",
     "migrate-from-beads",
@@ -350,6 +350,18 @@ Options:
   --write              Apply the heal in place (atomic temp-file + rename)
   --json               Output as JSON
   -h, --help           display help for command";
+
+pub(crate) const SYNC: &str = "\
+Usage: sd sync [options]
+
+Stage and commit .seeds/ changes
+
+Options:
+  --status    Check status without committing
+  --dry-run   Show what would be committed without committing
+  --json      Output as JSON
+  --force     Commit even when the fabro push gate refuses
+  -h, --help  display help for command";
 
 /// The `sd prime --json` sections beyond the five core ones (mode,
 /// title, contextRecovery, closeProtocol, rules), captured verbatim

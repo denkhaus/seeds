@@ -111,11 +111,28 @@ fn read_file(path: &Path) -> Result<String, Error> {
     })
 }
 
+/// Writes `contents` to `path` atomically (seeds-540e): the payload
+/// lands in a hidden temp sibling first and is renamed over the
+/// target, so a crash can never leave a partial JSONL store behind.
 fn write_file(path: &Path, contents: String) -> Result<(), Error> {
-    fs::write(path, contents).map_err(|source| Error::Io {
-        path: path.to_owned(),
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("store");
+    let temp = path.with_file_name(format!(".{name}.tmp"));
+    fs::write(&temp, contents).map_err(|source| Error::Io {
+        path: temp.clone(),
         source,
-    })
+    })?;
+    match fs::rename(&temp, path) {
+        Ok(()) => Ok(()),
+        Err(source) => {
+            // Best-effort cleanup: the rename failed, so the temp
+            // sibling holds the only copy of the new contents.
+            let _ = fs::remove_file(&temp);
+            Err(Error::Io { path: temp, source })
+        }
+    }
 }
 
 /// Parses one JSONL file into validated records. A missing file is empty.
@@ -167,4 +184,75 @@ fn save_jsonl<T>(
         text.push('\n');
     }
     write_file(&path, text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_store(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "seeds-store-{}-{tag}-{}",
+            std::process::id(),
+            COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+        ));
+        let root = dir.join(".seeds");
+        fs::create_dir_all(&root).expect("temp .seeds dir");
+        fs::write(
+            root.join("config.yaml"),
+            "project: \"tst\"\nversion: \"1\"\n",
+        )
+        .expect("config.yaml");
+        root
+    }
+
+    static COUNTER: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+    // seeds-540e: saves go temp-file+rename, so no `.tmp` sibling is
+    // ever left behind and no partial JSONL is observable.
+    #[test]
+    fn save_leaves_no_temp_siblings_and_replaces_fully() {
+        let root = temp_store("atomic");
+        let store = Store::open(&root).expect("store opens");
+        store.save().expect("first save");
+
+        let mut listed: Vec<String> = fs::read_dir(&root)
+            .expect("read .seeds")
+            .filter_map(std::result::Result::ok)
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect();
+        listed.sort();
+        assert_eq!(
+            listed,
+            vec![
+                "config.yaml".to_owned(),
+                "issues.jsonl".to_owned(),
+                "plans.jsonl".to_owned(),
+                "templates.jsonl".to_owned(),
+            ],
+            "no partial-write temp siblings survive the rename"
+        );
+
+        // A save over an existing file replaces it wholesale: a longer,
+        // record-bearing file is replaced by an empty write — no stale
+        // bytes survive the rename.
+        fs::write(
+            root.join("issues.jsonl"),
+            concat!(
+                "{\"id\":\"tst-0001\",\"title\":\"a\",\"status\":\"open\",",
+                "\"type\":\"task\",\"priority\":2,",
+                "\"createdAt\":\"2026-01-01T00:00:00.000Z\",",
+                "\"updatedAt\":\"2026-01-01T00:00:00.000Z\"}\n"
+            ),
+        )
+        .expect("seed one record");
+        let mut store = Store::open(&root).expect("store reopens");
+        assert_eq!(store.issues.len(), 1);
+        store.issues.clear();
+        store.save().expect("second save");
+        let issues = fs::read_to_string(root.join("issues.jsonl")).expect("issues.jsonl");
+        assert_eq!(issues, "", "the rename replaced the file exactly");
+
+        fs::remove_dir_all(root.parent().expect("parent")).ok();
+    }
 }

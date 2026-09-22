@@ -24,6 +24,16 @@ pub(crate) fn now_iso() -> String {
     format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millis_part:03}Z")
 }
 
+/// The current UTC date as sd's sync commit message uses it
+/// (`seeds: sync 2026-09-22`).
+pub(crate) fn today_utc() -> String {
+    now_iso()
+        .split('T')
+        .next()
+        .expect("now_iso always carries a 'T' date separator")
+        .to_owned()
+}
+
 /// Howard Hinnant's civil-from-days algorithm.
 fn civil_from_days(days: i64) -> (i64, i64, i64) {
     let shifted = days + 719_468;
