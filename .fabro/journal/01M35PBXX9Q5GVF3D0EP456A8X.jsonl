@@ -1,0 +1,2 @@
+{"$schema":"fabro-journal-v1","run_id":"01M35PBXX9Q5GVF3D0EP456A8X","node":"start","visit":1,"status":"succeeded","ts":"2026-09-22T23:14:16Z","data":{}}
+{"$schema":"fabro-journal-v1","run_id":"01M35PBXX9Q5GVF3D0EP456A8X","node":"select","visit":1,"status":"succeeded","ts":"2026-09-22T23:14:55Z","data":{"painpoints":[],"observations":["Selected newest unrevised run on baseline version c0e3dc08…; remaining unrevised runs are blocked: ~160 stale-evidence (version drift or absent) and sandbox_removed — none revisable until the engine provisions fresh analyst sandboxes"]}}
