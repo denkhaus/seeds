@@ -100,10 +100,10 @@ digraph Conductor {
     needs_operator [
         label="Needs operator: seed requires host/operator capability",
         shape=hexagon,
-        human.question="Seed <seed-id> needs host/operator capability (e.g. docker host, gh write:packages). Skip the seed and continue the line, or park the line?",
-        human.options="skip:[S] Skip seed & continue line | park:[P] Park line",
-        human.freeform="note",
-        human.default_choice="skip",
+        "human.question"="Seed <seed-id> needs host/operator capability (e.g. docker host, gh write:packages). Skip the seed and continue the line, or park the line?",
+        "human.options"="skip:[S] Skip seed & continue line | park:[P] Park line",
+        "human.freeform"="note",
+        "human.default_choice"="skip",
         timeout_seconds=86400
     ]
 
