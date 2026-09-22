@@ -6,6 +6,8 @@ domains:
   nushell: {}
   tooling: {}
   rust: {}
+  fabro: {}
+  devloop: {}
 governance:
   max_entries: 100
   warn_entries: 150

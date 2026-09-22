@@ -51,6 +51,19 @@ If the top candidate looks already implemented (its acceptance criteria appear s
 (a) ALREADY LANDED — a fix commit referencing the seed already sits in base history (shown inline in `output.preflight` when covered, else via `git log --grep <seed-id>`) AND the seed's acceptance criteria hold in the worktree → close it yourself with `seeds close <id> --reason "superseded: fix landed in <sha>"` (the one superseded-close exception, seeds command table; reason string mandatory) and route the exit label "Already landed". No cycle runs: the fix is proven landed, a verification lap re-proves nothing (observed once: a whole cycle burned on a journal-and-tracker-only diff for a fix commit already in base). This close carries no implementing diff of its own (the fix predates the run), so the closure must be self-explaining in the tracker: emit the note-append and the close as ONE chained shell call — `seeds update <id> --description "<full existing body> + closure note: superseded: fix landed in <sha> (run <run-id>)" && seeds close <id> --reason "superseded: fix landed in <sha>"` — never two separate LLM turns (evidence: run 01M2Q2Q2NY, ~15-30s of removable round trips per closure). `--description` replaces the body wholesale, so re-emit the FULL existing body with the closure note appended, and the mandatory `--reason` string stays on the close; the `&&` ordering is what guarantees the note lands before the close. A closed seed whose reason lives only in a run journal or commit message reads as lost work until someone greps journals (motivation: fabro-a0e3 absorption opacity, run 01M2368YQ; fabro-02c4).
 (b) Criteria satisfied but NO referencing commit → do NOT close it yourself and do NOT skip it. Claim it normally, mark the brief as verification-only, and route the label "Verification-only" (fabro-9d26): the graph skips the implementer and tester and goes straight to evidence -> reviewer, where an approving review closes it. The verification-only brief must still derive per-criterion checks (fabro-b8ed): enumerate each acceptance criterion as a checkable bullet with its cheapest-first verification, never a flat "criteria satisfied" assertion — the reviewer judges against those bullets, and a flat assertion gives it nothing to check.
 
+CAPABILITY-BLOCK ROUTE (seeds-a77c, HITL pilot): a candidate seed whose
+acceptance criteria REQUIRE host/operator capability the sandbox cannot
+provide (docker host socket, gh write:packages, other operator-held
+credentials) must NOT be claimed and must NOT route Blocked — Blocked is
+the deadlock classification and burns identical cron fires (2026-09-22:
+three fires, then the scheduler's 3-strike auto-disable). Instead: leave
+the seed OPEN and UNASSIGNED (no claim, no status change), emit a journal
+observation with the EXACT phrase `parked: needs operator <seed-id>`, and
+route `preferred_next_label="Needs operator"` with `outcome="succeeded"`.
+The conductor's develop leg owns the human gate on that label; the seed
+waits for the operator. Do not fall through to other candidates on this
+route — the gate's [S] skip answers that.
+
 If `seeds ready --assignee fabro --limit 200` returns nothing and no fabro-assigned seed is in progress for this effort, the FILTERED view is empty — that is a legitimate park, not a broken tracker. Route Tracker empty. NEVER fall back to unassigned seeds and never invent work: while the backlog is unassigned the line does nothing rather than something (FAIL-CLOSED). Assigning backlog seeds is the user's decision (see the PROJECT_FACTS tracker section), never yours.
 
 Do not implement anything yourself. Do not review. Planning and tracker writes only.
@@ -81,6 +94,17 @@ Both routes are successes — planning succeeded either way. The label decides w
 - `succeeded` + "Verification-only": a verification-only claim (two-branch-rule branch (b)) — the brief says the acceptance criteria appear already satisfied and lists the per-criterion checks (fabro-b8ed: never a flat "criteria satisfied" assertion); the graph routes straight to evidence -> reviewer, skipping the implementer and tester.
 - `succeeded` + "Tracker empty": the effort is complete — every seed is closed and the goal holds.
 - `succeeded` + "Already landed": the top candidate's fix commit is already in base history and its acceptance criteria hold — the seed was closed via the superseded-close and the run exits without a cycle.
+
+- `succeeded` + "Needs operator" (capability-block, seeds-a77c): the top candidate needs host/operator capability; it was NOT claimed, it stays open and unassigned, and the journal carries `parked: needs operator <seed-id>`.
+
+Needs operator (capability-block — seed stays open and unclaimed):
+{
+  "outcome": "succeeded",
+  "preferred_next_label": "Needs operator",
+  "context_updates": {
+    "journal": {"painpoints": [], "observations": ["parked: needs operator <seed-id> — <one line: which capability is missing>"]}
+  }
+}
 
 `failed` is reserved for genuine planner errors (cannot read the tracker, invalid routing after retries) and for the cycle-guard Blocked route. Never use `failed` to mean "no more work".
 

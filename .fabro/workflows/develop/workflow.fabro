@@ -490,6 +490,17 @@ digraph Develop {
     // Label is exactly "Blocked" — the prompt declares that string and
     // the label contract requires an exact match (GRAPH-03).
     planner -> exit [kind="deadlock", label="Blocked", condition="preferred_label=\"Blocked\""]
+    // Capability-block soft exit (seeds-a77c, HITL pilot): a seed that
+    // needs host/operator capability (docker host, gh write:packages)
+    // must NOT classify as deadlock — CONTRAST the deadlock "Blocked"
+    // edge directly above. The planner routes here WITHOUT claiming;
+    // the seed stays open and unassigned, and the journal observation
+    // `parked: needs operator <seed-id>` is the conductor's routing
+    // key. Soft exit (SoftStop, not Deadlock): the conductor's develop
+    // leg reads this terminal label and routes its "Needs operator"
+    // human gate instead of "Develop child failed", so the class can
+    // never reach the scheduler's 3-strike auto-disable.
+    planner -> exit [kind="soft", label="Needs operator", condition="preferred_label=\"Needs operator\""]
     planner -> exit        [label="Planner failed", condition="outcome=failed"]
     // Verification-only fast path (fabro-9d26; basis run
     // 01M2N1G834RTCSZNX7EK40G3SE re-verified already-satisfied criteria
