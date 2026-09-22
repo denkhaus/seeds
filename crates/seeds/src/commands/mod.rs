@@ -1,6 +1,6 @@
 //! The command layer: sd 0.5.15-compatible command semantics as a
 //! public library API (seeds-0dfd), shaped for external compile-in
-//! (fabro git-dependency consumer).
+//! consumers that embed the tracker natively.
 //!
 //! argv parsing and printing stay with the binary; everything a command
 //! DOES — validation, defaults, store mutation, and the `{success,

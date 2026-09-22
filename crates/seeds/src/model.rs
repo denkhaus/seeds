@@ -527,7 +527,7 @@ mod tests {
         fields.insert("type".to_owned(), json!("task"));
         fields.insert("priority".to_owned(), json!(1));
         fields.insert("labels".to_owned(), json!(["ready-for-agent", "loop"]));
-        fields.insert("assignee".to_owned(), json!("fabro"));
+        fields.insert("assignee".to_owned(), json!("operator"));
         fields.insert("blockedBy".to_owned(), json!(["seeds-0000"]));
         fields
     }
@@ -541,7 +541,7 @@ mod tests {
         assert_eq!(record.seed_type(), Some(SeedType::Task));
         assert_eq!(record.priority().map(Priority::get), Some(1));
         assert_eq!(record.labels(), vec!["ready-for-agent", "loop"]);
-        assert_eq!(record.assignee(), Some("fabro"));
+        assert_eq!(record.assignee(), Some("operator"));
         assert_eq!(record.blocked_by(), vec!["seeds-0000"]);
         assert!(record.description().is_none());
     }

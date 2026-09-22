@@ -58,7 +58,7 @@ mod tests {
     #[test]
     fn config_round_trips_known_and_unknown_keys() {
         let text =
-            "project: \"seeds\"\nversion: \"1\"\nmax_plan_depth: 3\nreviewers: [\"fabro\"]\n";
+            "project: \"seeds\"\nversion: \"1\"\nmax_plan_depth: 3\nreviewers: [\"operator\"]\n";
         let config = Config::parse(text, std::path::Path::new("config.yaml")).expect("valid");
         assert_eq!(config.project, "seeds");
         assert_eq!(config.version, "1");

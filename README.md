@@ -9,7 +9,7 @@ git-native issue-tracker format.
 preserved on every write; additive fields are the only sanctioned extension
 mechanism. The CLI surface (`seeds create/show/list/ready/update/close/dep/
 prime/search`) mirrors the reference tool until this repo's own line
-replaces it (self-hosting cutover, ADR-0023 in denkhaus/fabro).
+replaces it (self-hosting cutover).
 
 ## CLI surface contract
 
@@ -45,11 +45,6 @@ carrying its own expectation, never a silent split:
   directories to a single `?? .seeds/` entry. The tracked-file cases
   stay byte-identical (differential-pinned); the untracked-dir
   expansion is the deliberate per-file preview.
-- **sync push-gate safety:** when `.fabro/scripts/push-gate.nu`
-  exists at the repo root, `seeds sync` runs it before committing and
-  exits non-zero with a clear message while the gate refuses — the
-  tracker must not race running passes. `--force` overrides; a gate
-  that cannot run (no `nu` on PATH) does not block.
 - **sync commit body:** the sync commit's body carries the
   `git diff --cached --shortstat` line, making sync history greppable
   by size; the reference commits with a subject only.
@@ -95,25 +90,20 @@ this repository is an independent implementation of that format, not a fork.
 
 ## Status
 
-First release: tag `v0.1.0` — the ADR-0023 cross-repo sync point, with
-the differential battery and round-trip suite green at the tagged commit.
+A pure, faster drop-in for the sd CLI: same `.seeds/` format, same
+command surface, differential-pinned parity — with no coupling to any
+outer automation; this repo's own develop loop consumes `seeds`, never
+the reverse.
 
-Second release: tag `v0.2.0` — the fabro-088b library-API sync point.
-Adds the public `seeds::commands` API (command layer lifted out of the
-binary, seeds-0dfd) that the fabro engine binds its native `fabro seeds`
-subcommands against; fabro workspace acceptance validated at the tagged
-commit.
+Second release: tag `v0.2.0` — adds the public `seeds::commands`
+library API (the command layer lifted out of the binary), letting
+external consumers embed the tracker natively instead of shelling out;
+validated at the tagged commit.
 
-Bootstrap. Developed autonomously by [fabro](https://github.com/denkhaus/fabro)
-lines (dogfooding per ADR-0012/0023): the develop workflow in `.fabro/`
-drives all implementation; its own work is tracked in this repo's `.seeds/`
-tracker from day one.
+First release: tag `v0.1.0` — the differential battery and round-trip
+suite green at the tagged commit.
 
-## Operator notes
-
-- [GitHub App Workflows permission](docs/workflows-permission.md) — the
-  `.fabro/github-app-workflows-permission` marker: what it is, why it is
-  currently `absent`, and the staleness contract tied to fabro-11d9.
+All work is tracked in this repo's own `.seeds/` tracker.
 
 ## Build & test
 

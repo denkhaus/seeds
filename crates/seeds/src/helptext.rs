@@ -370,5 +370,4 @@ Options:
   --status    Check status without committing
   --dry-run   Show what would be committed without committing
   --json      Output as JSON
-  --force     Commit even when the fabro push gate refuses
   -h, --help  display help for command";

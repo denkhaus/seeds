@@ -264,8 +264,6 @@ pub struct SyncInput {
     pub status:  bool,
     /// `--dry-run`.
     pub dry_run: bool,
-    /// `--force` (push-gate override).
-    pub force:   bool,
     /// JSON envelope output.
     pub json:    bool,
 }
@@ -307,20 +305,6 @@ pub fn sync(ctx: &CommandContext, input: &SyncInput) -> CommandOutcome {
         let message = format!("seeds: sync {}", timeutil::today_utc());
         if input.dry_run {
             return Ok(SyncOutcome::DryRun { changes, message });
-        }
-        // Push-gate safety (seeds-540e): in fabro repos the tracker
-        // must not race a running pass — a refused gate blocks the
-        // commit; `--force` is the human override.
-        if !input.force {
-            let gate = repo.join(".fabro").join("scripts").join("push-gate.nu");
-            if gate.is_file()
-                && let Some(reason) = push_gate_refusal(&repo, &gate)
-            {
-                return Err(message_of(format!(
-                    "push gate refused — not committing .seeds/ while a pass \
-                     may be running: {reason} (override with --force)"
-                )));
-            }
         }
         git(&repo, &["add", "-A", "--", &seeds_path]).map_err(&message_of)?;
         // The shortstat body line makes sync history greppable by size.
@@ -379,28 +363,4 @@ fn git_repo_root(dir: &Path) -> Option<std::path::PathBuf> {
         .status
         .success()
         .then(|| std::path::PathBuf::from(String::from_utf8_lossy(&output.stdout).trim()))
-}
-
-/// Runs the fabro push gate; `Some(reason)` when it refused (non-zero
-/// exit). A gate that cannot run at all (no `nu`) does not block sync
-/// — documented in the README's DEVIATIONS section.
-fn push_gate_refusal(repo: &Path, gate: &Path) -> Option<String> {
-    let output = Command::new("nu")
-        .arg(gate)
-        .current_dir(repo)
-        .output()
-        .ok()?;
-    if output.status.success() {
-        return None;
-    }
-    let text = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let reason = text
-        .lines()
-        .find(|line| line.contains("GATE REFUSED"))
-        .map_or_else(|| "gate exited non-zero".to_owned(), str::to_owned);
-    Some(reason)
 }

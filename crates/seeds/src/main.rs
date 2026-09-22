@@ -9,7 +9,7 @@
 //! unblock, label add/remove/list/list-all, stats, doctor, prime,
 //! search — plus `sync` with sd-parity behavior and the
 //! README-documented deliberate improvements (per-file preview,
-//! push-gate safety, shortstat commit body), `dedupe` and doctor's
+//! shortstat commit body), `dedupe` and doctor's
 //! `--repair-report` as native additions.
 //! Flag names, JSON envelope shapes (`{success, command, …}`), filter and
 //! limit semantics, and error behavior (JSON `success:false` plus a
@@ -459,7 +459,6 @@ fn cmd_sync(args: &[String]) -> ExitCode {
     let input = SyncInput {
         status:  parsed.flags.contains("status"),
         dry_run: parsed.flags.contains("dry-run"),
-        force:   parsed.flags.contains("force"),
         json:    json_mode(&parsed),
     };
     report(&commands::sync(&ctx(), &input))

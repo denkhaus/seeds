@@ -1,5 +1,5 @@
 //! Round-trip compatibility suite against the reference implementation,
-//! sd 0.5.15 (the README compat contract, ADR-0023 in denkhaus/fabro).
+//! sd 0.5.15 (the README format-compatibility contract).
 //!
 //! Forward: our writer writes → the reference reads + updates → our
 //! fields (and unknown additive fields) survive. Inverse: the reference
