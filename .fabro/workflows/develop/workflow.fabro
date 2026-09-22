@@ -405,7 +405,11 @@ digraph Develop {
         // the read-only allow-list. shell is EXCLUDED deliberately — the
         // seed body proposed including it, but the user decision requires
         // write/shell denied at the engine layer and the decision wins.
-        tools="read_file,grep,glob",
+        tools="read_file,grep,glob,use_skill",
+        // fabro-c760 (mirrors the implementer stanza, fabro-f84f/269d):
+        // use_skill is allowed and loads the vendored skills via
+        // discovery (skills="discover" above) — read-only direction,
+        // no other capability widened.
         // fabro-269d: default-denied fabro-run catalog — before this, a
         // reviewer invoked fabro_run_interact (run 01M2RDM3AZ seq 440).
         // Effective denial is the tools allow-list above (stage_policy
