@@ -5,3 +5,4 @@
 {"$schema":"fabro-journal-v1","run_id":"01M35P6KYYAMB5CTYBTB153SRX","node":"claim_check","visit":1,"status":"succeeded","ts":"2026-09-22T23:11:59Z","data":{}}
 {"$schema":"fabro-journal-v1","run_id":"01M35P6KYYAMB5CTYBTB153SRX","node":"implementer","visit":1,"status":"succeeded","ts":"2026-09-22T23:12:30Z","data":{"painpoints":[],"observations":["The seed's `workflow.fabro:399` anchor points at the denkhaus/fabro graph definition rather than this repo's reviewer.md — the brief already disclosed this and named the actionable target, so no friction beyond noting the anchor pattern for cross-repo loop lineage seeds (run 01M35P6KYYAMB5CTYBTB153SRX)."]}}
 {"$schema":"fabro-journal-v1","run_id":"01M35P6KYYAMB5CTYBTB153SRX","node":"tester","visit":1,"status":"succeeded","ts":"2026-09-22T23:12:35Z","data":{}}
+{"$schema":"fabro-journal-v1","run_id":"01M35P6KYYAMB5CTYBTB153SRX","node":"evidence","visit":1,"status":"succeeded","ts":"2026-09-22T23:12:37Z","data":{}}
