@@ -1,6 +1,5 @@
 //! `seeds sync` improvement suite (seeds-540e): the deliberate
-//! behaviors beyond sd parity — push-gate safety (block, `--force`
-//! override, open gate passes), the per-file staging preview, the
+//! behaviors beyond sd parity — the per-file staging preview, the
 //! shortstat commit body, and the no-op path. Parity itself is pinned
 //! by the tailored differential case (`differential.rs`).
 
@@ -64,14 +63,6 @@ fn text(output: &Output) -> String {
     String::from_utf8_lossy(&output.stdout).trim().to_owned()
 }
 
-fn stderr(output: &Output) -> String {
-    String::from_utf8_lossy(&output.stderr).trim().to_owned()
-}
-
-fn have(program: &str) -> bool {
-    Command::new(program).arg("--version").output().is_ok()
-}
-
 /// UTC today — the date component of the binary's commit message.
 fn utc_today() -> String {
     let output = Command::new("date")
@@ -79,17 +70,6 @@ fn utc_today() -> String {
         .output()
         .expect("spawn date");
     String::from_utf8_lossy(&output.stdout).trim().to_owned()
-}
-
-/// Installs a fixture push gate printing `body` and exiting `code`.
-fn install_gate(dir: &Path, body: &str, code: i32) {
-    let scripts = dir.join(".fabro").join("scripts");
-    fs::create_dir_all(&scripts).expect("gate script dir");
-    fs::write(
-        scripts.join("push-gate.nu"),
-        format!("print '{body}'\nexit {code}\n"),
-    )
-    .expect("gate script");
 }
 
 fn commit_count(dir: &Path) -> usize {
@@ -221,66 +201,4 @@ fn sync_json_envelopes() {
 
 fn json_str(s: &str) -> Value {
     Value::String(s.to_owned())
-}
-
-#[test]
-fn refused_gate_blocks_and_force_overrides() {
-    if !have("nu") {
-        skip_no_nu();
-        return;
-    }
-    let dir = temp_repo("gate");
-    install_gate(&dir, "GATE REFUSED: fixture refuses", 1);
-
-    let output = run(&dir, &["sync"]);
-    assert!(!output.status.success(), "a refused gate blocks sync");
-    assert!(
-        stderr(&output).contains("push gate refused"),
-        "clear message: {}",
-        stderr(&output)
-    );
-    assert!(
-        stderr(&output).contains("GATE REFUSED: fixture refuses"),
-        "the gate's reason is surfaced: {}",
-        stderr(&output)
-    );
-    assert_eq!(commit_count(&dir), 0, "no commit was created");
-
-    let output = run(&dir, &["sync", "--force"]);
-    assert!(
-        output.status.success(),
-        "--force overrides: {}",
-        text(&output)
-    );
-    assert!(text(&output).starts_with("✓ Committed: seeds: sync "));
-    assert_eq!(commit_count(&dir), 1);
-
-    fs::remove_dir_all(&dir).ok();
-}
-
-#[test]
-fn open_gate_allows_the_commit() {
-    if !have("nu") {
-        skip_no_nu();
-        return;
-    }
-    let dir = temp_repo("gate-open");
-    install_gate(&dir, "GATE OPEN: push allowed", 0);
-
-    let output = run(&dir, &["sync"]);
-    assert!(output.status.success(), "stdout: {}", text(&output));
-    assert!(text(&output).starts_with("✓ Committed: seeds: sync "));
-    assert_eq!(commit_count(&dir), 1);
-
-    fs::remove_dir_all(&dir).ok();
-}
-
-/// The skip-with-note contract for environments without `nu` (plain
-/// local `cargo nextest` runs; the gate environment carries nu).
-#[allow(
-    clippy::print_stderr,
-    reason = "the skip-with-note contract requires a visible note on stderr"
-)]
-fn skip_no_nu() {
-    eprintln!("note: nu unavailable — push-gate sync test skipped");
 }

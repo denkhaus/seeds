@@ -5,7 +5,8 @@ the command-level differential battery
 (`crates/seeds/tests/differential.rs`) prove this repo's `seeds`
 binary stays read/write compatible with the reference implementation
 it reimplements: sd 0.5.15 (`@os-eco/seeds-cli`, the jayminwest CLI
-this repo was bootstrapped on — ADR-0023 in denkhaus/fabro). After the
+this repo was bootstrapped on — the README format-compatibility
+contract). After the
 self-hosting cutover (seeds-3791) the repo no longer installs the sd
 CLI on PATH, so the reference lives HERE, in the suite fixtures,
 pinned by `package.json`.

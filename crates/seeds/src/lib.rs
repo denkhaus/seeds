@@ -1,6 +1,7 @@
 //! Native Rust implementation of the seeds git-native issue-tracker format.
 //!
-//! Format compatibility contract (README, ADR-0023 in denkhaus/fabro):
+//! Format compatibility contract (the README format-compatibility
+//! contract):
 //! read+write compatible with `@os-eco/seeds-cli` 0.5.15 —
 //! `.seeds/config.yaml`, `issues.jsonl`, `plans.jsonl`,
 //! `templates.jsonl`; seed ids are `<project>-<hex4>`, dependencies are
