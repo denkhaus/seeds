@@ -176,7 +176,9 @@ digraph Develop {
         context_allow_keys="current_seed_id,current_seed_title,current_seed_brief,review_verdict,journal",
         // fabro-06e0: in-flight PR check surface — read-only enumeration
         // of develop runs incl. linked PR live state (open/closed/merged).
-        fabro_tools="fabro_runs_list"
+        // seeds-a0fa: fabro_ask — read-only Q&A with the referenced run's
+        // analyst for unfamiliar fabro platform semantics (see planner.md).
+        fabro_tools="fabro_runs_list,fabro_ask"
     ]
 
     // Implementer: builds exactly what the claimed seed specifies.
@@ -217,10 +219,11 @@ digraph Develop {
         // catalog are denied mechanically by the same list (question tools
         // stay exempt engine-side). Restricting, never extending (ADR-0019).
         tools="read_file,write_file,edit_file,glob,grep,shell,use_skill",
-        // Same discipline as the reviewer: no fabro-run tools. Effective
-        // denial is the tools allow-list above (stage_policy filters every
-        // unlisted name); the empty opt-in records the intent explicitly.
-        fabro_tools="",
+        // seeds-a0fa: the one deliberate opt-in is fabro_ask — read-only
+        // Q&A with the referenced run's analyst for unfamiliar fabro
+        // platform semantics (see implementer.md). Every other fabro-run
+        // tool stays off the list; the explicit opt-in records the intent.
+        fabro_tools="fabro_ask",
         // fabro-e47c pattern, closed on the implementer 2026-09-03: the ##
         // Context section is a strict input contract — the seed trio the
         // prompt names (review feedback rides INSIDE the brief the planner
