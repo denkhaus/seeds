@@ -13,14 +13,22 @@ Commands (implemented in this build):
   search <query>    Full-text search title + description
   update <id>       Update issue fields
   close <id> [ids]  Close one or more issues
-  dep add           Add an issue dependency (dep remove/list: not yet)
+  dep add           Add an issue dependency
+  dep remove        Remove an issue dependency
+  dep list          Show dependencies for an issue
+  blocked           Show all blocked issues
+  block <id>        Add a blocker to an issue
+  unblock <id>      Remove blockers from an issue
+  label add/remove  Manage issue labels (list, list-all)
+  stats             Project statistics
+  doctor            Check project health and data integrity
   prime             Output AI agent context
   dedupe            Report and heal duplicate ids in .seeds JSONL stores
   sync              Stage and commit .seeds/ changes
 
-Unimplemented reference commands (init, label, blocked, stats,
-doctor, tpl, migrate-from-beads, onboard, upgrade, completions, block,
-unblock, plan, config) answer 'not implemented yet' when invoked.
+Unimplemented reference commands (init, tpl, migrate-from-beads,
+onboard, upgrade, completions, plan, config) answer 'not implemented
+yet' when invoked.
 
 Options:
   -h, --help        Show help
@@ -39,17 +47,11 @@ Run 'sd <command> --help' for command-specific help.";
 /// message instead of a generic unknown-command error.
 pub(crate) const PLANNED: &[&str] = &[
     "init",
-    "label",
-    "blocked",
-    "stats",
-    "doctor",
     "tpl",
     "migrate-from-beads",
     "onboard",
     "upgrade",
     "completions",
-    "block",
-    "unblock",
     "plan",
     "config",
 ];
@@ -203,6 +205,135 @@ Add a dependency (issue depends on depends-on)
 Options:
   --json  Output as JSON
   -h, --help  display help for command";
+
+pub(crate) const DEP_REMOVE: &str = "\
+Usage: sd dep remove [options] <issue> <depends-on>
+
+Remove a dependency
+
+Options:
+  --json  Output as JSON
+  -h, --help  display help for command";
+
+pub(crate) const DEP_LIST: &str = "\
+Usage: sd dep list [options] <issue>
+
+Show dependencies for an issue
+
+Options:
+  --json  Output as JSON
+  -h, --help  display help for command";
+
+pub(crate) const BLOCKED: &str = "\
+Usage: sd blocked [options]
+
+Show all blocked issues
+
+Options:
+  --format <mode>  Output format (markdown|compact|plain|ids|json)
+  --json           Output as JSON (alias for --format json)
+  -h, --help       display help for command";
+
+pub(crate) const BLOCK: &str = "\
+Usage: sd block [options] <id>
+
+Add a blocker to an issue
+
+Arguments:
+  id                 Issue ID to block
+
+Options:
+  --by <blocker-id>  Issue that blocks this issue
+  --json             Output as JSON
+  -h, --help         display help for command";
+
+pub(crate) const UNBLOCK: &str = "\
+Usage: sd unblock [options] <id>
+
+Remove blockers from an issue
+
+Arguments:
+  id                   Issue ID to unblock
+
+Options:
+  --from <blocker-id>  Remove a specific blocker
+  --all                Remove all closed blockers
+  --json               Output as JSON
+  -h, --help           display help for command";
+
+pub(crate) const LABEL: &str = "\
+Usage: sd label [options] [command]
+
+Manage issue labels
+
+Options:
+  -h, --help                            display help for command
+
+Commands:
+  add [options] <issue> <labels...>     Add labels to an issue
+  remove [options] <issue> <labels...>  Remove labels from an issue
+  list [options] <issue>                List labels on an issue
+  list-all [options]                    List all labels used in the project
+  help [command]                        display help for command";
+
+pub(crate) const LABEL_ADD: &str = "\
+Usage: sd label add [options] <issue> <labels...>
+
+Add labels to an issue
+
+Options:
+  --json      Output as JSON
+  -h, --help  display help for command";
+
+pub(crate) const LABEL_REMOVE: &str = "\
+Usage: sd label remove [options] <issue> <labels...>
+
+Remove labels from an issue
+
+Options:
+  --json      Output as JSON
+  -h, --help  display help for command";
+
+pub(crate) const LABEL_LIST: &str = "\
+Usage: sd label list [options] <issue>
+
+List labels on an issue
+
+Options:
+  --json      Output as JSON
+  -h, --help  display help for command";
+
+pub(crate) const LABEL_LIST_ALL: &str = "\
+Usage: sd label list-all [options]
+
+List all labels used in the project
+
+Options:
+  --json      Output as JSON
+  -h, --help  display help for command";
+
+pub(crate) const STATS: &str = "\
+Usage: sd stats [options]
+
+Project statistics
+
+Options:
+  --format <mode>  Output format (markdown|compact|plain|ids|json)
+  --json           Output as JSON (alias for --format json)
+  -h, --help       display help for command";
+
+pub(crate) const DOCTOR: &str = "\
+Usage: sd doctor [options]
+
+Check project health and data integrity
+
+Options:
+  --fix            Auto-fix fixable issues
+  --verbose        Show all check results including passes
+  --repair-report  Name the exact repair for each fixable finding
+                   (native addition beyond sd parity)
+  --json           Output as JSON
+  -h, --help       display help for command";
 
 pub(crate) const PRIME: &str = "\
 Usage: sd prime [options]
