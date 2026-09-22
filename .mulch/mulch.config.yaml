@@ -6,6 +6,7 @@ domains:
   nushell: {}
   tooling: {}
   rust: {}
+  fabro: {}
 governance:
   max_entries: 100
   warn_entries: 150

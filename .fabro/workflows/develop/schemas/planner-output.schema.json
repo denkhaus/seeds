@@ -18,7 +18,8 @@
         "Verification-only",
         "Tracker empty",
         "Already landed",
-        "Blocked"
+        "Blocked",
+        "Needs operator"
       ]
     },
     "failure_reason": {

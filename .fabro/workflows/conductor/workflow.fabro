@@ -83,6 +83,30 @@ digraph Conductor {
         fabro_tools="fabro_workflow_version_create,fabro_run_create,fabro_run_get,fabro_run_wait,fabro_runs_list"
     ]
 
+    // Needs-operator human gate (seeds-a77c, HITL pilot). WHERE THE
+    // GATE LIVES — closeout note: this gate lives in the CONDUCTOR
+    // parent, never in a develop child, because develop children are
+    // created with args.auto_approve=true (auto-approve answers any
+    // gate with the FIRST option) — a child-owned gate would silently
+    // self-answer, so children stay gate-free and the conductor parent
+    // (approval=prompt) is the only place the question reliably lands
+    // in the web interviewer dock. FAIL-CLOSED: while the question is
+    // pending the conductor run blocks HERE — no identical child fires
+    // are spawned; an unanswered gate is never treated as consent to
+    // continue burning fires. Self-heal: after timeout_seconds the
+    // human.default_choice "skip" fires ([S]), the pass ends softly,
+    // and the next cron fire proceeds to the NEXT seed — the parked
+    // seed stays open and unassigned in the tracker.
+    needs_operator [
+        label="Needs operator: seed requires host/operator capability",
+        shape=hexagon,
+        human.question="Seed <seed-id> needs host/operator capability (e.g. docker host, gh write:packages). Skip the seed and continue the line, or park the line?",
+        human.options="skip:[S] Skip seed & continue line | park:[P] Park line",
+        human.freeform="note",
+        human.default_choice="skip",
+        timeout_seconds=86400
+    ]
+
     start -> survey
     survey -> develop [label="Work", condition="preferred_label=\"Work\""]
     survey -> exit    [label="Nothing to do", condition="preferred_label=\"Nothing to do\""]
@@ -94,7 +118,19 @@ digraph Conductor {
     // parked PR; the next fire re-enters via survey.
     develop -> revise [label="Gate stuck — revise anyway", condition="preferred_label=\"Gate stuck — revise anyway\""]
     develop -> exit   [label="Tracker empty", condition="preferred_label=\"Tracker empty\""]
+    // Capability-block routing (seeds-a77c): the child ended SOFTLY on
+    // the develop graph's "Needs operator" exit (journal key
+    // `parked: needs operator <seed-id>`) — route the human gate, NOT
+    // the generic "Develop child failed" soft exit below.
+    develop -> needs_operator [label="Needs operator", condition="preferred_label=\"Needs operator\""]
     develop -> exit   [kind="soft", label="Develop child failed", condition="preferred_label=\"Develop child failed\""]
+    // Gate outcomes (seeds-a77c): [S] skip ends the pass softly — the
+    // next fire claims the NEXT seed (the parked seed stays open);
+    // [P] park ends the pass softly for a human decision; a freeform
+    // note is journaled and takes the skip semantics (continue line).
+    needs_operator -> exit [kind="soft", label="Skip seed & continue line", condition="human.choice=\"skip\""]
+    needs_operator -> exit [kind="soft", label="Park line", condition="human.choice=\"park\""]
+    needs_operator -> exit [kind="soft", label="Operator note (skip + journaled note)", condition="human.freeform"]
     revise -> exit [label="Cycle complete"]
     revise -> exit [kind="soft", label="Revisor child failed", condition="preferred_label=\"Revisor child failed\""]
     // Unconditional safety nets (validator rule all_conditional_edges):
