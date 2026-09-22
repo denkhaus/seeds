@@ -78,3 +78,17 @@ toolchain image's mise trust pins exactly that path
 `.fabro/skills/rust-style-guide/SKILL.md` is the binding coding policy for
 every Rust diff — read it before writing or reviewing Rust. The workspace
 lints in `Cargo.toml` mirror it mechanically.
+
+## Push gate (lefthook, operator checkouts only)
+
+`lefthook.yml` wires `nu .fabro/scripts/push-gate.nu` as a pre-push hook
+(seeds-e5af): pushes refuse while runs are active or run-PRs are open.
+Quota-parked runs (`blocked(quota_rate_limit)`) do NOT refuse — parked is
+not active. Operators activate the hook once per checkout with
+`lefthook install`; `git push --no-verify` is the documented human escape.
+
+INVARIANT: run sandboxes NEVER install hooks — a toolchain/bootstrap
+`lefthook install` or a `core.hooksPath` override would stall the whole
+develop line (every stage push would hit the gate seeing its own active
+run). Never add hook installation to `.fabro/Dockerfile*` or
+`.github/workflows/`.
