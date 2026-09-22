@@ -8,7 +8,7 @@
     reason = "line assembly over optional fields is clearer incrementally"
 )]
 
-use seeds::{SeedRecord, SeedType, Status};
+use crate::{SeedRecord, SeedType, Status};
 
 /// The `--format` output modes (JSON is handled by the envelope path).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -28,8 +28,21 @@ pub(crate) enum RenderMode {
 
 const PRIORITY_NAMES: [&str; 5] = ["Critical", "High", "Medium", "Low", "Backlog"];
 
+/// Maps a `--format` value to its render mode (JSON goes through the
+/// envelope path).
+pub(crate) fn render_mode(format: Option<&str>) -> RenderMode {
+    match format {
+        Some("compact") => RenderMode::Compact,
+        Some("plain") => RenderMode::Plain,
+        Some("ids") => RenderMode::Ids,
+        Some("json") => RenderMode::Json,
+        // The default plus `markdown` share the reference's rich view.
+        _ => RenderMode::Markdown,
+    }
+}
+
 fn priority_name(record: &SeedRecord) -> &'static str {
-    PRIORITY_NAMES[usize::from(record.priority().map_or(4, seeds::Priority::get))]
+    PRIORITY_NAMES[usize::from(record.priority().map_or(4, crate::Priority::get))]
 }
 
 /// The status icon of the rich list line.
@@ -233,7 +246,7 @@ fn detail(record: &SeedRecord) -> String {
 /// store the records came from.
 pub(crate) fn dep_list_text(
     record: &SeedRecord,
-    store: &seeds::Store,
+    store: &crate::Store,
     is_unresolved: &dyn Fn(&str) -> bool,
 ) -> String {
     let mut text = format!("{} dependencies:\n", record.id());
@@ -361,7 +374,7 @@ impl Stats {
                 stats.blocked += 1;
             }
             bump(&mut stats.by_type, type_word(record));
-            let priority = record.priority().map_or(4_u8, seeds::Priority::get);
+            let priority = record.priority().map_or(4_u8, crate::Priority::get);
             if let Some(entry) = stats
                 .by_priority
                 .iter_mut()
