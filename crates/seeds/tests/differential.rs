@@ -33,6 +33,7 @@ use serde_json::{Value, json};
 /// ids make a plain argv comparison meaningless there).
 const IMPLEMENTED_COMMANDS: &[&str] = &[
     "create", "show", "list", "ready", "search", "update", "close", "dep", "prime", "sync",
+    "blocked", "block", "unblock", "label", "stats", "doctor",
 ];
 
 /// Fields whose values are stamped `now` by both binaries at run time;
@@ -559,6 +560,186 @@ fn matrix() -> Vec<Case> {
             name:    "prime_compact_json",
             command: "prime",
             args:    &["prime", "--compact", "--json"],
+        },
+        // blocked: default, formats, JSON envelope (fixture:
+        // tst-0006 blocked by open tst-0001; tst-0005's closed
+        // blocker resolves and stays out).
+        Case {
+            name:    "blocked_default",
+            command: "blocked",
+            args:    &["blocked"],
+        },
+        Case {
+            name:    "blocked_compact",
+            command: "blocked",
+            args:    &["blocked", "--format", "compact"],
+        },
+        Case {
+            name:    "blocked_ids",
+            command: "blocked",
+            args:    &["blocked", "--format", "ids"],
+        },
+        Case {
+            name:    "blocked_json",
+            command: "blocked",
+            args:    &["blocked", "--json"],
+        },
+        // block / unblock: happy paths, idempotence, error paths
+        Case {
+            name:    "block_adds_blocker",
+            command: "block",
+            args:    &["block", "tst-0002", "--by", "tst-0004"],
+        },
+        Case {
+            name:    "block_json",
+            command: "block",
+            args:    &["block", "tst-0002", "--by", "tst-0004", "--json"],
+        },
+        Case {
+            name:    "block_missing_id_error",
+            command: "block",
+            args:    &["block", "tst-zzzz", "--by", "tst-0001", "--json"],
+        },
+        Case {
+            name:    "unblock_from",
+            command: "unblock",
+            args:    &["unblock", "tst-0006", "--from", "tst-0001"],
+        },
+        Case {
+            name:    "unblock_from_json",
+            command: "unblock",
+            args:    &["unblock", "tst-0006", "--from", "tst-0001", "--json"],
+        },
+        Case {
+            name:    "unblock_not_blocked_error",
+            command: "unblock",
+            args:    &["unblock", "tst-0006", "--from", "tst-0004", "--json"],
+        },
+        Case {
+            name:    "unblock_all_no_closed",
+            command: "unblock",
+            args:    &["unblock", "tst-0006", "--all"],
+        },
+        // label: add/remove/list/list-all, error paths
+        Case {
+            name:    "label_add",
+            command: "label",
+            args:    &["label", "add", "tst-0002", "alpha", "beta"],
+        },
+        Case {
+            name:    "label_add_json",
+            command: "label",
+            args:    &["label", "add", "tst-0002", "alpha", "--json"],
+        },
+        Case {
+            name:    "label_add_missing_error",
+            command: "label",
+            args:    &["label", "add", "tst-zzzz", "x", "--json"],
+        },
+        Case {
+            name:    "label_remove",
+            command: "label",
+            args:    &["label", "remove", "tst-0001", "bug"],
+        },
+        Case {
+            name:    "label_remove_all",
+            command: "label",
+            args:    &["label", "remove", "tst-0001", "bug", "ui"],
+        },
+        Case {
+            name:    "label_remove_json",
+            command: "label",
+            args:    &["label", "remove", "tst-0001", "bug", "--json"],
+        },
+        Case {
+            name:    "label_list",
+            command: "label",
+            args:    &["label", "list", "tst-0001"],
+        },
+        Case {
+            name:    "label_list_empty",
+            command: "label",
+            args:    &["label", "list", "tst-0002"],
+        },
+        Case {
+            name:    "label_list_json",
+            command: "label",
+            args:    &["label", "list", "tst-0001", "--json"],
+        },
+        Case {
+            name:    "label_list_all",
+            command: "label",
+            args:    &["label", "list-all"],
+        },
+        Case {
+            name:    "label_list_all_json",
+            command: "label",
+            args:    &["label", "list-all", "--json"],
+        },
+        // dep remove / dep list (dep add is covered above)
+        Case {
+            name:    "dep_remove",
+            command: "dep",
+            args:    &["dep", "remove", "tst-0006", "tst-0001"],
+        },
+        Case {
+            name:    "dep_remove_json",
+            command: "dep",
+            args:    &["dep", "remove", "tst-0006", "tst-0001", "--json"],
+        },
+        Case {
+            name:    "dep_remove_missing_error",
+            command: "dep",
+            args:    &["dep", "remove", "tst-zzzz", "tst-0001", "--json"],
+        },
+        Case {
+            name:    "dep_list",
+            command: "dep",
+            args:    &["dep", "list", "tst-0006"],
+        },
+        Case {
+            name:    "dep_list_no_deps",
+            command: "dep",
+            args:    &["dep", "list", "tst-0002"],
+        },
+        Case {
+            name:    "dep_list_json",
+            command: "dep",
+            args:    &["dep", "list", "tst-0006", "--json"],
+        },
+        Case {
+            name:    "dep_list_missing_error",
+            command: "dep",
+            args:    &["dep", "list", "tst-zzzz", "--json"],
+        },
+        // stats: text and JSON (stable keys, encounter-order groups)
+        Case {
+            name:    "stats_default",
+            command: "stats",
+            args:    &["stats"],
+        },
+        Case {
+            name:    "stats_json",
+            command: "stats",
+            args:    &["stats", "--json"],
+        },
+        Case {
+            name:    "stats_format_json",
+            command: "stats",
+            args:    &["stats", "--format", "json"],
+        },
+        // doctor: check surface, JSON envelope, exit code (fixture
+        // carries one bidirectional mismatch plus the missing
+        // .gitattributes warning)
+        Case {
+            name:    "doctor_default",
+            command: "doctor",
+            args:    &["doctor"],
+        },
+        Case {
+            name:    "doctor_json",
+            command: "doctor",
+            args:    &["doctor", "--json"],
         },
     ]
 }

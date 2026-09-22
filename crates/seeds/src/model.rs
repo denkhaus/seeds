@@ -354,8 +354,12 @@ impl SeedRecord {
 
     /// Removes a field entirely (sd omits empty labels, cleared
     /// extensions, and similar instead of writing empty values).
+    ///
+    /// The removal is order-stable (`shift_remove`): the remaining
+    /// keys keep their positions, matching sd's in-place field
+    /// deletion byte for byte.
     pub fn remove_field(&mut self, name: &str) {
-        self.fields.remove(name);
+        self.fields.shift_remove(name);
     }
 
     /// Reads any field (known or unknown) by name.

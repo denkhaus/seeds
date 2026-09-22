@@ -104,6 +104,33 @@ pub(crate) static CLOSE_SPEC: &[OptSpec] = &[opt("reason"), flag("json")];
 
 pub(crate) static DEP_ADD_SPEC: &[OptSpec] = &[flag("json")];
 
+pub(crate) static DEP_REMOVE_SPEC: &[OptSpec] = &[flag("json")];
+
+pub(crate) static DEP_LIST_SPEC: &[OptSpec] = &[flag("json")];
+
+pub(crate) static BLOCKED_SPEC: &[OptSpec] = &[opt("format"), flag("json")];
+
+pub(crate) static STATS_SPEC: &[OptSpec] = &[opt("format"), flag("json")];
+
+pub(crate) static DOCTOR_SPEC: &[OptSpec] = &[
+    flag("fix"),
+    flag("verbose"),
+    flag("repair-report"),
+    flag("json"),
+];
+
+pub(crate) static LABEL_ADD_SPEC: &[OptSpec] = &[flag("json")];
+
+pub(crate) static LABEL_REMOVE_SPEC: &[OptSpec] = &[flag("json")];
+
+pub(crate) static LABEL_LIST_SPEC: &[OptSpec] = &[flag("json")];
+
+pub(crate) static LABEL_LIST_ALL_SPEC: &[OptSpec] = &[flag("json")];
+
+pub(crate) static BLOCK_SPEC: &[OptSpec] = &[opt("by"), flag("json")];
+
+pub(crate) static UNBLOCK_SPEC: &[OptSpec] = &[opt("from"), flag("all"), flag("json")];
+
 pub(crate) static PRIME_SPEC: &[OptSpec] = &[flag("compact"), flag("export"), flag("json")];
 
 pub(crate) static DEDUPE_SPEC: &[OptSpec] = &[flag("write"), flag("json")];

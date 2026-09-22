@@ -754,6 +754,7 @@ fn global_help_lists_only_implemented_commands() {
     let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
     for command in [
         "create", "show", "list", "ready", "search", "update", "close", "dep", "prime", "dedupe",
+        "blocked", "block", "unblock", "label", "stats", "doctor",
     ] {
         assert!(text.contains(command), "--help lists {command}");
     }
@@ -763,7 +764,7 @@ fn global_help_lists_only_implemented_commands() {
         .split("Unimplemented reference commands")
         .next()
         .unwrap_or_default();
-    for absent in ["stats", "onboard", "migrate-from-beads"] {
+    for absent in ["tpl", "onboard", "migrate-from-beads"] {
         assert!(
             !commands_section.contains(absent),
             "--help must not list unimplemented '{absent}' as a command"
@@ -775,9 +776,7 @@ fn global_help_lists_only_implemented_commands() {
 fn planned_commands_answer_not_implemented_yet() {
     let dir = temp_store("planned");
     write_records(&dir, &standard());
-    for command in [
-        "label", "blocked", "stats", "doctor", "tpl", "plan", "config",
-    ] {
+    for command in ["tpl", "plan", "config", "init", "upgrade", "completions"] {
         let output = run(&dir, &[command]);
         assert_eq!(output.status.code(), Some(1), "{command} exits 1");
         let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
@@ -786,18 +785,196 @@ fn planned_commands_answer_not_implemented_yet() {
             "{command} stderr: {stderr}"
         );
     }
-    // dep remove/list: implemented surface is `dep add` only.
-    let output = run(&dir, &["dep", "remove", "tst-0001", "tst-0002"]);
-    assert_eq!(output.status.code(), Some(1));
-    assert!(
-        String::from_utf8(output.stderr.clone())
-            .expect("utf-8")
-            .contains("not implemented yet")
-    );
+    // The hygiene batch graduated: these must NOT answer
+    // not-implemented anymore (help honesty, seeds-c228).
+    for command in ["blocked", "block", "unblock", "stats", "doctor"] {
+        let output = run(&dir, &[command]);
+        let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
+        assert!(
+            !stderr.contains("not implemented yet"),
+            "{command} is implemented: {stderr}"
+        );
+    }
+    let output = run(&dir, &["label", "list", "tst-0001"]);
+    assert_eq!(output.status.code(), Some(0));
     // A genuinely unknown command keeps the generic error.
     let output = run(&dir, &["frobnicate"]);
     assert_eq!(output.status.code(), Some(1));
     let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
     assert!(stderr.contains("unknown command"), "stderr: {stderr}");
     assert!(!stderr.contains("not implemented yet"));
+}
+
+// ---------------------------------------------------------------------------
+// hygiene batch deviations (seeds-c228): doctor and stats beyond parity
+// ---------------------------------------------------------------------------
+
+/// One deliberate bidirectional mismatch (tst-0006 → tst-0001 without
+/// the reverse side) and a consistent closed record — the minimal
+/// doctor fixture for the deviation tests.
+fn doctor_fixture() -> Vec<Value> {
+    vec![
+        record(
+            "tst-0001",
+            "Fix login bug",
+            json!({"type": "bug", "priority": 0, "labels": ["bug"], "assignee": "alice"}),
+        ),
+        record(
+            "tst-0004",
+            "Old work",
+            json!({"status": "closed", "priority": 3, "closedAt": "2026-01-05T00:00:00.000Z"}),
+        ),
+        record(
+            "tst-0006",
+            "Blocked work",
+            json!({"priority": 1, "blockedBy": ["tst-0001"]}),
+        ),
+    ]
+}
+
+/// `doctor --json` keeps sd's envelope (checks/summary) and adds
+/// machine-readable `repair` fields only under `--repair-report` — the
+/// documented DEVIATIONS addition.
+#[test]
+fn doctor_json_is_machine_readable_and_repair_report_names_the_fix() {
+    let dir = temp_store("doctor-deviation");
+    // The fixture's tst-0006.blockedBy lacks the tst-0001.blocks
+    // reverse side — the live bidirectional mismatch class.
+    write_records(&dir, &doctor_fixture());
+
+    let plain = run(&dir, &["doctor", "--json"]);
+    assert_eq!(plain.status.code(), Some(0));
+    let value = stdout_json(&plain);
+    assert_eq!(value["success"], json!(true));
+    let checks = value["checks"].as_array().expect("checks array");
+    let names: Vec<&str> = checks
+        .iter()
+        .map(|check| check["name"].as_str().expect("name"))
+        .collect();
+    assert_eq!(names, vec![
+        "config",
+        "jsonl-integrity",
+        "schema-validation",
+        "duplicate-ids",
+        "referential-integrity",
+        "bidirectional-consistency",
+        "circular-dependencies",
+        "label-schema",
+        "extensions-schema",
+        "closed-fields-consistency",
+        "stale-locks",
+        "gitattributes",
+    ]);
+    // Pure --json: no repair keys (parity surface).
+    assert!(checks.iter().all(|check| check.get("repair").is_none()));
+
+    let report = run(&dir, &["doctor", "--repair-report", "--json"]);
+    assert_eq!(report.status.code(), Some(0));
+    let value = stdout_json(&report);
+    let bidirectional = value["checks"]
+        .as_array()
+        .expect("checks array")
+        .iter()
+        .find(|check| check["name"] == "bidirectional-consistency")
+        .expect("bidirectional check")
+        .clone();
+    assert_eq!(bidirectional["status"], json!("warn"));
+    // The repair names the exact fix (the facc/9482 class).
+    let repair = bidirectional["repair"].as_str().expect("repair present");
+    assert!(
+        repair.contains("add \"tst-0006\" to tst-0001.blocks"),
+        "repair names the exact fix: {repair}"
+    );
+
+    // Text mode: the repair appendix follows the summary.
+    let text = run(&dir, &["doctor", "--repair-report"]);
+    let stdout = String::from_utf8(text.stdout.clone()).expect("utf-8");
+    assert!(stdout.contains("Repairable findings:"));
+    assert!(stdout.contains("fix: add \"tst-0006\" to tst-0001.blocks"));
+}
+
+/// `doctor --fix` repairs the bidirectional mismatch and creates the
+/// merge=union `.gitattributes`; a second run is clean.
+#[test]
+fn doctor_fix_repairs_mismatches_and_gitattributes() {
+    let dir = temp_store("doctor-fix");
+    write_records(&dir, &doctor_fixture());
+
+    let output = run(&dir, &["doctor", "--fix"]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(
+        stdout.contains("✓ Repaired 1 bidirectional dependency mismatch(es)"),
+        "fix line: {stdout}"
+    );
+    assert!(stdout.contains("✓ Created .gitattributes with merge=union entries"));
+    let gitattributes =
+        fs::read_to_string(dir.join(".gitattributes")).expect(".gitattributes written");
+    assert!(gitattributes.contains(".seeds/issues.jsonl merge=union"));
+
+    let again = run(&dir, &["doctor"]);
+    assert_eq!(again.status.code(), Some(0));
+    let stdout = String::from_utf8(again.stdout.clone()).expect("utf-8");
+    assert!(
+        stdout.contains("12 passed, 0 warning(s), 0 failure(s)"),
+        "{stdout}"
+    );
+
+    // The store repair added the reverse blocks entry.
+    let repaired = read_records(&dir);
+    let blocker = repaired
+        .iter()
+        .find(|record| record["id"] == "tst-0001")
+        .expect("tst-0001");
+    assert_eq!(blocker["blocks"], json!(["tst-0006"]));
+}
+
+/// A malformed JSONL line is a doctor FAILURE (non-zero exit), keeping
+/// sd's check name and exit semantics (detail wording is the
+/// documented Rust-side divergence).
+#[test]
+fn doctor_fails_on_malformed_jsonl() {
+    let dir = temp_store("doctor-fail");
+    write_records(&dir, &standard());
+    let mut text = fs::read_to_string(dir.join(".seeds/issues.jsonl")).expect("issues.jsonl");
+    text.push_str("not json at all\n");
+    fs::write(dir.join(".seeds/issues.jsonl"), text).expect("append malformed line");
+
+    let output = run(&dir, &["doctor"]);
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(
+        stdout.contains("✗ 1 malformed line(s) in JSONL files"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("1 failure(s)"), "{stdout}");
+}
+
+/// `stats --json` emits the stable key set (documented DEVIATIONS
+/// addition; the parity shape is differentially pinned).
+#[test]
+fn stats_json_has_stable_keys() {
+    let dir = temp_store("stats-keys");
+    write_records(&dir, &standard());
+    let output = run(&dir, &["stats", "--json"]);
+    assert_eq!(output.status.code(), Some(0));
+    let value = stdout_json(&output);
+    let stats = &value["stats"];
+    for key in [
+        "total",
+        "open",
+        "inProgress",
+        "closed",
+        "blocked",
+        "byType",
+        "byPriority",
+        "byLabel",
+    ] {
+        assert!(stats.get(key).is_some(), "stats.{key} present");
+    }
+    assert_eq!(stats["total"], json!(6));
+    assert_eq!(stats["open"], json!(4));
+    assert_eq!(stats["inProgress"], json!(1));
+    assert_eq!(stats["closed"], json!(1));
+    assert_eq!(stats["blocked"], json!(1));
 }

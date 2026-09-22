@@ -32,11 +32,10 @@ Deliberate divergences from the reference — each documented here and
 carrying its own expectation, never a silent split:
 
 - **Help honesty:** `seeds --help` lists only implemented commands;
-  unimplemented-but-planned reference commands (`init`, `label`,
-  `blocked`, `stats`, `doctor`, `tpl`, `migrate-from-beads`,
-  `onboard`, `upgrade`, `completions`, `block`, `unblock`, `plan`,
-  `config`) answer a clear `not implemented yet` message instead of the
-  reference's real implementations. Same for `dep remove` / `dep list`.
+  unimplemented-but-planned reference commands (`init`, `tpl`,
+  `migrate-from-beads`, `onboard`, `upgrade`, `completions`,
+  `plan`, `config`) answer a clear `not implemented yet` message
+  instead of the reference's real implementations.
 - **sync per-file staging preview:** `seeds sync --status` /
   `--dry-run` list every changed file individually
   (`git status --porcelain -uall`); the reference collapses untracked
@@ -68,8 +67,25 @@ carrying its own expectation, never a silent split:
 - **Canonical write order:** no divergence observed — both writers emit
   identical `issues.jsonl` bytes for every covered mutation (volatile
   timestamps aside).
-- **doctor heal:** not ported; the native `seeds dedupe` (report +
-  `--write`) is this repo's integrity tool beyond parity.
+- **doctor (hygiene batch, seeds-c228):** the check surface (12
+  checks, names, pass messages, warn/fail exit semantics) and the
+  `--json` envelope are sd-parity — differentially pinned. Three
+  deliberate additions/divergences beyond it: (1) `--repair-report`
+  (text and JSON) names the exact fix per fixable finding — e.g. the
+  bidirectional dep mismatch class gets `add "X" to Y.blocks — seeds
+  dep add X Y` — where sd only marks `fixable: true`; (2) malformed
+  JSONL detail strings carry this build's parser wording (Rust serde),
+  not Node's; (3) `--fix` repairs bidirectional mismatches by adding
+  the missing reverse reference and creates the merge=union
+  `.gitattributes` (same content as sd), leaving `updatedAt`
+  untouched (sd's fix-time stamping is unspecified). The native
+  `seeds dedupe` remains the duplicate-id heal.
+- **stats (hygiene batch, seeds-c228):** `--json` keeps sd's envelope
+  with the stable key set (`total`, `open`, `inProgress`, `closed`,
+  `blocked`, `byType`, `byPriority`, `byLabel`) — observed sd 0.5.15
+  behavior already matches, so this is pinned parity (differential +
+  a native stable-keys test), not a divergence. Group maps preserve
+  first-seen encounter order, as sd does.
 
 Format credit: [jayminwest/seeds](https://github.com/jayminwest/seeds) —
 this repository is an independent implementation of that format, not a fork.

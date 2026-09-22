@@ -1,10 +1,12 @@
 //! The `seeds` binary: sd 0.5.15-compatible CLI over the format core.
 //!
-//! Nine-command parity surface (README compat contract, ADR-0023):
-//! create, show, list, ready, update, close, dep add, prime, search —
-//! plus `sync` with sd-parity behavior and the README-documented
-//! deliberate improvements (per-file preview, push-gate safety,
-//! shortstat commit body).
+//! Parity surface (README compat contract, ADR-0023): create, show,
+//! list, ready, update, close, dep add/remove/list, blocked, block,
+//! unblock, label add/remove/list/list-all, stats, doctor, prime,
+//! search — plus `sync` with sd-parity behavior and the
+//! README-documented deliberate improvements (per-file preview,
+//! push-gate safety, shortstat commit body), `dedupe` and doctor's
+//! `--repair-report` as native additions.
 //! Flag names, JSON envelope shapes (`{success, command, …}`), filter and
 //! limit semantics, and error behavior (JSON `success:false` plus a
 //! non-zero exit, exactly as the pinned reference behaves) mirror
@@ -25,6 +27,7 @@ use serde_json::{Map, Value, json};
 
 mod args;
 mod dedupe;
+mod doctor;
 mod helptext;
 mod render;
 mod timeutil;
@@ -95,6 +98,12 @@ fn dispatch(argv: &[String]) -> ExitCode {
         "update" => run_update(rest),
         "close" => run_close(rest),
         "dep" => run_dep(rest),
+        "blocked" => run_blocked(rest),
+        "block" => run_block(rest),
+        "unblock" => run_unblock(rest),
+        "label" => run_label(rest),
+        "stats" => run_stats(rest),
+        "doctor" => run_doctor(rest),
         "prime" => run_prime(rest),
         "search" => run_search(rest),
         "dedupe" => run_dedupe(rest),
@@ -926,6 +935,8 @@ fn run_close(args: &[String]) -> ExitCode {
 fn run_dep(args: &[String]) -> ExitCode {
     match args.first().map(String::as_str) {
         Some("add") => run_dep_add(&args[1..]),
+        Some("remove") => run_dep_remove(&args[1..]),
+        Some("list") => run_dep_list(&args[1..]),
         Some("-h" | "--help") | None => {
             println!("{}", helptext::DEP);
             ExitCode::SUCCESS
@@ -933,7 +944,7 @@ fn run_dep(args: &[String]) -> ExitCode {
         Some(other) => {
             eprintln!(
                 "error: dep subcommand '{other}' is not implemented yet \
-                 (this build implements `dep add`)"
+                 (this build implements `dep add`, `dep remove`, `dep list`)"
             );
             ExitCode::FAILURE
         }
@@ -1002,6 +1013,736 @@ fn run_dep_add(args: &[String]) -> ExitCode {
                 println!("Added dependency: {issue_id} → {depends_on_id}");
             }
             ExitCode::SUCCESS
+        }
+        Err(error) => error.report(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// dep remove / dep list (hygiene batch, seeds-c228)
+// ---------------------------------------------------------------------------
+
+/// Removes `dep` from a record's string-array field, dropping the
+/// field when the list empties (sd omits empty arrays).
+fn remove_dep_field(record: &mut SeedRecord, name: &str, dep: &str) {
+    let remaining: Vec<String> = record
+        .fields()
+        .get(name)
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .filter(|id| *id != dep)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
+    if remaining.is_empty() {
+        record.remove_field(name);
+    } else {
+        let value: Vec<Value> = remaining.into_iter().map(|id| json!(id)).collect();
+        record.set_field(name, Value::Array(value));
+    }
+}
+
+fn run_dep_remove(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::DEP_REMOVE_SPEC, helptext::DEP_REMOVE) else {
+        return ExitCode::FAILURE;
+    };
+    let json = json_mode(&parsed);
+    let result = (|| -> Result<(String, String), CommandError> {
+        if parsed.positionals.len() != 2 {
+            return Err(CommandError::new(
+                "dep",
+                "usage: sd dep remove <issue> <depends-on>",
+                json,
+            ));
+        }
+        let issue_id = parsed.positionals[0].clone();
+        let depends_on_id = parsed.positionals[1].clone();
+        let mut store = open_store().map_err(|message| CommandError::new("dep", message, json))?;
+        for id in [&issue_id, &depends_on_id] {
+            if store.issue(id).is_none() {
+                return Err(CommandError::new(
+                    "dep",
+                    format!("Issue not found: {id}"),
+                    json,
+                ));
+            }
+        }
+        let now = timeutil::now_iso();
+        {
+            let record = store.issue_mut(&issue_id).expect("existence checked above");
+            remove_dep_field(record, "blockedBy", &depends_on_id);
+            record.set_field("updatedAt", json!(now));
+        }
+        {
+            let record = store
+                .issue_mut(&depends_on_id)
+                .expect("existence checked above");
+            remove_dep_field(record, "blocks", &issue_id);
+            record.set_field("updatedAt", json!(now));
+        }
+        store
+            .save()
+            .map_err(|error| CommandError::new("dep", error.to_string(), json))?;
+        Ok((issue_id, depends_on_id))
+    })();
+    match result {
+        Ok((issue_id, depends_on_id)) => {
+            if json {
+                println!(
+                    "{}",
+                    envelope_pretty("dep remove", &[
+                        ("issueId", json!(issue_id)),
+                        ("dependsOnId", json!(depends_on_id)),
+                    ])
+                );
+            } else {
+                println!("Removed dependency: {issue_id} → {depends_on_id}");
+            }
+            ExitCode::SUCCESS
+        }
+        Err(error) => error.report(),
+    }
+}
+
+fn run_dep_list(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::DEP_LIST_SPEC, helptext::DEP_LIST) else {
+        return ExitCode::FAILURE;
+    };
+    let json = json_mode(&parsed);
+    let result = (|| -> Result<SeedRecord, CommandError> {
+        let Some(id) = parsed.positionals.first() else {
+            return Err(CommandError::new("dep", "usage: sd dep list <issue>", json));
+        };
+        let store = open_store().map_err(|message| CommandError::new("dep", message, json))?;
+        store
+            .issue(id)
+            .cloned()
+            .ok_or_else(|| CommandError::new("dep", format!("Issue not found: {id}"), json))
+    })();
+    match result {
+        Ok(record) => {
+            if json {
+                let blocked_by: Vec<Value> = record
+                    .blocked_by()
+                    .into_iter()
+                    .map(|id| json!(id))
+                    .collect();
+                let blocks: Vec<Value> = record.blocks().into_iter().map(|id| json!(id)).collect();
+                println!(
+                    "{}",
+                    envelope_pretty("dep list", &[
+                        ("issueId", json!(record.id().as_str())),
+                        ("blockedBy", Value::Array(blocked_by)),
+                        ("blocks", Value::Array(blocks)),
+                    ])
+                );
+            } else {
+                let store = open_store().expect("store opened above");
+                let unresolved = |dep: &str| -> bool {
+                    store
+                        .issue(dep)
+                        .is_none_or(|blocker| blocker.status() != Some(Status::Closed))
+                };
+                print!("{}", render::dep_list_text(&record, &store, &unresolved));
+            }
+            ExitCode::SUCCESS
+        }
+        Err(error) => error.report(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// blocked / block / unblock
+// ---------------------------------------------------------------------------
+
+fn run_blocked(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::BLOCKED_SPEC, helptext::BLOCKED) else {
+        return ExitCode::FAILURE;
+    };
+    let json = json_mode(&parsed);
+    let result = (|| -> Result<Vec<SeedRecord>, CommandError> {
+        let store = open_store().map_err(|message| CommandError::new("blocked", message, json))?;
+        // Store order, non-closed records with at least one unresolved
+        // blocker (a closed blocker resolves the block).
+        Ok(store
+            .issues
+            .iter()
+            .filter(|record| {
+                record.status() != Some(Status::Closed)
+                    && store_has_unresolved_blockers(&store, record)
+            })
+            .cloned()
+            .collect())
+    })();
+    match result {
+        Ok(records) => {
+            if json {
+                let issues: Vec<Value> = records.iter().map(issue_value).collect();
+                println!(
+                    "{}",
+                    envelope_pretty("blocked", &[
+                        ("issues", json!(issues)),
+                        ("count", json!(issues.len())),
+                    ])
+                );
+            } else {
+                let mode = render_mode(&parsed);
+                let store = open_store();
+                let unresolved = |dep: &str| -> bool {
+                    store.as_ref().map_or(true, |store| {
+                        store
+                            .issue(dep)
+                            .is_none_or(|blocker| blocker.status() != Some(Status::Closed))
+                    })
+                };
+                let text = render::list_text(&records, mode, &unresolved, "blocked");
+                if records.is_empty()
+                    && matches!(
+                        mode,
+                        render::RenderMode::Markdown
+                            | render::RenderMode::Plain
+                            | render::RenderMode::Json
+                    )
+                {
+                    println!("No blocked issues.");
+                } else {
+                    print!("{text}");
+                }
+            }
+            ExitCode::SUCCESS
+        }
+        Err(error) => error.report(),
+    }
+}
+
+fn run_block(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::BLOCK_SPEC, helptext::BLOCK) else {
+        return ExitCode::FAILURE;
+    };
+    let json = json_mode(&parsed);
+    let result = (|| -> Result<(String, String), CommandError> {
+        let Some(id) = parsed.positionals.first() else {
+            eprintln!("error: missing required argument 'id'");
+            std::process::exit(1);
+        };
+        let Some(blocker_id) = parsed.options.get("by") else {
+            eprintln!("Error: Usage: sd block <id> --by <blocker-id>");
+            std::process::exit(1);
+        };
+        let (id, blocker_id) = (id.clone(), blocker_id.clone());
+        let mut store =
+            open_store().map_err(|message| CommandError::new("block", message, json))?;
+        for target in [&id, &blocker_id] {
+            if store.issue(target).is_none() {
+                return Err(CommandError::new(
+                    "block",
+                    format!("Issue not found: {target}"),
+                    json,
+                ));
+            }
+        }
+        let now = timeutil::now_iso();
+        {
+            let record = store.issue_mut(&id).expect("existence checked above");
+            record.add_blocked_by(&blocker_id);
+            record.set_field("updatedAt", json!(now));
+        }
+        {
+            let record = store
+                .issue_mut(&blocker_id)
+                .expect("existence checked above");
+            let mut blocks = record.blocks();
+            if !blocks.contains(&id.as_str()) {
+                blocks.push(id.as_str());
+            }
+            let blocks: Vec<Value> = blocks.into_iter().map(|blocked| json!(blocked)).collect();
+            record.set_field("blocks", Value::Array(blocks));
+            record.set_field("updatedAt", json!(now));
+        }
+        store
+            .save()
+            .map_err(|error| CommandError::new("block", error.to_string(), json))?;
+        Ok((id, blocker_id))
+    })();
+    match result {
+        Ok((id, blocker_id)) => {
+            if json {
+                println!(
+                    "{}",
+                    envelope_pretty("block", &[
+                        ("issueId", json!(id)),
+                        ("blockerId", json!(blocker_id)),
+                    ])
+                );
+            } else {
+                println!("{id} is now blocked by {blocker_id}");
+            }
+            ExitCode::SUCCESS
+        }
+        Err(error) => error.report(),
+    }
+}
+
+fn run_unblock(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::UNBLOCK_SPEC, helptext::UNBLOCK) else {
+        return ExitCode::FAILURE;
+    };
+    let json = json_mode(&parsed);
+    let result = (|| -> Result<(String, Vec<String>), CommandError> {
+        let Some(id) = parsed.positionals.first() else {
+            eprintln!("error: missing required argument 'id'");
+            std::process::exit(1);
+        };
+        let id = id.clone();
+        let from = parsed.options.get("from").cloned();
+        let all = parsed.flags.contains("all");
+        if from.is_none() && !all {
+            eprintln!("Error: Usage: sd unblock <id> [--from <blocker-id> | --all]");
+            std::process::exit(1);
+        }
+        let mut store =
+            open_store().map_err(|message| CommandError::new("unblock", message, json))?;
+        if store.issue(&id).is_none() {
+            return Err(CommandError::new(
+                "unblock",
+                format!("Issue not found: {id}"),
+                json,
+            ));
+        }
+        let removed: Vec<String> = if let Some(blocker_id) = from {
+            // Membership only — a blocker id that does not exist is
+            // simply "not blocked by" it (the reference's error).
+            let blocked_by = store
+                .issue(&id)
+                .expect("existence checked above")
+                .blocked_by();
+            if !blocked_by.contains(&blocker_id.as_str()) {
+                return Err(CommandError::new(
+                    "unblock",
+                    format!("{id} is not blocked by {blocker_id}"),
+                    json,
+                ));
+            }
+            vec![blocker_id]
+        } else {
+            // `--all`: only blockers whose own issue is closed.
+            store
+                .issue(&id)
+                .expect("existence checked above")
+                .blocked_by()
+                .into_iter()
+                .filter(|dep| {
+                    store
+                        .issue(dep)
+                        .is_some_and(|blocker| blocker.status() == Some(Status::Closed))
+                })
+                .map(str::to_owned)
+                .collect()
+        };
+        let now = timeutil::now_iso();
+        for blocker_id in &removed {
+            {
+                let record = store.issue_mut(&id).expect("existence checked above");
+                remove_dep_field(record, "blockedBy", blocker_id);
+                record.set_field("updatedAt", json!(now));
+            }
+            {
+                // A dangling blocker id still unblocks the issue; the
+                // reverse side only exists when the record does.
+                if let Some(record) = store.issue_mut(blocker_id) {
+                    remove_dep_field(record, "blocks", &id);
+                    record.set_field("updatedAt", json!(now));
+                }
+            }
+        }
+        store
+            .save()
+            .map_err(|error| CommandError::new("unblock", error.to_string(), json))?;
+        Ok((id, removed))
+    })();
+    match result {
+        Ok((id, removed)) => {
+            if json {
+                let removed_value: Vec<Value> = removed.iter().map(|r| json!(r)).collect();
+                println!(
+                    "{}",
+                    envelope_pretty("unblock", &[
+                        ("issueId", json!(id)),
+                        ("removed", Value::Array(removed_value)),
+                    ])
+                );
+            } else if removed.is_empty() {
+                println!("No closed blockers to remove from {id}.");
+            } else {
+                println!("{id} unblocked from {}", removed.join(", "));
+            }
+            ExitCode::SUCCESS
+        }
+        Err(error) => error.report(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// label
+// ---------------------------------------------------------------------------
+
+fn run_label(args: &[String]) -> ExitCode {
+    match args.first().map(String::as_str) {
+        Some("add") => run_label_add(&args[1..]),
+        Some("remove") => run_label_remove(&args[1..]),
+        Some("list") => run_label_list(&args[1..]),
+        Some("list-all") => run_label_list_all(&args[1..]),
+        Some("-h" | "--help") => {
+            println!("{}", helptext::LABEL);
+            ExitCode::SUCCESS
+        }
+        // A bare `sd label` prints its usage on stderr, exit 1.
+        None => {
+            eprintln!("{}", helptext::LABEL);
+            ExitCode::FAILURE
+        }
+        Some(other) => {
+            eprintln!("error: unknown command '{other}' for 'label'");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run_label_add(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::LABEL_ADD_SPEC, helptext::LABEL_ADD) else {
+        return ExitCode::FAILURE;
+    };
+    let json = json_mode(&parsed);
+    let result = (|| -> Result<(String, Vec<String>), CommandError> {
+        let Some(id) = parsed.positionals.first() else {
+            return Err(CommandError::new(
+                "label",
+                "usage: sd label add <issue> <labels...>",
+                json,
+            ));
+        };
+        let id = id.clone();
+        if parsed.positionals.len() < 2 {
+            return Err(CommandError::new(
+                "label",
+                "usage: sd label add <issue> <labels...>",
+                json,
+            ));
+        }
+        let labels = parsed.positionals[1..].to_vec();
+        let mut store =
+            open_store().map_err(|message| CommandError::new("label", message, json))?;
+        if store.issue(&id).is_none() {
+            return Err(CommandError::new(
+                "label",
+                format!("Issue not found: {id}"),
+                json,
+            ));
+        }
+        let now = timeutil::now_iso();
+        {
+            let record = store.issue_mut(&id).expect("existence checked above");
+            let mut existing: Vec<String> =
+                record.labels().into_iter().map(str::to_owned).collect();
+            for label in &labels {
+                if !existing.contains(label) {
+                    existing.push(label.clone());
+                }
+            }
+            record.set_labels(existing);
+            record.set_field("updatedAt", json!(now));
+        }
+        store
+            .save()
+            .map_err(|error| CommandError::new("label", error.to_string(), json))?;
+        Ok((id, labels))
+    })();
+    match result {
+        Ok((id, labels)) => {
+            if json {
+                let labels_value: Vec<Value> = labels.iter().map(|l| json!(l)).collect();
+                println!(
+                    "{}",
+                    envelope_pretty("label add", &[
+                        ("issueId", json!(id)),
+                        ("labels", Value::Array(labels_value)),
+                    ])
+                );
+            } else {
+                println!("✓ Added label(s) {} to {id}", labels.join(", "));
+            }
+            ExitCode::SUCCESS
+        }
+        Err(error) => error.report(),
+    }
+}
+
+fn run_label_remove(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::LABEL_REMOVE_SPEC, helptext::LABEL_REMOVE) else {
+        return ExitCode::FAILURE;
+    };
+    let json = json_mode(&parsed);
+    let result = (|| -> Result<(String, Vec<String>), CommandError> {
+        let Some(id) = parsed.positionals.first() else {
+            return Err(CommandError::new(
+                "label",
+                "usage: sd label remove <issue> <labels...>",
+                json,
+            ));
+        };
+        let id = id.clone();
+        if parsed.positionals.len() < 2 {
+            return Err(CommandError::new(
+                "label",
+                "usage: sd label remove <issue> <labels...>",
+                json,
+            ));
+        }
+        let labels = parsed.positionals[1..].to_vec();
+        let mut store =
+            open_store().map_err(|message| CommandError::new("label", message, json))?;
+        if store.issue(&id).is_none() {
+            return Err(CommandError::new(
+                "label",
+                format!("Issue not found: {id}"),
+                json,
+            ));
+        }
+        let now = timeutil::now_iso();
+        {
+            let record = store.issue_mut(&id).expect("existence checked above");
+            let remaining: Vec<String> = record
+                .labels()
+                .into_iter()
+                .filter(|label| !labels.iter().any(|remove| remove == *label))
+                .map(str::to_owned)
+                .collect();
+            if remaining.is_empty() {
+                record.remove_field("labels");
+            } else {
+                record.set_labels(remaining);
+            }
+            record.set_field("updatedAt", json!(now));
+        }
+        store
+            .save()
+            .map_err(|error| CommandError::new("label", error.to_string(), json))?;
+        Ok((id, labels))
+    })();
+    match result {
+        Ok((id, labels)) => {
+            if json {
+                let labels_value: Vec<Value> = labels.iter().map(|l| json!(l)).collect();
+                println!(
+                    "{}",
+                    envelope_pretty("label remove", &[
+                        ("issueId", json!(id)),
+                        ("labels", Value::Array(labels_value)),
+                    ])
+                );
+            } else {
+                println!("✓ Removed label(s) from {id}");
+            }
+            ExitCode::SUCCESS
+        }
+        Err(error) => error.report(),
+    }
+}
+
+fn run_label_list(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::LABEL_LIST_SPEC, helptext::LABEL_LIST) else {
+        return ExitCode::FAILURE;
+    };
+    let json = json_mode(&parsed);
+    let result = (|| -> Result<SeedRecord, CommandError> {
+        let Some(id) = parsed.positionals.first() else {
+            return Err(CommandError::new(
+                "label",
+                "usage: sd label list <issue>",
+                json,
+            ));
+        };
+        let store = open_store().map_err(|message| CommandError::new("label", message, json))?;
+        store
+            .issue(id)
+            .cloned()
+            .ok_or_else(|| CommandError::new("label", format!("Issue not found: {id}"), json))
+    })();
+    match result {
+        Ok(record) => {
+            if json {
+                let labels: Vec<Value> = record
+                    .labels()
+                    .into_iter()
+                    .map(|label| json!(label))
+                    .collect();
+                println!(
+                    "{}",
+                    envelope_pretty("label list", &[
+                        ("issueId", json!(record.id().as_str())),
+                        ("labels", Value::Array(labels)),
+                    ])
+                );
+            } else {
+                print!("{}", render::label_list_text(&record));
+            }
+            ExitCode::SUCCESS
+        }
+        Err(error) => error.report(),
+    }
+}
+
+fn run_label_list_all(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::LABEL_LIST_ALL_SPEC, helptext::LABEL_LIST_ALL)
+    else {
+        return ExitCode::FAILURE;
+    };
+    let json = json_mode(&parsed);
+    let result = (|| -> Result<Vec<(String, usize)>, CommandError> {
+        let store = open_store().map_err(|message| CommandError::new("label", message, json))?;
+        let mut counts: Vec<(String, usize)> = Vec::new();
+        for record in &store.issues {
+            for label in record.labels() {
+                if let Some(entry) = counts.iter_mut().find(|(existing, _)| existing == label) {
+                    entry.1 += 1;
+                } else {
+                    counts.push((label.to_owned(), 1));
+                }
+            }
+        }
+        Ok(counts)
+    })();
+    match result {
+        Ok(counts) => {
+            if json {
+                let mut sorted: Vec<&(String, usize)> = counts.iter().collect();
+                sorted.sort_by(|a, b| a.0.cmp(&b.0));
+                let labels: Vec<Value> = sorted.iter().map(|(label, _)| json!(label)).collect();
+                // The counts object keeps encounter order (the
+                // reference's insertion-ordered map).
+                let mut counts_map = Map::new();
+                for (label, count) in &counts {
+                    counts_map.insert(label.clone(), json!(count));
+                }
+                println!(
+                    "{}",
+                    envelope_pretty("label list-all", &[
+                        ("labels", Value::Array(labels)),
+                        ("counts", Value::Object(counts_map)),
+                    ])
+                );
+            } else {
+                print!("{}", render::label_list_all_text(&counts));
+            }
+            ExitCode::SUCCESS
+        }
+        Err(error) => error.report(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// stats
+// ---------------------------------------------------------------------------
+
+fn run_stats(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::STATS_SPEC, helptext::STATS) else {
+        return ExitCode::FAILURE;
+    };
+    let json = json_mode(&parsed);
+    let result = (|| -> Result<render::Stats, CommandError> {
+        let store = open_store().map_err(|message| CommandError::new("stats", message, json))?;
+        let unresolved = |dep: &str| -> bool {
+            store
+                .issue(dep)
+                .is_none_or(|blocker| blocker.status() != Some(Status::Closed))
+        };
+        Ok(render::Stats::collect(&store.issues, &unresolved))
+    })();
+    match result {
+        Ok(stats) => {
+            if json {
+                let mut by_type = Map::new();
+                for (kind, count) in &stats.by_type {
+                    by_type.insert(kind.clone(), json!(count));
+                }
+                let mut by_priority = Map::new();
+                for (level, count) in &stats.by_priority {
+                    by_priority.insert(level.to_string(), json!(count));
+                }
+                let mut by_label = Map::new();
+                for (label, count) in &stats.by_label {
+                    by_label.insert(label.clone(), json!(count));
+                }
+                let mut stats_map = Map::new();
+                stats_map.insert("total".to_owned(), json!(stats.total));
+                stats_map.insert("open".to_owned(), json!(stats.open));
+                stats_map.insert("inProgress".to_owned(), json!(stats.in_progress));
+                stats_map.insert("closed".to_owned(), json!(stats.closed));
+                stats_map.insert("blocked".to_owned(), json!(stats.blocked));
+                stats_map.insert("byType".to_owned(), Value::Object(by_type));
+                stats_map.insert("byPriority".to_owned(), Value::Object(by_priority));
+                stats_map.insert("byLabel".to_owned(), Value::Object(by_label));
+                println!(
+                    "{}",
+                    envelope_pretty("stats", &[("stats", Value::Object(stats_map))])
+                );
+            } else {
+                print!("{}", stats.text());
+            }
+            ExitCode::SUCCESS
+        }
+        Err(error) => error.report(),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// doctor
+// ---------------------------------------------------------------------------
+
+fn run_doctor(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::DOCTOR_SPEC, helptext::DOCTOR) else {
+        return ExitCode::FAILURE;
+    };
+    let json = json_mode(&parsed);
+    let fix = parsed.flags.contains("fix");
+    let repair_report = parsed.flags.contains("repair-report");
+    let result = (|| -> Result<doctor::Report, CommandError> {
+        let root =
+            find_seeds_dir().map_err(|message| CommandError::new("doctor", message, json))?;
+        doctor::run(&root, fix).map_err(|message| CommandError::new("doctor", message, json))
+    })();
+    match result {
+        Ok(report) => {
+            if json {
+                let mut envelope = Map::new();
+                envelope.insert("success".to_owned(), json!(!report.has_failures()));
+                envelope.insert("command".to_owned(), json!("doctor"));
+                let Value::Object(report_map) = report.json_value(repair_report) else {
+                    unreachable!("report json is an object");
+                };
+                for (key, value) in report_map {
+                    envelope.insert(key, value);
+                }
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&Value::Object(envelope))
+                        .expect("envelope always serializes")
+                );
+            } else {
+                print!("{}", report.text());
+                if repair_report {
+                    print!("{}", report.repair_report_text());
+                }
+            }
+            if report.has_failures() {
+                ExitCode::FAILURE
+            } else {
+                ExitCode::SUCCESS
+            }
         }
         Err(error) => error.report(),
     }
