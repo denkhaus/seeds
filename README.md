@@ -92,6 +92,9 @@ this repository is an independent implementation of that format, not a fork.
 
 ## Status
 
+First release: tag `v0.1.0` — the ADR-0023 cross-repo sync point, with
+the differential battery and round-trip suite green at the tagged commit.
+
 Bootstrap. Developed autonomously by [fabro](https://github.com/denkhaus/fabro)
 lines (dogfooding per ADR-0012/0023): the develop workflow in `.fabro/`
 drives all implementation; its own work is tracked in this repo's `.seeds/`
