@@ -1,0 +1,1 @@
+{"type":"pattern","classification":"tactical","recorded_at":"2026-09-22T14:04:09.972Z","evidence":{"commit":"ad4ebc03de7d34564ac5686344032c0712a403e9"},"name":"seeds-81cd-actionable-residual-gate","description":"probe upsert","files":[".fabro/workflows/develop/scripts/closeout-smoke.nu",".fabro/workflows/develop/scripts/closeout.nu",".mulch/mulch.config.yaml"],"id":"mx-e606fd"}
