@@ -47,7 +47,11 @@ def run-base [] {
 # whole workspace as touched (dependency edits can affect every crate).
 def touched-crates [] {
     let base = (run-base).base
-    let paths = (git diff --name-only $base | lines | compact)
+    # seeds-7e0f: union with untracked files — brand-new files never
+    # appear in `git diff --name-only`, so a new test file silently
+    # vanished from the derivation. `--exclude-standard` keeps
+    # git-ignored files excluded.
+    let paths = ((git diff --name-only $base | lines | compact) | append (git ls-files --others --exclude-standard | lines | compact) | uniq)
     let crate_paths = ($paths | where {|p| ($p | str starts-with 'lib/') or ($p | str starts-with 'crates/') })
     # `parse` yields a table PER input string, so `each` would nest the
     # result (list<list<record>> — the run-1 gate crash). flatten first.

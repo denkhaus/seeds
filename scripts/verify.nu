@@ -69,7 +69,11 @@ def run-base [] {
 # touched crate (tests included — fmt/clippy cover them too).
 def touched [] {
     let base = (run-base).base
-    let paths = (git diff --name-only $base | lines | compact)
+    # seeds-7e0f: union with untracked files — brand-new files never
+    # appear in `git diff --name-only`, so a new test file silently
+    # vanished from the derivation. `--exclude-standard` keeps
+    # git-ignored files excluded.
+    let paths = ((git diff --name-only $base | lines | compact) | append (git ls-files --others --exclude-standard | lines | compact) | uniq)
     # crates/<name>/** is this repo's layout (seeds-9482); the lib/... arms
     # stay for portability of the pattern.
     let crate_paths = ($paths | where {|p| ($p | str starts-with 'lib/') or ($p | str starts-with 'crates/') })
