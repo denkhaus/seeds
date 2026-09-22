@@ -107,6 +107,15 @@ suite green at the tagged commit.
 
 All work is tracked in this repo's own `.seeds/` tracker.
 
+## Push gate (operators)
+
+`lefthook.yml` runs `nu .fabro/scripts/push-gate.nu` as a pre-push hook:
+pushes to `main` refuse while runs are active or run-PRs are open
+(quota-parked runs do not refuse). Operators enable it once per checkout
+with `lefthook install`; `git push --no-verify` is the human escape.
+Run sandboxes never install hooks — that invariant keeps the develop
+line's own stage pushes unstalled.
+
 ## Build & test
 
 ```

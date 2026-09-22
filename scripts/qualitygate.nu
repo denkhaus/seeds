@@ -153,6 +153,9 @@ def check-loop-assets [] {
     # are tools, not batteries).
     let batteries = [
         '.fabro/scripts/dup-run-check-fixtures.nu'
+        # push-gate status-filter battery (seeds-e5af): quota-parked runs
+        # do not refuse, running runs do, unknown fails safe.
+        '.fabro/scripts/push-gate-fixtures.nu'
         # planner-preflight anchor battery (fabro-83df report-only
         # end-to-end case included; 0.5s measured 2026-09-19)
         '.fabro/scripts/planner-preflight-anchor-fixtures.nu'
