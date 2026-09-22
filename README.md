@@ -90,10 +90,12 @@ this repository is an independent implementation of that format, not a fork.
 
 ## Status
 
-A pure, faster drop-in for the sd CLI: same `.seeds/` format, same
-command surface, differential-pinned parity — with no coupling to any
-outer automation; this repo's own develop loop consumes `seeds`, never
-the reverse.
+A faster drop-in replacement for the sd CLI: same `.seeds/` format,
+same command surface, differential-pinned parity. The two main
+advantages: native speed, and seamless integration into Rust
+codebases via the public `seeds::commands` library API (embed the
+tracker, no shelling out). No coupling to any outer automation; this
+repo's own develop loop consumes `seeds`, never the reverse.
 
 Second release: tag `v0.2.0` — adds the public `seeds::commands`
 library API (the command layer lifted out of the binary), letting
