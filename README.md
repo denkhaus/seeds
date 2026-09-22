@@ -33,9 +33,12 @@ carrying its own expectation, never a silent split:
 
 - **Help honesty:** `seeds --help` lists only implemented commands;
   unimplemented-but-planned reference commands (`init`, `tpl`,
-  `migrate-from-beads`, `onboard`, `upgrade`, `completions`,
+  `onboard`, `upgrade`, `completions`,
   `plan`, `config`) answer a clear `not implemented yet` message
   instead of the reference's real implementations.
+  `migrate-from-beads` is a deliberate **non-goal**: run the reference
+  tool (`sd migrate-from-beads`) once on a beads store and switch —
+  this crate reads the migrated `.seeds/` result natively.
 - **sync per-file staging preview:** `seeds sync --status` /
   `--dry-run` list every changed file individually
   (`git status --porcelain -uall`); the reference collapses untracked
