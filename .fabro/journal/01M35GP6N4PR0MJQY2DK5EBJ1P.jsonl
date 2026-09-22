@@ -1,0 +1,2 @@
+{"$schema":"fabro-journal-v1","run_id":"01M35GP6N4PR0MJQY2DK5EBJ1P","node":"start","visit":1,"status":"succeeded","ts":"2026-09-22T21:35:00Z","data":{}}
+{"$schema":"fabro-journal-v1","run_id":"01M35GP6N4PR0MJQY2DK5EBJ1P","node":"select","visit":1,"status":"succeeded","ts":"2026-09-22T21:35:40Z","data":{"painpoints":[],"observations":["Selected newest unrevised terminal run 01M35GF84EPCHM7FD7AHPDCEG0 on the baseline workflow version; ~25 older unrevised runs remain blocked (stale-evidence version drift, and no live analyst sandbox for all but two)."]}}
