@@ -13,11 +13,16 @@
 //! feature) as the serialization source of truth, so a load→save cycle
 //! reproduces sd's compact JSONL byte for byte, unknown fields included.
 
+pub mod commands;
 mod config;
+mod dedupe;
+mod doctor;
 mod error;
 mod id;
 mod model;
+mod render;
 mod store;
+mod timeutil;
 
 pub use config::Config;
 pub use error::{Error, IdError, RecordError};
