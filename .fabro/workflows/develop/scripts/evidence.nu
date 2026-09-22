@@ -37,6 +37,11 @@ const LOOP_ROOTS = ["justfile" "AGENTS.md" "CLAUDE.md" ".gitignore"]
 # Pathological-input safety only — NOT a fidelity budget (see header).
 const HARD_CAP = 128000
 
+# New-file diffs (verbatim added-content blobs) count at 1/N of their
+# length toward HARD_CAP (seeds-731d): the reviewer pages them, and full
+# cost was silently dropping whole seed-work files at ~128 KB captures.
+const NEW_FILE_COST_DIV = 8
+
 # Doc-ish extensions sort LAST in the diff walk: review hinges on source.
 const DOC_EXTENSIONS = ["md" "markdown" "txt" "rst" "adoc" "ad"]
 
@@ -311,10 +316,15 @@ def seed-work-files-section [seed_rows: list]: nothing -> string {
 # pathological-input safety only; on cap the walk stops and the
 # disclosure names the omitted files — with docs sorted last, a cap hit
 # eats documentation before source.
-# Shared per-seed diff walk behind both diff sections (seed work and, for
-# churn-only seeds, loop work — fabro-4b57): diff each file against the
-# claim base, sanitize the body, silently skip files with no hunks, stop at
-# the HARD_CAP and report what was cut.
+# Shared per-seed diff walk behind all three diff sections (seed work,
+# churn-only loop work — fabro-4b57 — and anomaly — fabro-c0e5): diff each
+# file against the claim base, sanitize the body, silently skip files with
+# no hunks, stop at the HARD_CAP and report what was cut. New-file diffs
+# are verbatim added-content blobs the reviewer pages through rather than
+# reads line-by-line, so they count at a discounted cost toward the cap
+# (seeds-731d, NEW_FILE_COST_DIV): an observed 128.6 KB / 15-file capture
+# class must include every file. The cap itself stays pathological-input
+# safety only — a generated 50MB file still trips it at full lethality.
 def diff-walk [base: string, files: list]: nothing -> record<body: string, omitted: list> {
     mut used = 0
     mut parts = []
@@ -324,14 +334,27 @@ def diff-walk [base: string, files: list]: nothing -> record<body: string, omitt
         if $res.exit_code != 0 {
             continue
         }
-        $included = ($included | append $f)
         let text = (sanitize ($res.stdout | str trim -r -c "\n"))
         if ($text | is-empty) {
+            # No hunks against the claim base: counts as walked (not cut).
+            $included = ($included | append $f)
             continue
         }
-        let cost = ($text | str length)
+        # Discounted cost accounting (seeds-731d): a new-file diff is a
+        # verbatim added-content blob — count it at 1/NEW_FILE_COST_DIV of
+        # its length toward HARD_CAP so ordinary new-file-heavy captures
+        # never trip the pathological-input cap. Modified-file diffs keep
+        # full cost. If even the discounted cost would blow the cap, the
+        # file is NOT emitted half-way: skip it (and the rest) whole —
+        # a partial blob is worse than the disclosure that names it.
+        let cost = if ($res.stdout | str contains "new file mode") {
+            (($text | str length) // $NEW_FILE_COST_DIV)
+        } else {
+            ($text | str length)
+        }
         if ($used + $cost) > $HARD_CAP { break }
         $used = ($used + $cost)
+        $included = ($included | append $f)
         $parts = ($parts | append $"($text)\n")
     }
     {body: ($parts | str join), omitted: ($files | where {|f| $f not-in $included })}
