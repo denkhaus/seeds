@@ -41,7 +41,7 @@ Nextest gives a consistent test runner for local and CI workflows. Snapshot, pro
 Run the configured CI commands before handing off Rust changes:
 
 ```sh
-cargo +nightly-2026-04-14 fmt --check --all
+cargo +nightly-2026-09-22 fmt --check --all
 cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 cargo nextest run --workspace --all-targets --all-features
 ```

@@ -70,12 +70,8 @@ impl Filters {
             kind,
             assignee: input.assignee.clone(),
             all: input.all,
-            label: input.label.as_deref().map(comma_list).unwrap_or_default(),
-            label_any: input
-                .label_any
-                .as_deref()
-                .map(comma_list)
-                .unwrap_or_default(),
+            label: input.label.as_deref().map_or_default(comma_list),
+            label_any: input.label_any.as_deref().map_or_default(comma_list),
             unlabeled: input.unlabeled,
             priority,
             priority_max,

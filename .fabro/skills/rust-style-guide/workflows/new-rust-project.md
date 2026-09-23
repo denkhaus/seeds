@@ -24,7 +24,7 @@ Load the async guideline when the project is async. Load logging, public API, an
 2. Make the sync-vs-async posture explicit before adding async dependencies; async projects use Tokio.
 3. Prefer a workspace when multiple crates share version, edition, dependencies, lints, or profiles.
 4. Set Rust 2024 and `rust-version = "1.85"` unless the project already has different constraints.
-5. Add pinned rustfmt configuration and use `nightly-2026-04-14` for formatting.
+5. Add pinned rustfmt configuration and use `nightly-2026-09-22` for formatting.
 6. Add curated workspace lints and tailor project-specific `clippy.toml` guardrails before copying async/blocking disallow rules.
 7. Audit every Rust source file under `src/`, including nested modules: classify it as trivial or nontrivial, and add bottom-of-file `#[cfg(test)] mod tests` for each nontrivial file's focused behavior and private helpers. Record a specific exception when a nontrivial file does not get module-local tests.
 8. Use `cargo nextest run --workspace --all-targets --all-features` as the normal workspace test runner.
@@ -137,7 +137,7 @@ enum_discrim_align_threshold = 20
 Install the pinned formatter, the MSRV toolchain, and the test runner used by the verification commands:
 
 ```sh
-rustup toolchain install nightly-2026-04-14 --profile minimal --component rustfmt
+rustup toolchain install nightly-2026-09-22 --profile minimal --component rustfmt
 rustup toolchain install 1.85.0 --profile minimal
 cargo install cargo-nextest --locked
 ```
@@ -167,7 +167,7 @@ disallowed-types = [
 Use these commands as the default new-project validation set:
 
 ```sh
-cargo +nightly-2026-04-14 fmt --check --all
+cargo +nightly-2026-09-22 fmt --check --all
 cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 cargo nextest run --workspace --all-targets --all-features
 cargo +1.85.0 check --workspace --all-targets --all-features

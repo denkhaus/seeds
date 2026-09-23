@@ -1,6 +1,6 @@
 # Local development toolset, managed by mise (mirrors the toolchain image
 # .fabro/Dockerfile.toolchain). The Rust toolchain is owned by rustup
-# (pinned nightly-2026-04-14, see AGENTS.md). The tracker is this repo's
+# (pinned nightly-2026-09-22, see AGENTS.md). The tracker is this repo's
 # own `seeds` binary (self-hosting cutover, seeds-3791): install it with
 # `cargo install --path crates/seeds` — rustup's cargo bin dir is already
 # on PATH, so no mise entry is needed.

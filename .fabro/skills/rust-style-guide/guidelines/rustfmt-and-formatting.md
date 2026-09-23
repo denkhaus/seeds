@@ -11,9 +11,9 @@ Formatting should be mechanical and reproducible. A pinned rustfmt version preve
 ## Do
 
 - Check in `rustfmt.toml` at the workspace root.
-- Use `nightly-2026-04-14` for formatting.
-- Run `cargo +nightly-2026-04-14 fmt --all` before committing Rust changes.
-- Run `cargo +nightly-2026-04-14 fmt --check --all` in CI.
+- Use `nightly-2026-09-22` for formatting.
+- Run `cargo +nightly-2026-09-22 fmt --all` before committing Rust changes.
+- Run `cargo +nightly-2026-09-22 fmt --check --all` in CI.
 - Keep editor, agent, and CI commands aligned with the same pinned toolchain.
 - Let rustfmt decide layout instead of hand-formatting around it.
 
@@ -30,8 +30,8 @@ Formatting should be mechanical and reproducible. A pinned rustfmt version preve
 Run the checked-in formatter configuration:
 
 ```sh
-cargo +nightly-2026-04-14 fmt --all
-cargo +nightly-2026-04-14 fmt --check --all
+cargo +nightly-2026-09-22 fmt --all
+cargo +nightly-2026-09-22 fmt --check --all
 ```
 
 Use the new project workflow for the initial `rustfmt.toml` contents.

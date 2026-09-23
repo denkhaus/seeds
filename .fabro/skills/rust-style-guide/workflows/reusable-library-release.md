@@ -36,7 +36,7 @@ Use `--workspace` when verifying every library crate in the workspace. When rele
 Run the MSRV check with the crate's declared `rust-version` from step 1; `+1.85.0` below is illustrative, so a crate that declares `rust-version = "1.78"` is verified with `cargo +1.78.0 check`.
 
 ```sh
-cargo +nightly-2026-04-14 fmt --check --all
+cargo +nightly-2026-09-22 fmt --check --all
 cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 cargo nextest run --workspace --all-targets --all-features
 cargo +1.85.0 check --workspace --all-targets --all-features

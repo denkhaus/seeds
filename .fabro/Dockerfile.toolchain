@@ -9,7 +9,7 @@
 # mold linker anchor stay.
 FROM ubuntu:24.04
 
-ARG RUST_NIGHTLY=nightly-2026-04-14
+ARG RUST_NIGHTLY=nightly-2026-09-22
 
 RUN set -eux; \
     apt-get update; \

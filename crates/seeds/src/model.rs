@@ -127,8 +127,7 @@ fn str_array_field<'a>(fields: &'a Fields, name: &str) -> Vec<&'a str> {
     fields
         .get(name)
         .and_then(Value::as_array)
-        .map(|entries| entries.iter().filter_map(Value::as_str).collect())
-        .unwrap_or_default()
+        .map_or_default(|entries| entries.iter().filter_map(Value::as_str).collect())
 }
 
 /// A seed issue record from `issues.jsonl`.

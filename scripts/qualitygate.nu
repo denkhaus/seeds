@@ -86,10 +86,10 @@ def touched-crates [] {
 }
 
 # Toolchain pin (AGENTS.md): rustfmt/clippy results depend on the compiler
-# version — the repo pins nightly-2026-04-14, which is also the default (and
+# version — the repo pins nightly-2026-09-22, which is also the default (and
 # only) toolchain in the toolchain image. Explicit pin keeps the gate
 # identical on the host, where the default is stable.
-const PINNED_TOOLCHAIN = "nightly-2026-04-14"
+const PINNED_TOOLCHAIN = "nightly-2026-09-22"
 
 def check-fmt [] {
     print "== cargo fmt --check --all =="

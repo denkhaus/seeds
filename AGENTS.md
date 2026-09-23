@@ -9,14 +9,14 @@ the deciding record is ADR-0023 in denkhaus/fabro.
 - `cargo build --workspace` — build
 - `cargo nextest run --workspace` — all tests
 - `cargo nextest run -p seeds -- <test_name>` — single test
-- `cargo +nightly-2026-04-14 fmt --check --all` — format check (pinned
-  nightly; install with `rustup toolchain install nightly-2026-04-14
+- `cargo +nightly-2026-09-22 fmt --check --all` — format check (pinned
+  nightly; install with `rustup toolchain install nightly-2026-09-22
   --profile minimal --component clippy,rustfmt`)
-- `cargo +nightly-2026-04-14 clippy --workspace --all-targets -- -D warnings`
+- `cargo +nightly-2026-09-22 clippy --workspace --all-targets -- -D warnings`
 - `just qualitygate` — the develop loop's touched-crates gate
 - `just image` — build the run-sandbox toolchain image
 
-The Rust toolchain is owned by rustup (pinned `nightly-2026-04-14`);
+The Rust toolchain is owned by rustup (pinned `nightly-2026-09-22`);
 mise owns just/bun/nushell/ripgrep and (bootstrap phase) the jayminwest
 ml CLI. The tracker is this repo's own `seeds` binary (self-hosting
 cutover, seeds-3791): `cargo install --path crates/seeds` puts it on

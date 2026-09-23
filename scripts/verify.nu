@@ -17,7 +17,7 @@
 # stage arrives as an ARGUMENT in v1; engine-side FABRO_STAGE env
 # injection is the follow-up fork recorded in fabro-6e7f.
 
-const PINNED_TOOLCHAIN = "nightly-2026-04-14"
+const PINNED_TOOLCHAIN = "nightly-2026-09-22"
 
 # A test file by the repo's layout: tests/ dirs, *_tests.rs companions,
 # or a tests.rs module file inside src/.

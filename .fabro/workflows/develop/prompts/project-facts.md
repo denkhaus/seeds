@@ -45,8 +45,8 @@ friction: report it in the journal, never silently work around it.
   justfile. The workflow stays agnostic about what the gate checks.
 - Rust toolchain pin (fmt/clippy run on the pinned nightly; tests run
   through `cargo nextest`):
-  - `cargo +nightly-2026-04-14 fmt -p <touched-crate>`
-  - `cargo +nightly-2026-04-14 clippy -p <touched-crate> --all-targets -- -D warnings`
+  - `cargo +nightly-2026-09-22 fmt -p <touched-crate>`
+  - `cargo +nightly-2026-09-22 clippy -p <touched-crate> --all-targets -- -D warnings`
 - Stage journal: `.fabro/journal/<run_id>.jsonl` — one JSON record per stage
   completion; the fallback source for recovering a run's claimed seed id
   (shell grep for the seed id prefix when a run goal names none).

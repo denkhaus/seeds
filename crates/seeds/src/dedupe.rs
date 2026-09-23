@@ -222,7 +222,7 @@ mod tests {
         ];
         let (healed, duplicates) = heal_lines(&borrowed(&input));
         assert_eq!(healed, vec![oddity.to_owned(), input[1].clone()]);
-        assert!(duplicates.is_empty());
+        assert_eq!(duplicates, [] as [Duplicate; 0]);
     }
 
     #[test]
@@ -233,6 +233,6 @@ mod tests {
         ];
         let (healed, duplicates) = heal_lines(&borrowed(&input));
         assert_eq!(healed, input);
-        assert!(duplicates.is_empty());
+        assert_eq!(duplicates, [] as [Duplicate; 0]);
     }
 }

@@ -155,7 +155,7 @@ fn library_failures_are_outcomes_not_exits() {
         outcome.stderr.trim(),
         "error: required option '--title <text>' not specified"
     );
-    assert!(outcome.stdout.is_empty());
+    assert_eq!(outcome.stdout, "");
 
     // An explicit context isolates the caller from the cwd: a bogus
     // directory reports the store-open failure instead of walking up.

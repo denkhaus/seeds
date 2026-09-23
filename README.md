@@ -121,8 +121,8 @@ line's own stage pushes unstalled.
 ```
 cargo build --workspace
 cargo nextest run --workspace
-cargo +nightly-2026-04-14 fmt --check --all
-cargo +nightly-2026-04-14 clippy --workspace --all-targets -- -D warnings
+cargo +nightly-2026-09-22 fmt --check --all
+cargo +nightly-2026-09-22 clippy --workspace --all-targets -- -D warnings
 ```
 
 License: MIT OR Apache-2.0.
