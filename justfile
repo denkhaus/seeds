@@ -3,6 +3,16 @@
 default:
     @just --list
 
+# Build all workspace crates (debug profile).
+build:
+    cargo build --workspace
+
+# Build and install the seeds CLI globally. cargo's bin dir is on PATH
+# via rustup, so `seeds` is available everywhere (self-hosting cutover,
+# seeds-3791). `--force` reinstalls over an existing same-version binary.
+install: build
+    cargo install --path crates/seeds --locked --force
+
 # Touched-crates quality gate (the deterministic tester step calls this).
 qualitygate:
     nu scripts/qualitygate.nu
