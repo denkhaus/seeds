@@ -8,8 +8,8 @@ git-native issue-tracker format.
 `issues.jsonl`, `plans.jsonl`, `templates.jsonl`). Unknown record fields are
 preserved on every write; additive fields are the only sanctioned extension
 mechanism. The CLI surface (`seeds create/show/list/ready/update/close/dep/
-prime/search`) mirrors the reference tool until this repo's own line
-replaces it (self-hosting cutover).
+prime/search/plan`) mirrors the reference tool until this repo's own
+line replaces it (self-hosting cutover).
 
 ## CLI surface contract
 
@@ -33,9 +33,10 @@ carrying its own expectation, never a silent split:
 
 - **Help honesty:** `seeds --help` lists only implemented commands;
   unimplemented-but-planned reference commands (`init`, `tpl`,
-  `onboard`, `upgrade`, `completions`,
-  `plan`, `config`) answer a clear `not implemented yet` message
-  instead of the reference's real implementations.
+  `onboard`, `upgrade`, `completions`, `config`) answer a clear `not
+  implemented yet` message instead of the reference's real
+  implementations. `plan` graduated with the full decomposition
+  surface (seeds-de37).
   `migrate-from-beads` is a deliberate **non-goal**: run the reference
   tool (`sd migrate-from-beads`) once on a beads store and switch —
   this crate reads the migrated `.seeds/` result natively.
@@ -84,6 +85,19 @@ carrying its own expectation, never a silent split:
   behavior already matches, so this is pinned parity (differential +
   a native stable-keys test), not a divergence. Group maps preserve
   first-seen encounter order, as sd does.
+- **plan (decomposition surface, seeds-de37):** all 13 subcommands
+  (`templates`, `prompt`, `submit`, `show`, `validate`, `outcome`,
+  `review`, `edit`, `create`, `adopt`, `reorder`, `release`, `list`)
+  are sd-parity — differentially pinned by the tailored
+  `differential_plan_matches_sd` lifecycle case plus the read-only
+  matrix cases. The mulch coupling (prior-art enrichment in `prompt`,
+  `--record-decision` on `submit`) is implemented as real best-effort
+  `ml` shell-outs, same as sd. Two deliberate divergences: (1) plan
+  status lifecycle recompute — sd's `update`/`close` recompute
+  `approved → active → done` from child statuses on every status
+  change; this build does not yet wire that (a plan's `status` changes
+  only via submit/create writes); (2) `Invalid JSON in plan file:`
+  error detail carries this build's serde parser wording, not Bun's.
 
 Format credit: [jayminwest/seeds](https://github.com/jayminwest/seeds) —
 this repository is an independent implementation of that format, not a fork.

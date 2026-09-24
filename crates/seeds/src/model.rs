@@ -379,6 +379,11 @@ impl SeedRecord {
         &self.fields
     }
 
+    /// The raw field map, mutably (plan-command field surgery).
+    pub fn fields_mut(&mut self) -> &mut Fields {
+        &mut self.fields
+    }
+
     /// Serializes the record as one compact JSONL line, exactly as sd
     /// writes it.
     #[must_use]
@@ -428,10 +433,20 @@ macro_rules! opaque_record {
                 self.fields.insert(name.to_owned(), value);
             }
 
+            /// Removes a field, preserving the position of the rest.
+            pub fn remove_field(&mut self, name: &str) {
+                self.fields.shift_remove(name);
+            }
+
             /// The raw field map.
             #[must_use]
             pub fn fields(&self) -> &Fields {
                 &self.fields
+            }
+
+            /// The raw field map, mutably (plan-command field surgery).
+            pub fn fields_mut(&mut self) -> &mut Fields {
+                &mut self.fields
             }
 
             /// Serializes the record as one compact JSONL line.

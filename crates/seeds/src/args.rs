@@ -137,6 +137,52 @@ pub(crate) static DEDUPE_SPEC: &[OptSpec] = &[flag("write"), flag("json")];
 
 pub(crate) static SYNC_SPEC: &[OptSpec] = &[flag("status"), flag("dry-run"), flag("json")];
 
+pub(crate) static PLAN_TEMPLATES_SPEC: &[OptSpec] = &[flag("json")];
+
+pub(crate) static PLAN_PROMPT_SPEC: &[OptSpec] = &[opt("template"), opt("domain"), flag("json")];
+
+pub(crate) static PLAN_SUBMIT_SPEC: &[OptSpec] = &[
+    opt("plan"),
+    flag("overwrite"),
+    flag("record-decision"),
+    opt("domain"),
+    opt("name"),
+    flag("json"),
+];
+
+pub(crate) static PLAN_ID_SPEC: &[OptSpec] = &[flag("json")];
+
+pub(crate) static PLAN_OUTCOME_SPEC: &[OptSpec] = &[opt("result"), opt("note"), flag("json")];
+
+pub(crate) static PLAN_REVIEW_SPEC: &[OptSpec] = &[opt("by"), flag("json")];
+
+pub(crate) static PLAN_EDIT_SPEC: &[OptSpec] = &[
+    opt("name"),
+    opt("step"),
+    opt("title"),
+    opt("priority"),
+    opt("type"),
+    flag("json"),
+];
+
+pub(crate) static PLAN_CREATE_SPEC: &[OptSpec] = &[opt("name"), opt("template"), flag("json")];
+
+pub(crate) static PLAN_ADOPT_SPEC: &[OptSpec] = &[
+    opt("step"),
+    opt("at"),
+    opt("before"),
+    opt("after"),
+    flag("json"),
+];
+
+pub(crate) static PLAN_LIST_SPEC: &[OptSpec] = &[
+    opt("seed"),
+    opt("status"),
+    opt("outcome"),
+    opt("template"),
+    flag("json"),
+];
+
 /// The parsed command line: positionals, value options (canonical long
 /// name → value, aliases folded), and boolean flags.
 #[derive(Debug, Default)]

@@ -776,7 +776,7 @@ fn global_help_lists_only_implemented_commands() {
 fn planned_commands_answer_not_implemented_yet() {
     let dir = temp_store("planned");
     write_records(&dir, &standard());
-    for command in ["tpl", "plan", "config", "init", "upgrade", "completions"] {
+    for command in ["tpl", "config", "init", "upgrade", "completions"] {
         let output = run(&dir, &[command]);
         assert_eq!(output.status.code(), Some(1), "{command} exits 1");
         let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
@@ -786,8 +786,9 @@ fn planned_commands_answer_not_implemented_yet() {
         );
     }
     // The hygiene batch graduated: these must NOT answer
-    // not-implemented anymore (help honesty, seeds-c228).
-    for command in ["blocked", "block", "unblock", "stats", "doctor"] {
+    // not-implemented anymore (help honesty, seeds-c228; plan
+    // graduated with the full decomposition surface, seeds-de37).
+    for command in ["blocked", "block", "unblock", "stats", "doctor", "plan"] {
         let output = run(&dir, &[command]);
         let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
         assert!(

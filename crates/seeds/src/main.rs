@@ -7,7 +7,8 @@
 //! Parity surface (README compat contract, ADR-0023): create, show,
 //! list, ready, update, close, dep add/remove/list, blocked, block,
 //! unblock, label add/remove/list/list-all, stats, doctor, prime,
-//! search — plus `sync` with sd-parity behavior and the
+//! search, and the full `plan` decomposition surface (13 subcommands,
+//! seeds-de37) — plus `sync` with sd-parity behavior and the
 //! README-documented deliberate improvements (per-file preview,
 //! shortstat commit body), `dedupe` and doctor's
 //! `--repair-report` as native additions.
@@ -73,6 +74,7 @@ fn dispatch(argv: &[String]) -> ExitCode {
         "search" => cmd_search(rest),
         "dedupe" => cmd_dedupe(rest),
         "sync" => cmd_sync(rest),
+        "plan" => cmd_plan(rest),
         other => {
             // Help honesty (seeds-25b5): planned sd-parity commands
             // answer with a clear "not implemented yet", not a generic
@@ -462,4 +464,301 @@ fn cmd_sync(args: &[String]) -> ExitCode {
         json:    json_mode(&parsed),
     };
     report(&commands::sync(&ctx(), &input))
+}
+
+// -- plan group -------------------------------------------------------------
+
+use seeds::commands::{PlanInput, PlanSub};
+
+/// The plan group's error for a missing required argument (sd's
+/// commander wording).
+fn missing_arg(name: &str) -> ExitCode {
+    eprintln!("error: missing required argument '{name}'");
+    ExitCode::FAILURE
+}
+
+/// sd's required-option error wording.
+fn missing_required(long: &str, meta: &str) -> ExitCode {
+    eprintln!("error: required option '--{long} {meta}' not specified");
+    ExitCode::FAILURE
+}
+
+/// The captured `--section` pair plus the remaining argv.
+type SectionCapture = (Option<(String, String)>, Vec<String>);
+
+/// Captures commander's variadic `--section <name-and-text...>`: the
+/// values following `--section` up to the next `--flag`.
+fn capture_section(args: &[String]) -> Result<SectionCapture, String> {
+    let Some(index) = args.iter().position(|arg| arg == "--section") else {
+        return Ok((None, args.to_vec()));
+    };
+    let mut rest: Vec<String> = args[..index].to_vec();
+    let mut captured: Vec<String> = Vec::new();
+    let mut cursor = index + 1;
+    while let Some(arg) = args.get(cursor) {
+        if arg.starts_with("--") {
+            break;
+        }
+        captured.push(arg.clone());
+        cursor += 1;
+    }
+    if captured.len() < 2 {
+        return Err(
+            "--section requires two arguments: --section <name> <text> (quote the text)."
+                .to_owned(),
+        );
+    }
+    if captured.len() > 2 {
+        return Err(
+            "--section received more than two arguments. Quote the text: --section <name> \
+             \"<text>\"."
+                .to_owned(),
+        );
+    }
+    let section = (captured[0].clone(), captured[1].clone());
+    rest.extend(args[cursor..].iter().cloned());
+    Ok((Some(section), rest))
+}
+
+fn cmd_plan(args: &[String]) -> ExitCode {
+    let Some(sub) = args.first().cloned() else {
+        println!("{}", helptext::PLAN);
+        return ExitCode::FAILURE;
+    };
+    if sub == "-h" || sub == "--help" {
+        println!("{}", helptext::PLAN);
+        return ExitCode::SUCCESS;
+    }
+    let rest = &args[1..];
+    let (input, json) = match sub.as_str() {
+        "templates" => {
+            let Some(parsed) =
+                parsed_or_help(rest, args::PLAN_TEMPLATES_SPEC, helptext::PLAN_TEMPLATES)
+            else {
+                return ExitCode::FAILURE;
+            };
+            (PlanSub::Templates, json_mode(&parsed))
+        }
+        "prompt" => {
+            let Some(parsed) = parsed_or_help(rest, args::PLAN_PROMPT_SPEC, helptext::PLAN_PROMPT)
+            else {
+                return ExitCode::FAILURE;
+            };
+            let Some(seed_id) = parsed.positionals.first().cloned() else {
+                return missing_arg("seed-id");
+            };
+            (
+                PlanSub::Prompt {
+                    seed_id,
+                    template: parsed.options.get("template").cloned(),
+                    domain: parsed.options.get("domain").cloned(),
+                },
+                json_mode(&parsed),
+            )
+        }
+        "submit" => {
+            let Some(parsed) = parsed_or_help(rest, args::PLAN_SUBMIT_SPEC, helptext::PLAN_SUBMIT)
+            else {
+                return ExitCode::FAILURE;
+            };
+            let Some(seed_id) = parsed.positionals.first().cloned() else {
+                return missing_arg("seed-id");
+            };
+            let Some(plan_file) = parsed.options.get("plan").cloned() else {
+                return missing_required("plan", "<file>");
+            };
+            let plan_stdin = if plan_file == "-" {
+                use std::io::Read as _;
+                let mut buffer = String::new();
+                std::io::stdin()
+                    .read_to_string(&mut buffer)
+                    .expect("stdin is readable");
+                Some(buffer)
+            } else {
+                None
+            };
+            (
+                PlanSub::Submit {
+                    seed_id,
+                    plan_file,
+                    plan_stdin,
+                    overwrite: parsed.flags.contains("overwrite"),
+                    record_decision: parsed.flags.contains("record-decision"),
+                    domain: parsed.options.get("domain").cloned(),
+                    name: parsed.options.get("name").cloned(),
+                },
+                json_mode(&parsed),
+            )
+        }
+        "show" => {
+            let Some(parsed) = parsed_or_help(rest, args::PLAN_ID_SPEC, helptext::PLAN_SHOW) else {
+                return ExitCode::FAILURE;
+            };
+            let Some(id) = parsed.positionals.first().cloned() else {
+                return missing_arg("id");
+            };
+            (PlanSub::Show { id }, json_mode(&parsed))
+        }
+        "validate" => {
+            let Some(parsed) = parsed_or_help(rest, args::PLAN_ID_SPEC, helptext::PLAN_VALIDATE)
+            else {
+                return ExitCode::FAILURE;
+            };
+            let Some(id) = parsed.positionals.first().cloned() else {
+                return missing_arg("id");
+            };
+            (PlanSub::Validate { id }, json_mode(&parsed))
+        }
+        "outcome" => {
+            let Some(parsed) =
+                parsed_or_help(rest, args::PLAN_OUTCOME_SPEC, helptext::PLAN_OUTCOME)
+            else {
+                return ExitCode::FAILURE;
+            };
+            let Some(id) = parsed.positionals.first().cloned() else {
+                return missing_arg("id");
+            };
+            let Some(result) = parsed.options.get("result").cloned() else {
+                return missing_required("result", "<value>");
+            };
+            (
+                PlanSub::Outcome {
+                    id,
+                    result,
+                    note: parsed.options.get("note").cloned(),
+                },
+                json_mode(&parsed),
+            )
+        }
+        "review" => {
+            let Some(parsed) = parsed_or_help(rest, args::PLAN_REVIEW_SPEC, helptext::PLAN_REVIEW)
+            else {
+                return ExitCode::FAILURE;
+            };
+            let Some(id) = parsed.positionals.first().cloned() else {
+                return missing_arg("id");
+            };
+            let Some(by) = parsed.options.get("by").cloned() else {
+                return missing_required("by", "<name>");
+            };
+            (PlanSub::Review { id, by }, json_mode(&parsed))
+        }
+        "edit" => {
+            let (section, filtered) = match capture_section(rest) {
+                Ok(captured) => captured,
+                Err(message) => {
+                    eprintln!("error: {message}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let Some(parsed) = parsed_or_help(&filtered, args::PLAN_EDIT_SPEC, helptext::PLAN_EDIT)
+            else {
+                return ExitCode::FAILURE;
+            };
+            let Some(id) = parsed.positionals.first().cloned() else {
+                return missing_arg("id");
+            };
+            (
+                PlanSub::Edit {
+                    id,
+                    name: parsed.options.get("name").cloned(),
+                    section,
+                    step: parsed.options.get("step").cloned(),
+                    title: parsed.options.get("title").cloned(),
+                    priority: parsed.options.get("priority").cloned(),
+                    kind: parsed.options.get("type").cloned(),
+                },
+                json_mode(&parsed),
+            )
+        }
+        "create" => {
+            let Some(parsed) = parsed_or_help(rest, args::PLAN_CREATE_SPEC, helptext::PLAN_CREATE)
+            else {
+                return ExitCode::FAILURE;
+            };
+            let Some(seed_id) = parsed.positionals.first().cloned() else {
+                return missing_arg("seed-id");
+            };
+            (
+                PlanSub::Create {
+                    seed_id,
+                    name: parsed.options.get("name").cloned(),
+                    template: parsed.options.get("template").cloned(),
+                },
+                json_mode(&parsed),
+            )
+        }
+        "adopt" => {
+            let Some(parsed) = parsed_or_help(rest, args::PLAN_ADOPT_SPEC, helptext::PLAN_ADOPT)
+            else {
+                return ExitCode::FAILURE;
+            };
+            let Some(plan_id) = parsed.positionals.first().cloned() else {
+                return missing_arg("plan-id");
+            };
+            let seed_ids = parsed.positionals[1..].to_vec();
+            if seed_ids.is_empty() {
+                return missing_arg("seed-ids");
+            }
+            (
+                PlanSub::Adopt {
+                    plan_id,
+                    seed_ids,
+                    step: parsed.options.get("step").cloned(),
+                    at: parsed.options.get("at").cloned(),
+                    before: parsed.options.get("before").cloned(),
+                    after: parsed.options.get("after").cloned(),
+                },
+                json_mode(&parsed),
+            )
+        }
+        "reorder" => {
+            let Some(parsed) = parsed_or_help(rest, args::PLAN_ID_SPEC, helptext::PLAN_REORDER)
+            else {
+                return ExitCode::FAILURE;
+            };
+            let Some(plan_id) = parsed.positionals.first().cloned() else {
+                return missing_arg("plan-id");
+            };
+            let seed_ids = parsed.positionals[1..].to_vec();
+            if seed_ids.is_empty() {
+                return missing_arg("seed-ids");
+            }
+            (PlanSub::Reorder { plan_id, seed_ids }, json_mode(&parsed))
+        }
+        "release" => {
+            let Some(parsed) = parsed_or_help(rest, args::PLAN_ID_SPEC, helptext::PLAN_RELEASE)
+            else {
+                return ExitCode::FAILURE;
+            };
+            let Some(plan_id) = parsed.positionals.first().cloned() else {
+                return missing_arg("plan-id");
+            };
+            let seed_ids = parsed.positionals[1..].to_vec();
+            if seed_ids.is_empty() {
+                return missing_arg("seed-ids");
+            }
+            (PlanSub::Release { plan_id, seed_ids }, json_mode(&parsed))
+        }
+        "list" => {
+            let Some(parsed) = parsed_or_help(rest, args::PLAN_LIST_SPEC, helptext::PLAN_LIST)
+            else {
+                return ExitCode::FAILURE;
+            };
+            (
+                PlanSub::List {
+                    seed:     parsed.options.get("seed").cloned(),
+                    status:   parsed.options.get("status").cloned(),
+                    outcome:  parsed.options.get("outcome").cloned(),
+                    template: parsed.options.get("template").cloned(),
+                },
+                json_mode(&parsed),
+            )
+        }
+        other => {
+            eprintln!("error: unknown command 'plan {other}'");
+            return ExitCode::FAILURE;
+        }
+    };
+    report(&commands::plan(&ctx(), &PlanInput { sub: input, json }))
 }

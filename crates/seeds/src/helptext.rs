@@ -19,6 +19,7 @@ Commands (implemented in this build):
   blocked           Show all blocked issues
   block <id>        Add a blocker to an issue
   unblock <id>      Remove blockers from an issue
+  plan              Plan management
   label add/remove  Manage issue labels (list, list-all)
   stats             Project statistics
   doctor            Check project health and data integrity
@@ -27,7 +28,7 @@ Commands (implemented in this build):
   sync              Stage and commit .seeds/ changes
 
 Unimplemented reference commands (init, tpl, migrate-from-beads,
-onboard, upgrade, completions, plan, config) answer 'not implemented
+onboard, upgrade, completions, config) answer 'not implemented
 yet' when invoked.
 
 Options:
@@ -52,7 +53,6 @@ pub(crate) const PLANNED: &[&str] = &[
     "onboard",
     "upgrade",
     "completions",
-    "plan",
     "config",
 ];
 
@@ -371,3 +371,203 @@ Options:
   --dry-run   Show what would be committed without committing
   --json      Output as JSON
   -h, --help  display help for command";
+
+/// `seeds plan` group help (sd 0.5.15 output, verbatim).
+pub(crate) const PLAN: &str = "\
+Usage: sd plan [options] [command]
+
+Plan management
+
+Options:
+  -h, --help                                 display help for command
+
+Commands:
+  templates [options]                        List available plan templates
+  prompt [options] <seed-id>                 Emit structured planning prompt JSON for a seed
+  submit [options] <seed-id>                 Validate a plan, spawn children, write plans.jsonl row
+  show [options] <id>                        Show a plan with sections, children, and status (accepts plan id or seed id)
+  validate [options] <id>                    Re-run validation against the current template definition (accepts plan id or seed id)
+  outcome [options] <id>                     Record a plan outcome (storage-only; not a state transition; accepts plan id or seed id)
+  review [options] <id>                      Record a reviewer (informational; not a state transition; accepts plan id or seed id)
+  edit [options] <id>                        Edit plan fields in place (accepts plan id or seed id); bumps revision
+  create [options] <seed-id>                 Create an adopt-only plan with zero spawned children (populate via 'sd plan adopt')
+  adopt [options] <plan-id> <seed-ids...>    Adopt existing open seeds into a plan (link-only; bumps plan revision)
+  reorder [options] <plan-id> <seed-ids...>  Set the exact order of plan.children (must be a permutation of current children)
+  release [options] <plan-id> <seed-ids...>  Release seeds from a plan (link-only; seeds stay open; bumps plan revision)
+  list [options]                             List plans with optional filters";
+
+pub(crate) const PLAN_TEMPLATES: &str = "\
+Usage: sd plan templates [options]
+
+List available plan templates
+
+Options:
+  --json      Output as JSON
+  -h, --help  display help for command";
+
+pub(crate) const PLAN_PROMPT: &str = "\
+Usage: sd plan prompt [options] <seed-id>
+
+Emit structured planning prompt JSON for a seed
+
+Options:
+  --template <name>  Override the inferred template
+  --domain <name>    Force the mulch domain used for prior_art enrichment
+  --json             Output as JSON
+  -h, --help         display help for command";
+
+pub(crate) const PLAN_SUBMIT: &str = "\
+Usage: sd plan submit [options] <seed-id>
+
+Validate a plan, spawn children, write plans.jsonl row
+
+Options:
+  --plan <file>      Path to plan JSON, or '-' to read from stdin
+  --overwrite        Replace an existing non-draft plan: rewrite the row, bump
+                     revision, flag obsolete children
+  --record-decision  Best-effort: after success, record the chosen approach as a
+                     mulch decision
+  --domain <name>    Force the mulch domain used for --record-decision
+  --name <text>      Human-readable plan label; overrides plan JSON 'name' and
+                     the seed-title default
+  --json             Output as JSON
+  -h, --help         display help for command
+
+Plan file shape:
+
+  {
+    \"template\": \"feature\",
+    \"name\": \"Schema-driven config editor\",
+    \"sections\": {
+      \"approach\": \"Plain-text approach...\",
+      \"steps\": [{ \"title\": \"Step 1\", \"labels\": [\"nightwatch\"] }, ...],
+      \"acceptance\": [\"criterion 1\", ...]
+    }
+  }
+
+The shape mirrors 'sd plan prompt': drop the plan_request wrapper, and
+sections is an object keyed by name (not the array of section metadata
+that the prompt emits). Section names and value kinds match the template.
+
+Plan name resolution:
+  --name flag > plan JSON 'name' > parent seed title (fallback)";
+
+pub(crate) const PLAN_SHOW: &str = "\
+Usage: sd plan show [options] <id>
+
+Show a plan with sections, children, and status (accepts plan id or seed id)
+
+Options:
+  --json      Output as JSON
+  -h, --help  display help for command";
+
+pub(crate) const PLAN_VALIDATE: &str = "\
+Usage: sd plan validate [options] <id>
+
+Re-run validation against the current template definition (accepts plan id or
+seed id)
+
+Options:
+  --json      Output as JSON
+  -h, --help  display help for command";
+
+pub(crate) const PLAN_OUTCOME: &str = "\
+Usage: sd plan outcome [options] <id>
+
+Record a plan outcome (storage-only; not a state transition; accepts plan id or
+seed id)
+
+Options:
+  --result <value>  One of: success, partial, failure
+  --note <text>     Optional free-form note
+  --json            Output as JSON
+  -h, --help        display help for command";
+
+pub(crate) const PLAN_REVIEW: &str = "\
+Usage: sd plan review [options] <id>
+
+Record a reviewer (informational; not a state transition; accepts plan id or
+seed id)
+
+Options:
+  --by <name>  Reviewer name
+  --json       Output as JSON
+  -h, --help   display help for command";
+
+pub(crate) const PLAN_EDIT: &str = "\
+Usage: sd plan edit [options] <id>
+
+Edit plan fields in place (accepts plan id or seed id); bumps revision
+
+Options:
+  --name <text>                 Set the plan's human-readable label
+  --section <name-and-text...>  Replace a text section: --section <name> <text>
+                                (V1: text sections only)
+  --step <i>                    1-based step index to edit (requires
+                                --title/--priority/--type)
+  --title <text>                New title for the step (with --step); propagates
+                                to child seed
+  --priority <p>                New priority (0-4 or P0-P4) for the step (with
+                                --step)
+  --type <type>                 New type for the step (with --step):
+                                task|bug|feature|epic
+  --json                        Output as JSON
+  -h, --help                    display help for command";
+
+pub(crate) const PLAN_CREATE: &str = "\
+Usage: sd plan create [options] <seed-id>
+
+Create an adopt-only plan with zero spawned children (populate via 'sd plan
+adopt')
+
+Options:
+  --name <text>      Human-readable plan label (defaults to the seed title)
+  --template <name>  Plan template name (defaults to the seed type's default)
+  --json             Output as JSON
+  -h, --help         display help for command";
+
+pub(crate) const PLAN_ADOPT: &str = "\
+Usage: sd plan adopt [options] <plan-id> <seed-ids...>
+
+Adopt existing open seeds into a plan (link-only; bumps plan revision)
+
+Options:
+  --step <i>       1-based step index within the plan blueprint; sets
+                   plan_step_index on adopted seeds
+  --at <i>         1-based position in plan.children to insert the adopted seeds
+                   (default: append)
+  --before <seed>  Insert the adopted seeds before this existing child seed
+  --after <seed>   Insert the adopted seeds after this existing child seed
+  --json           Output as JSON
+  -h, --help       display help for command";
+
+pub(crate) const PLAN_REORDER: &str = "\
+Usage: sd plan reorder [options] <plan-id> <seed-ids...>
+
+Set the exact order of plan.children (must be a permutation of current children)
+
+Options:
+  --json      Output as JSON
+  -h, --help  display help for command";
+
+pub(crate) const PLAN_RELEASE: &str = "\
+Usage: sd plan release [options] <plan-id> <seed-ids...>
+
+Release seeds from a plan (link-only; seeds stay open; bumps plan revision)
+
+Options:
+  --json      Output as JSON
+  -h, --help  display help for command";
+
+pub(crate) const PLAN_LIST: &str = "\
+Usage: sd plan list [options]
+
+List plans with optional filters
+
+Options:
+  --seed <id>          Filter by parent seed id
+  --status <status>    Filter by status (draft|approved|active|done)
+  --outcome <outcome>  Filter by outcome (success|partial|failure)
+  --template <name>    Filter by template name
+  --json               Output as JSON
+  -h, --help           display help for command";

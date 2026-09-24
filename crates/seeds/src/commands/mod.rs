@@ -24,6 +24,7 @@ mod create_show;
 mod dedupe_sync;
 mod dep;
 mod label;
+mod plan;
 mod prime;
 mod query;
 mod stats_doctor;
@@ -39,6 +40,7 @@ pub use label::{
     LabelAddInput, LabelListAllInput, LabelListInput, LabelRemoveInput, label_add, label_list,
     label_list_all, label_remove,
 };
+pub use plan::{PlanInput, PlanSub, plan};
 pub use prime::{PrimeInput, prime};
 pub use query::{QueryCommand, QueryInput, list, query, ready, search};
 pub use stats_doctor::{DoctorInput, StatsInput, doctor, stats};
