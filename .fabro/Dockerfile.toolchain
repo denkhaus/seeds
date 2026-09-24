@@ -36,15 +36,25 @@ RUN set -eux; \
         > /root/.cargo/config.toml
 
 # Workspace toolset via mise: nushell (loop scripts), just (gate recipes),
-# ripgrep. Tool-agnostic layering (ADR-0017 in the fabro repo): the
-# engine's clone contract places this repository at /repos/denkhaus/seeds
-# with a /workspace/seeds execution symlink — the trust path pins exactly
-# that.
+# ripgrep. Tool-agnostic layering (ADR-0017 in the fabro repo). The PETRI
+# engine's clone contract places this repository directly at /workspace
+# (no /repos path, no execution symlink); the legacy trust pin stays for
+# older layouts, /workspace is trusted for the current one, and a
+# /repos/denkhaus/seeds -> /workspace compat symlink keeps path-pinned
+# scripts working (cutover fabro-b6c5: mise refused /workspace/.mise.toml
+# and every mise-carrying stage died: preflight, tracker_guard).
 ARG MISE_VERSION=v2026.8.10
 ENV MISE_DATA_DIR=/mise \
-    MISE_TRUSTED_CONFIG_PATHS=/repos/denkhaus/seeds \
+    MISE_TRUSTED_CONFIG_PATHS=/repos/denkhaus/seeds:/workspace \
     BUN_INSTALL=/mise/bun-global \
     PATH=/mise/shims:/mise/bun-global/bin:${PATH}
+
+# Legacy-layout compat: the old engine's scripts and trust pins address
+# the repository at /repos/denkhaus/seeds; resolve it to the petri
+# workspace (dangling until a run mounts its workspace there).
+RUN set -eux; \
+    mkdir -p /repos/denkhaus; \
+    ln -sfn /workspace /repos/denkhaus/seeds
 
 RUN set -eux; \
     curl -fsSL "https://github.com/jdx/mise/releases/download/${MISE_VERSION}/mise-${MISE_VERSION}-linux-x64" \
