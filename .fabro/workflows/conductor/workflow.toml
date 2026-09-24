@@ -30,8 +30,13 @@ provider = "zai"
 name = "glm-5.3"
 
 # Orchestration run: no diff, no PR. Its value is the journal.
-# Shallow default clone: no upstream drift count exists here (no
-# merge leg), so the origin loop's full-history rationale does not apply.
+# Full-history clone: the petri engine's checkpoint publishing bundles
+# the workspace commit and traverses its whole ancestry; a depth cut
+# breaks every git-target run at its first checkpoint (fabro-b6c5
+# pass 4/5). No upstream drift count exists here (no merge leg), but
+# the checkpoint contract makes full history the only safe depth.
+[run.clone]
+depth = 0
 
 [run.run_branch]
 push = true
