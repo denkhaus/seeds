@@ -1,1 +1,2 @@
 {"$schema":"fabro-journal-v1","run_id":"petri","node":"start","visit":1,"status":"succeeded","ts":"2026-09-24T22:04:03Z","data":{}}
+{"$schema":"fabro-journal-v1","run_id":"petri","node":"survey","visit":1,"status":"succeeded","ts":"2026-09-24T22:05:15Z","data":{}}
