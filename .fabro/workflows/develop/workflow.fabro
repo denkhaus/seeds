@@ -3,8 +3,8 @@ digraph Develop {
         goal="Develop the project one seed per run: claim the next open seed, implement, gate, review, exit",
         // fabro-06e0: credential-less in-flight PR guard — the planner
         // reads run-linked PR state through the inspects-scoped
-        // fabro_runs_list tool (server-side GitHub client), never gh.
-        inspects="develop",
+        // fabro_run_search tool (server-side GitHub client), never gh.
+        x.inspects="develop",
         rankdir=LR,
         // fabro-0e11: legal blocking fabro_run_wait (60m) and long gate shells
         // must not trip the default 1800s stall watchdog.
@@ -24,12 +24,15 @@ digraph Develop {
         // (~18 KB) must render inline, zero blob detours — compounding
         // was fixed by claim-base diffing, the raise keeps the whole
         // per-seed capture readable without a blob round-trip.
-        preamble_budget_kb=48,
-        // Deterministic cycle guards (fabro-45d0): engine injects
-        // seed_cycles = { node -> completed visits since current_seed_id
-        // last changed value }. The planner reads counts instead of
-        // counting preamble history (run 01M0T9B7T6 review, rec 1b).
-        cycle_counter_reset_key="current_seed_id"
+        x.preamble_budget_kb=48,
+        // Deterministic cycle guards (fabro-45d0, petri rework in
+        // fabro-96c6): the engine's own node generations count loop
+        // visits — every back-edge re-entry increments
+        // nodes.<id>.generation, so the guard edges read them directly.
+        // Develop is one-seed-per-run, so per-run counts equal the legacy
+        // per-seed seed_cycles. The planner cannot read generations
+        // (expressions only) and needs none: the guards are graph-side,
+        // no model compliance involved.
     ]
 
     start [shape=Mdiamond, label="Start"]
@@ -100,7 +103,7 @@ digraph Develop {
         // fabro-900e producer declaration: declares `output.preflight`
         // (the per-candidate verdict table rendered into the planner's
         // ## Context).
-        context_allow_keys="output.preflight",
+        x.context_allow_keys="output.preflight",
         timeout="2m",
         max_retries=1
     ]
@@ -108,7 +111,7 @@ digraph Develop {
     // Planner: reads the seeds tracker, handles the last review verdict,
     // decides what is implemented next and hands a brief to the implementer.
     //
-    // preamble_stages_ignore="planner,implementer,evidence": the planner
+    // x.preamble_stages_ignore="planner,implementer,evidence": the planner
     // keeps ONLY the tester and reviewer history sections — they are the
     // cycle counters (3x review verdict / 3x gate-red => Blocked, see the
     // prompt's cycle guards). Seed brief and review verdict arrive as
@@ -156,34 +159,34 @@ digraph Develop {
         // by the prompt's mechanical folding of review_feedback into
         // current_seed_brief (brief-folding, not ambiguity resolution).
         reasoning_effort="low",
-        preamble_stages_ignore="planner,implementer,evidence",
+        x.preamble_stages_ignore="planner,implementer,evidence",
         // fabro-699f (consumed inputs): the planner is the consumer of
         // review_verdict/review_feedback (folded into the brief) and of a
         // stale implementation_summary — the engine removes them from the
         // durable context after the planner records, so later cycles'
         // preambles never re-render stale values.
-        context_consume_keys="review_verdict,review_feedback,implementation_summary",
+        x.context_consume_keys="review_verdict,review_feedback,implementation_summary",
         // fabro-1dae (stage envelope fs scope): planning never touches
         // loop assets — the tracker is reached via the seeds CLI (shell
         // is the documented escape hatch), never by file tools, and the
         // planner writes no files at all (context_updates + seeds only).
-        fs_hide=".fabro/**,.seeds/**,.mulch/**,.agents/**,scripts/**,justfile",
-        fs_write="",
+        x.fs_hide=".fabro/**,.seeds/**,.mulch/**,.agents/**,scripts/**,justfile",
+        x.fs_write="",
         // fabro-900e (envelope write side): the planner's context_updates
         // contract is stable — declare it so the preamble_allow_keys lint
         // (fabro-e47c) can prove producers, and drift (an undocumented new
         // key) drops visibly with a notice instead of leaking silently.
-        context_allow_keys="current_seed_id,current_seed_title,current_seed_brief,review_verdict,journal",
+        x.context_allow_keys="current_seed_id,current_seed_title,current_seed_brief,review_verdict,journal",
         // fabro-06e0: in-flight PR check surface — read-only enumeration
         // of develop runs incl. linked PR live state (open/closed/merged).
         // seeds-a0fa: fabro_ask — read-only Q&A with the referenced run's
         // analyst for unfamiliar fabro platform semantics (see planner.md).
-        fabro_tools="fabro_runs_list,fabro_ask"
+        x.fabro_tools="fabro_run_search,fabro_ask"
     ]
 
     // Implementer: builds exactly what the claimed seed specifies.
     //
-    // preamble_stages_ignore="planner,reviewer,implementer": the brief and
+    // x.preamble_stages_ignore="planner,reviewer,implementer": the brief and
     // review feedback arrive as context keys; the implementer keeps the
     // tester section (gate log on gate-red bounces) and the evidence
     // section, and can always re-run the gate itself (it has tools).
@@ -199,31 +202,31 @@ digraph Develop {
         // fabro-f84f: opt into vendored-skill discovery — the
         // session loads `.fabro/skills` (rust-style-guide and
         // friends) through the UseSkill tool.
-        skills="discover",
+        x.skills="discover",
         output_schema="routing",
         output_retries=2,
         max_visits=10,
         fidelity="summary:high",
         reasoning_effort="low",
         retry_policy="standard",
-        preamble_stages_ignore="planner,reviewer,implementer",
+        x.preamble_stages_ignore="planner,reviewer,implementer",
         // fabro-699f: repeated tester/evidence visits across gate-bounce
         // cycles collapse to their LATEST visit — one section per stage
         // instead of one per cycle (render-only; history stays intact).
-        preamble_stages_latest_only=true,
+        x.preamble_stages_latest_only=true,
         // fabro-269d (fabro-47b5 adoption, user decision 2026-09-17 GO):
         // per-node tool allow-list — exactly what this prompt demonstrably
         // uses: the file tools, the shell (loop-asset escape hatch, just/seeds/
-        // ml/nu), and use_skill (skills="discover" loads the vendored style
+        // ml/nu), and use_skill (x.skills="discover" loads the vendored style
         // guide through it). spawn_agent, the web tools, and the fabro-run
         // catalog are denied mechanically by the same list (question tools
         // stay exempt engine-side). Restricting, never extending (ADR-0019).
-        tools="read_file,write_file,edit_file,glob,grep,shell,use_skill",
+        x.tools="read_file,write_file,edit_file,glob,grep,shell,use_skill",
         // seeds-a0fa: the one deliberate opt-in is fabro_ask — read-only
         // Q&A with the referenced run's analyst for unfamiliar fabro
         // platform semantics (see implementer.md). Every other fabro-run
         // tool stays off the list; the explicit opt-in records the intent.
-        fabro_tools="fabro_ask",
+        x.fabro_tools="fabro_ask",
         // fabro-e47c pattern, closed on the implementer 2026-09-03: the ##
         // Context section is a strict input contract — the seed trio the
         // prompt names (review feedback rides INSIDE the brief the planner
@@ -233,22 +236,21 @@ digraph Develop {
         // on a red bounce (absent on first visits and green runs; additive
         // enrichment, never a blob ref). Deliberately OUT: `journal` and
         // `implementation_summary` (the implementer's OWN outputs echoing
-        // back), review_verdict (planner input), seed_cycles (planner/gate
-        // input) — and with them the planner's painpoints, which never were
+        // back), review_verdict (planner input) — and with them the planner's painpoints, which never were
         // implementer inputs (stage_ignore alone cannot filter ## Context).
-        preamble_allow_keys="current_seed_id,current_seed_title,current_seed_brief,output.gatebounce",
+        x.preamble_allow_keys="current_seed_id,current_seed_title,current_seed_brief,output.gatebounce",
         // fabro-1dae: same loop-asset scope as the planner — hidden means no
         // read, no discovery, no write through file tools. fs_write stays
         // unset: hidden paths are unwritable anyway, and seed work may
         // legitimately touch files outside the primary code areas (README,
         // fixtures). Gate
         // re-runs keep working through the shell escape hatch.
-        fs_hide=".fabro/**,.seeds/**,.mulch/**,.agents/**,scripts/**,justfile",
+        x.fs_hide=".fabro/**,.seeds/**,.mulch/**,.agents/**,scripts/**,justfile",
         // fabro-900e: stable context_updates contract (see planner).
         // lesson_capture (run 01M1EGK6J8): the
         // implementer prompt REQUIRES the mx-id-or-skip answer as data —
         // the envelope dropped it once (visible notice) until declared here.
-        context_allow_keys="implementation_summary,lesson_capture,journal"
+        x.context_allow_keys="implementation_summary,lesson_capture,journal"
     ]
 
     // Tester: deterministic quality gate, no agent. The host project defines
@@ -288,7 +290,7 @@ digraph Develop {
         output_schema="@schemas/gate-known-bug-hits.schema.json",
         // fabro-900e producer declaration: declares `output.gatebounce`
         // for the preamble_allow_keys lint on the implementer node.
-        context_allow_keys="output.gatebounce",
+        x.context_allow_keys="output.gatebounce",
         timeout="1m",
         max_retries=1
     ]
@@ -336,7 +338,7 @@ digraph Develop {
     // summary:high is "detailed summary including outputs" and carries the
     // evidence capture in full.
     //
-    // preamble_stages_ignore="planner,implementer,reviewer": the reviewer
+    // x.preamble_stages_ignore="planner,implementer,reviewer": the reviewer
     // keeps EXACTLY two history sections — tester (its only view of the
     // gate result; the evidence capture does not include gate output) and
     // evidence (the full capture pipe). Seed spec and implementation
@@ -364,25 +366,25 @@ digraph Develop {
         // fabro-f84f: opt into vendored-skill discovery — the
         // session loads `.fabro/skills` (rust-style-guide and
         // friends) through the UseSkill tool.
-        skills="discover",
+        x.skills="discover",
         fidelity="summary:high",
         reasoning_effort="low",
-        preamble_stages_ignore="planner,implementer,reviewer",
+        x.preamble_stages_ignore="planner,implementer,reviewer",
         // fabro-699f: repeated tester/evidence visits across review
         // cycles collapse to their LATEST visit — one section per stage
         // instead of one per cycle (render-only; history stays intact).
-        preamble_stages_latest_only=true,
+        x.preamble_stages_latest_only=true,
         // fabro-e47c (read side): the ## Context section is a strict input
         // contract — exactly the keys the prompt names as inputs. Seed trio
         // + implementation_summary + the evidence capture (command.output;
         // deduped into the evidence stage section when that renders it).
-        // Deliberately OUT: seed_cycles (planner/gate input), review_verdict
+        // Deliberately OUT: review_verdict
         // and review_feedback (the reviewer's own stale verdicts), and any
         // future key another node starts writing — the section stays
         // deterministic no matter how the graph grows.
-        preamble_allow_keys="current_seed_id,current_seed_title,current_seed_brief,implementation_summary,command.output",
+        x.preamble_allow_keys="current_seed_id,current_seed_title,current_seed_brief,implementation_summary,command.output",
         // fabro-900e: stable context_updates contract (see planner).
-        context_allow_keys="review_verdict,review_feedback,journal",
+        x.context_allow_keys="review_verdict,review_feedback,journal",
         // fabro-9467 (updated by fabro-269d): the reviewer is an agent
         // node whose allow-list keeps read_file — a demoted evidence
         // value (8KB default ceiling) opens via read_file paging.
@@ -390,34 +392,34 @@ digraph Develop {
         // 16KB inline keeps them whole. Graph budget is 24KB: no conflict
         // with the aggregate demote pass (preamble_inline_max_within_budget
         // stays quiet).
-        preamble_inline_max_kb=16,
+        x.preamble_inline_max_kb=16,
         // fabro-meta-c9f2: evidence.nu puts the integrity header and
         // seed-work diff at the HEAD of its capture; the old 50-line
         // tail cap dropped exactly that head ("119 lines omitted" hid
         // the seed-work diff from this reviewer). 200 keeps ~120-line
         // captures whole — zero "lines omitted" in the evidence section.
-        preamble_output_max_lines=200,
+        x.preamble_output_max_lines=200,
         // fabro-1dae: read-only is a CAPABILITY, not just policy — an empty
         // fs_write denies every file-tool write (deletes and patch targets
         // included). Deliberately NO fs_hide: review must see every diff,
         // including illegal loop-asset touches, to reject them. Shell is
         // denied at the engine layer too (fabro-269d tools allow-list) —
         // no escape hatch remains; the prompt line states the enforcement.
-        fs_write="",
+        x.fs_write="",
         // fabro-269d (fabro-47b5 adoption, user decision 2026-09-17 GO):
         // the read-only allow-list. shell is EXCLUDED deliberately — the
         // seed body proposed including it, but the user decision requires
         // write/shell denied at the engine layer and the decision wins.
-        tools="read_file,grep,glob,use_skill",
+        x.tools="read_file,grep,glob,use_skill",
         // fabro-c760 (mirrors the implementer stanza, fabro-f84f/269d):
         // use_skill is allowed and loads the vendored skills via
-        // discovery (skills="discover" above) — read-only direction,
+        // discovery (x.skills="discover" above) — read-only direction,
         // no other capability widened.
         // fabro-269d: default-denied fabro-run catalog — before this, a
         // reviewer invoked fabro_run_interact (run 01M2RDM3AZ seq 440).
         // Effective denial is the tools allow-list above (stage_policy
         // admits only listed names); the empty opt-in records the intent.
-        fabro_tools="",
+        x.fabro_tools="",
         output_schema="routing",
         output_retries=2,
         max_visits=20,
@@ -496,7 +498,7 @@ digraph Develop {
     // outcome=failed edge so the specific label wins the routing.
     // Label is exactly "Blocked" — the prompt declares that string and
     // the label contract requires an exact match (GRAPH-03).
-    planner -> exit [kind="deadlock", label="Blocked", condition="preferred_label=\"Blocked\""]
+    planner -> exit [x.kind="deadlock", label="Blocked", condition="preferred_label=\"Blocked\""]
     // Capability-block soft exit (seeds-a77c, HITL pilot): a seed that
     // needs host/operator capability (docker host, gh write:packages)
     // must NOT classify as deadlock — CONTRAST the deadlock "Blocked"
@@ -507,7 +509,7 @@ digraph Develop {
     // leg reads this terminal label and routes its "Needs operator"
     // human gate instead of "Develop child failed", so the class can
     // never reach the scheduler's 3-strike auto-disable.
-    planner -> exit [kind="soft", label="Needs operator", condition="preferred_label=\"Needs operator\""]
+    planner -> exit [x.kind="soft", label="Needs operator", condition="preferred_label=\"Needs operator\""]
     planner -> exit        [label="Planner failed", condition="outcome=failed"]
     // Verification-only fast path (fabro-9d26; basis run
     // 01M2N1G834RTCSZNX7EK40G3SE re-verified already-satisfied criteria
@@ -545,7 +547,7 @@ digraph Develop {
     tester -> evidence    [label="Gate green", condition="outcome=succeeded"]
     // Structural gate-guard (fabro-6baf): third consecutive red routes to
     // the human instead of another implementer round.
-    tester -> exit [kind="deadlock", label="Gate deadlock (3 reds, needs a human)", condition="seed_cycles.tester >= 3"]
+    tester -> exit [x.kind="deadlock", label="Gate deadlock (3 reds, needs a human)", condition="nodes.tester.generation >= 3"]
     // fabro-56f4: the red bounce passes through the deterministic
     // gatebounce node first (edge pre-step idiom — the engine has no edge
     // pre-steps, the closeout-pattern node is the established way).
@@ -560,13 +562,13 @@ digraph Develop {
     // (engine rule: a node needs one unconditional edge; an unmatched
     // capture outcome retries once then falls through here) — SOFT exit:
     // infrastructure hiccup, work preserved, the next run re-enters.
-    evidence -> exit [kind="soft", label="Capture failed (next run re-enters)"]
+    evidence -> exit [x.kind="soft", label="Capture failed (next run re-enters)"]
 
     reviewer -> closeout  [label="Approved", condition="preferred_label=\"Approved\""]
     // Structural review-guard (fabro-6baf): conditions outrank unconditional
-    // edges, so at seed_cycles.reviewer >= 3 the deadlock exit wins over
+    // edges, so at nodes.reviewer.generation >= 3 the deadlock exit wins over
     // re-planning — the loop terminates without model compliance.
-    reviewer -> exit [kind="deadlock", label="Review deadlock (3 cycles, needs a human)", condition="seed_cycles.reviewer >= 3"]
+    reviewer -> exit [x.kind="deadlock", label="Review deadlock (3 cycles, needs a human)", condition="nodes.reviewer.generation >= 3"]
     reviewer -> planner   [label="Changes requested"]
     // Fast re-review path (run 01M0SS23MJ): a procedural rejection
     // ("verification could not be completed" — evidence delivery, not code)
@@ -577,13 +579,13 @@ digraph Develop {
     // seed"; the edge makes it provable — a second Verification-blocked
     // verdict cannot re-enter evidence and must decide (Approved / Changes
     // requested via the unconditional fallback).
-    reviewer -> evidence  [label="Verification blocked", condition="preferred_label=\"Verification blocked\" && seed_cycles.evidence < 2"]
-    reviewer -> exit [kind="soft", label="Reviewer failed (next run re-enters)", condition="outcome=failed"]
+    reviewer -> evidence  [label="Verification blocked", condition="preferred_label=\"Verification blocked\" && nodes.evidence.generation < 2"]
+    reviewer -> exit [x.kind="soft", label="Reviewer failed (next run re-enters)", condition="outcome=failed"]
 
     // One seed per run (user directive 2026-09-04): after the approved
     // seed is closed the run EXITS — natural completion, publish-eligible
     // (the work passed gate + review). The next seed is the next run's
     // job; bounded runs give the revisor a single-seed working field.
     closeout -> exit [label="Seed closed"]
-    closeout -> exit [kind="soft", label="Closeout failed (seed stays open)", condition="outcome=failed"]
+    closeout -> exit [x.kind="soft", label="Closeout failed (seed stays open)", condition="outcome=failed"]
 }
