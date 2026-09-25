@@ -183,6 +183,16 @@ pub(crate) static PLAN_LIST_SPEC: &[OptSpec] = &[
     flag("json"),
 ];
 
+pub(crate) static INIT_SPEC: &[OptSpec] = &[flag("json")];
+
+pub(crate) static CONFIG_SCHEMA_SPEC: &[OptSpec] = &[flag("json")];
+
+pub(crate) static CONFIG_SHOW_SPEC: &[OptSpec] = &[opt("path"), flag("json")];
+
+pub(crate) static CONFIG_SET_SPEC: &[OptSpec] = &[flag("json")];
+
+pub(crate) static CONFIG_UNSET_SPEC: &[OptSpec] = &[flag("json")];
+
 /// The parsed command line: positionals, value options (canonical long
 /// name → value, aliases folded), and boolean flags.
 #[derive(Debug, Default)]

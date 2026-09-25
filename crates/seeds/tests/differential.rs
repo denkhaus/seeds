@@ -37,7 +37,7 @@ use serde_json::{Value, json};
 /// ids make a plain argv comparison meaningless there).
 const IMPLEMENTED_COMMANDS: &[&str] = &[
     "create", "show", "list", "ready", "search", "update", "close", "dep", "prime", "sync",
-    "blocked", "block", "unblock", "label", "stats", "doctor", "plan",
+    "blocked", "block", "unblock", "label", "stats", "doctor", "plan", "init", "config",
 ];
 
 /// Fields whose values are stamped `now` by both binaries at run time;
@@ -792,6 +792,77 @@ fn matrix() -> Vec<Case> {
             command: "plan",
             args:    &["plan", "validate", "pl-zzzz"],
         },
+        // config group: schema emit, show/read, set/unset writes
+        Case {
+            name:    "config_schema",
+            command: "config",
+            args:    &["config", "schema"],
+        },
+        Case {
+            name:    "config_schema_compact",
+            command: "config",
+            args:    &["config", "schema", "--json"],
+        },
+        Case {
+            name:    "config_show",
+            command: "config",
+            args:    &["config", "show"],
+        },
+        Case {
+            name:    "config_show_json",
+            command: "config",
+            args:    &["config", "show", "--json"],
+        },
+        Case {
+            name:    "config_show_path_scalar",
+            command: "config",
+            args:    &["config", "show", "--path", "project"],
+        },
+        Case {
+            name:    "config_show_path_missing",
+            command: "config",
+            args:    &["config", "show", "--path", "nope"],
+        },
+        Case {
+            name:    "config_show_path_missing_json",
+            command: "config",
+            args:    &["config", "show", "--path", "nope", "--json"],
+        },
+        Case {
+            name:    "config_set",
+            command: "config",
+            args:    &["config", "set", "max_plan_depth", "5"],
+        },
+        Case {
+            name:    "config_set_json",
+            command: "config",
+            args:    &["config", "set", "--json", "project", "demo"],
+        },
+        Case {
+            name:    "config_set_type_error",
+            command: "config",
+            args:    &["config", "set", "max_plan_depth", "notanint"],
+        },
+        Case {
+            name:    "config_set_unknown_key",
+            command: "config",
+            args:    &["config", "set", "ghost", "1"],
+        },
+        Case {
+            name:    "config_unset",
+            command: "config",
+            args:    &["config", "unset", "max_plan_depth"],
+        },
+        Case {
+            name:    "config_unset_missing",
+            command: "config",
+            args:    &["config", "unset", "ghost"],
+        },
+        Case {
+            name:    "config_unset_missing_json",
+            command: "config",
+            args:    &["config", "unset", "--json", "plan_templates"],
+        },
     ]
 }
 
@@ -822,6 +893,13 @@ fn matrix_covers_every_implemented_command() {
             // full plan lifecycle sequence with ids normalized.
             "plan",
             "differential_plan_matches_sd",
+        ),
+        (
+            // init's output embeds the absolute temp path (one dir per
+            // binary) — the tailored test normalizes the dir prefix and
+            // compares the bootstrapped .seeds/ tree byte-for-byte.
+            "init",
+            "differential_init_matches_sd",
         ),
     ];
     let cases = matrix();
@@ -921,6 +999,74 @@ fn new_record_normalized(dir: &Path) -> Value {
     normalize_volatile(&mut record);
     record["id"] = Value::String("<new>".to_owned());
     record
+}
+
+/// `init` tailors the comparison: the output embeds each side's
+/// absolute temp dir, and the bootstrapped config.yaml names the dir.
+/// Both sides get identically-named working dirs, so normalizing the
+/// parent prefix makes stdout comparable and the `.seeds/` tree
+/// byte-comparable — fresh init, idempotent re-init, and `--json`.
+#[test]
+fn differential_init_matches_sd() {
+    let Some(reference) = reference() else {
+        skip_note();
+        return;
+    };
+    let make_side = |side: &str| -> PathBuf {
+        let parent = std::env::temp_dir().join(format!(
+            "seeds-differential-init-{side}-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&parent);
+        let dir = parent.join("initcase");
+        fs::create_dir_all(&dir).expect("create temp working dir");
+        let git = Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(&dir)
+            .output()
+            .expect("spawn git");
+        assert!(git.status.success(), "git init failed in {}", dir.display());
+        dir
+    };
+    let sd_dir = make_side("sd");
+    let ours_dir = make_side("ours");
+
+    for args in [vec!["init"], vec!["init"], vec!["init", "--json"]] {
+        let case = args.join(" ");
+        let sd = capture(&sd_dir, &reference, &args);
+        let ours = capture(&ours_dir, &our_binary(), &args);
+        assert_eq!(
+            sd.status.code(),
+            ours.status.code(),
+            "{case}: exit code diverged"
+        );
+        assert_eq!(
+            sd.stderr.is_empty(),
+            ours.stderr.is_empty(),
+            "{case}: stderr emptiness diverged"
+        );
+        let normalize =
+            |text: &str, dir: &Path| text.replace(dir.to_string_lossy().as_ref(), "<dir>");
+        assert_eq!(
+            normalize(&String::from_utf8_lossy(&sd.stdout), &sd_dir),
+            normalize(&String::from_utf8_lossy(&ours.stdout), &ours_dir),
+            "{case}: stdout diverged after dir normalization"
+        );
+    }
+
+    for file in [
+        ".gitignore",
+        "config.yaml",
+        "issues.jsonl",
+        "plans.jsonl",
+        "templates.jsonl",
+    ] {
+        let sd_file = fs::read(sd_dir.join(".seeds").join(file)).expect("sd .seeds/{file}");
+        let ours_file = fs::read(ours_dir.join(".seeds").join(file)).expect("ours .seeds/{file}");
+        assert_eq!(sd_file, ours_file, "init: .seeds/{file} diverged");
+    }
+    fs::remove_dir_all(&sd_dir).ok();
+    fs::remove_dir_all(&ours_dir).ok();
 }
 
 /// `sync` tailors the comparison (seeds-540e): it mutates git history,

@@ -26,9 +26,11 @@ Commands (implemented in this build):
   prime             Output AI agent context
   dedupe            Report and heal duplicate ids in .seeds JSONL stores
   sync              Stage and commit .seeds/ changes
+  init              Initialize .seeds/ in current directory
+  config            Read, write, and inspect .seeds/config.yaml
 
-Unimplemented reference commands (init, tpl, migrate-from-beads,
-onboard, upgrade, completions, config) answer 'not implemented
+Unimplemented reference commands (tpl, migrate-from-beads,
+onboard, upgrade, completions) answer 'not implemented
 yet' when invoked.
 
 Options:
@@ -47,14 +49,74 @@ Run 'sd <command> --help' for command-specific help.";
 /// and invoking one of these answers with a clear "not implemented yet"
 /// message instead of a generic unknown-command error.
 pub(crate) const PLANNED: &[&str] = &[
-    "init",
     "tpl",
     "migrate-from-beads",
     "onboard",
     "upgrade",
     "completions",
-    "config",
 ];
+
+pub(crate) const INIT: &str = "\
+Usage: sd init [options]
+
+Initialize .seeds/ in current directory
+
+Options:
+  --json      Output as JSON
+  -h, --help  display help for command";
+
+pub(crate) const CONFIG: &str = "\
+Usage: sd config [options] [command]
+
+Read, write, and inspect .seeds/config.yaml
+
+Options:
+  -h, --help                    display help for command
+
+Commands:
+  schema [options]              Emit the JSON Schema for .seeds/config.yaml
+  show [options]                Print the current config (or a value at --path)
+  set [options] <path> <value>  Set a config value at <path>; <value> is
+                                YAML-parsed
+  unset [options] <path>        Remove the config value at <path>
+  help [command]                display help for command";
+
+pub(crate) const CONFIG_SCHEMA: &str = "\
+Usage: sd config schema [options]
+
+Emit the JSON Schema for .seeds/config.yaml
+
+Options:
+  --json      Compact single-line JSON (default is pretty-printed)
+  -h, --help  display help for command";
+
+pub(crate) const CONFIG_SHOW: &str = "\
+Usage: sd config show [options]
+
+Print the current config (or a value at --path)
+
+Options:
+  --path <path>  Dot-path to read (e.g. plan_templates.feature.sections.context)
+  --json         Output as JSON
+  -h, --help     display help for command";
+
+pub(crate) const CONFIG_SET: &str = "\
+Usage: sd config set [options] <path> <value>
+
+Set a config value at <path>; <value> is YAML-parsed
+
+Options:
+  --json      Output as JSON
+  -h, --help  display help for command";
+
+pub(crate) const CONFIG_UNSET: &str = "\
+Usage: sd config unset [options] <path>
+
+Remove the config value at <path>
+
+Options:
+  --json      Output as JSON
+  -h, --help  display help for command";
 
 pub(crate) const CREATE: &str = "\
 Usage: sd create [options]
