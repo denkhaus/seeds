@@ -5,3 +5,4 @@
 {"$schema":"fabro-journal-v1","run_id":"petri","node":"claim_check","visit":1,"status":"succeeded","ts":"2026-09-25T16:56:31Z","data":{}}
 {"$schema":"fabro-journal-v1","run_id":"petri","node":"implementer","visit":1,"status":"succeeded","ts":"2026-09-25T17:14:25Z","data":{}}
 {"$schema":"fabro-journal-v1","run_id":"petri","node":"tester","visit":1,"status":"succeeded","ts":"2026-09-25T17:14:38Z","data":{}}
+{"$schema":"fabro-journal-v1","run_id":"petri","node":"evidence","visit":1,"status":"succeeded","ts":"2026-09-25T17:14:39Z","data":{}}
