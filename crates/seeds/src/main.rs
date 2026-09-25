@@ -8,7 +8,8 @@
 //! list, ready, update, close, dep add/remove/list, blocked, block,
 //! unblock, label add/remove/list/list-all, stats, doctor, prime,
 //! search, and the full `plan` decomposition surface (13 subcommands,
-//! seeds-de37) — plus `sync` with sd-parity behavior and the
+//! seeds-de37) — plus `init` and the `config` group
+//! (schema/show/set/unset), `sync` with sd-parity behavior and the
 //! README-documented deliberate improvements (per-file preview,
 //! shortstat commit body), `dedupe` and doctor's
 //! `--repair-report` as native additions.
@@ -26,10 +27,10 @@
 use std::process::ExitCode;
 
 use seeds::commands::{
-    self, BlockInput, BlockedInput, CloseInput, CommandContext, CommandOutcome, CreateInput,
-    DedupeInput, DepAddInput, DepListInput, DepRemoveInput, DoctorInput, LabelAddInput,
-    LabelListAllInput, LabelListInput, LabelRemoveInput, PrimeInput, QueryCommand, QueryInput,
-    StatsInput, SyncInput, UnblockInput, UpdateInput,
+    self, BlockInput, BlockedInput, CloseInput, CommandContext, CommandOutcome, ConfigInput,
+    ConfigSub, CreateInput, DedupeInput, DepAddInput, DepListInput, DepRemoveInput, DoctorInput,
+    InitInput, LabelAddInput, LabelListAllInput, LabelListInput, LabelRemoveInput, PrimeInput,
+    QueryCommand, QueryInput, StatsInput, SyncInput, UnblockInput, UpdateInput,
 };
 
 mod args;
@@ -75,6 +76,8 @@ fn dispatch(argv: &[String]) -> ExitCode {
         "dedupe" => cmd_dedupe(rest),
         "sync" => cmd_sync(rest),
         "plan" => cmd_plan(rest),
+        "init" => cmd_init(rest),
+        "config" => cmd_config(rest),
         other => {
             // Help honesty (seeds-25b5): planned sd-parity commands
             // answer with a clear "not implemented yet", not a generic
@@ -464,6 +467,104 @@ fn cmd_sync(args: &[String]) -> ExitCode {
         json:    json_mode(&parsed),
     };
     report(&commands::sync(&ctx(), &input))
+}
+
+// -- init + config group ----------------------------------------------------
+
+fn cmd_init(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::INIT_SPEC, helptext::INIT) else {
+        return ExitCode::FAILURE;
+    };
+    let input = InitInput {
+        json: json_mode(&parsed),
+    };
+    report(&commands::init(&input))
+}
+
+fn cmd_config(args: &[String]) -> ExitCode {
+    let Some(sub) = args.first().cloned() else {
+        eprintln!("{}", helptext::CONFIG);
+        return ExitCode::FAILURE;
+    };
+    if sub == "-h" || sub == "--help" {
+        println!("{}", helptext::CONFIG);
+        return ExitCode::SUCCESS;
+    }
+    let rest = &args[1..];
+    if sub == "help" {
+        let text = match rest.first().map(String::as_str) {
+            Some("schema") => helptext::CONFIG_SCHEMA,
+            Some("show") => helptext::CONFIG_SHOW,
+            Some("set") => helptext::CONFIG_SET,
+            Some("unset") => helptext::CONFIG_UNSET,
+            _ => helptext::CONFIG,
+        };
+        println!("{text}");
+        return ExitCode::SUCCESS;
+    }
+    let (input, json) = match sub.as_str() {
+        "schema" => {
+            let Some(parsed) =
+                parsed_or_help(rest, args::CONFIG_SCHEMA_SPEC, helptext::CONFIG_SCHEMA)
+            else {
+                return ExitCode::FAILURE;
+            };
+            (ConfigSub::Schema, json_mode(&parsed))
+        }
+        "show" => {
+            let Some(parsed) = parsed_or_help(rest, args::CONFIG_SHOW_SPEC, helptext::CONFIG_SHOW)
+            else {
+                return ExitCode::FAILURE;
+            };
+            (
+                ConfigSub::Show {
+                    path: parsed.options.get("path").cloned(),
+                },
+                json_mode(&parsed),
+            )
+        }
+        "set" => {
+            let Some(parsed) = parsed_or_help(rest, args::CONFIG_SET_SPEC, helptext::CONFIG_SET)
+            else {
+                return ExitCode::FAILURE;
+            };
+            match (parsed.positionals.first(), parsed.positionals.get(1)) {
+                (Some(path), Some(value)) => (
+                    ConfigSub::Set {
+                        path:  path.clone(),
+                        value: value.clone(),
+                    },
+                    json_mode(&parsed),
+                ),
+                (None, _) => return config_missing_arg("<path>"),
+                (Some(_), None) => return config_missing_arg("<value>"),
+            }
+        }
+        "unset" => {
+            let Some(parsed) =
+                parsed_or_help(rest, args::CONFIG_UNSET_SPEC, helptext::CONFIG_UNSET)
+            else {
+                return ExitCode::FAILURE;
+            };
+            let Some(path) = parsed.positionals.first().cloned() else {
+                return config_missing_arg("<path>");
+            };
+            (ConfigSub::Unset { path }, json_mode(&parsed))
+        }
+        other => {
+            eprintln!("{}", helptext::CONFIG);
+            eprintln!("error: unknown command '{other}'");
+            return ExitCode::FAILURE;
+        }
+    };
+    report(&commands::config(&ctx(), &ConfigInput { sub: input, json }))
+}
+
+/// The config group's error for a missing positional argument (sd's
+/// commander wording).
+fn config_missing_arg(name: &str) -> ExitCode {
+    eprintln!("error: missing required argument '{name}'");
+    ExitCode::FAILURE
 }
 
 // -- plan group -------------------------------------------------------------

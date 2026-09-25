@@ -8,7 +8,7 @@ git-native issue-tracker format.
 `issues.jsonl`, `plans.jsonl`, `templates.jsonl`). Unknown record fields are
 preserved on every write; additive fields are the only sanctioned extension
 mechanism. The CLI surface (`seeds create/show/list/ready/update/close/dep/
-prime/search/plan`) mirrors the reference tool until this repo's own
+prime/search/plan/config/init`) mirrors the reference tool until this repo's own
 line replaces it (self-hosting cutover).
 
 ## CLI surface contract
@@ -32,14 +32,24 @@ Deliberate divergences from the reference — each documented here and
 carrying its own expectation, never a silent split:
 
 - **Help honesty:** `seeds --help` lists only implemented commands;
-  unimplemented-but-planned reference commands (`init`, `tpl`,
-  `onboard`, `upgrade`, `completions`, `config`) answer a clear `not
+  unimplemented-but-planned reference commands (`tpl`,
+  `onboard`, `upgrade`, `completions`) answer a clear `not
   implemented yet` message instead of the reference's real
   implementations. `plan` graduated with the full decomposition
-  surface (seeds-de37).
+  surface (seeds-de37); `init` and the `config` group
+  (schema/show/set/unset) graduated with sd parity (seeds-c813).
   `migrate-from-beads` is a deliberate **non-goal**: run the reference
   tool (`sd migrate-from-beads`) once on a beads store and switch —
   this crate reads the migrated `.seeds/` result natively.
+- **config additive-fields writes:** `seeds config set/unset` preserve
+  unknown top-level keys already present in `config.yaml` (and keep
+  file order) instead of failing the reference's
+  `additionalProperties: false` validation — the same additive-fields
+  rule the store applies to record fields. Setting a NEW unknown
+  top-level key still fails exactly like the reference, and the
+  schema's top-level required/type/minimum rules are enforced
+  verbatim; deep `plan_templates` section validation is not
+  replicated.
 - **sync per-file staging preview:** `seeds sync --status` /
   `--dry-run` list every changed file individually
   (`git status --porcelain -uall`); the reference collapses untracked

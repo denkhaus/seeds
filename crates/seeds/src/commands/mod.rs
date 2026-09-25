@@ -20,6 +20,7 @@ use serde_json::{Map, Value, json};
 
 use crate::{SeedRecord, SeedType, Status, Store, timeutil};
 
+mod config_init;
 mod create_show;
 mod dedupe_sync;
 mod dep;
@@ -30,6 +31,7 @@ mod query;
 mod stats_doctor;
 mod update_close;
 
+pub use config_init::{ConfigInput, ConfigSub, InitInput, config, init};
 pub use create_show::{CreateInput, ShowInput, create, show};
 pub use dedupe_sync::{DedupeInput, SyncInput, dedupe, sync};
 pub use dep::{
