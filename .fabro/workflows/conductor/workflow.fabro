@@ -24,7 +24,10 @@ digraph Conductor {
         // session loads `.fabro/skills` (rust-style-guide and
         // friends) through the UseSkill tool.
         x.skills="discover",
-        output_schema="routing",
+        // Label enum (fabro-9ec3 pattern): a drifted preferred_next_label
+        // (node name instead of edge label) fails validation and repairs
+        // instead of riding the Unrouted catch-all to a green exit.
+        output_schema="@schemas/survey-output.schema.json",
         output_retries=2,
         retry_policy="standard",
         reasoning_effort="low",
