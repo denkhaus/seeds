@@ -186,8 +186,20 @@ def check-loop-assets [] {
     let fabro_bin = ((which fabro | length) > 0)
     if $dot {
         for graph in (glob .fabro/workflows/*/workflow.fabro) {
-            let res = (do { ^dot -Tcanon $graph } | complete)
-            if $res.exit_code != 0 {
+            # Fabro's x.* attribute namespace (stage envelopes, kind edges)
+            # is not graphviz-legal DOT: legalize it for the parse check so
+            # the lint judges STRUCTURE (cut edges, broken blocks) without
+            # rejecting the convention. graphviz exit codes are version-
+            # fragile on parse errors (2.43 exits 0 with an Error on
+            # stderr): treat either signal as failure.
+            let legalized = (open $graph | lines | each {|line|
+                $line | str replace --all 'x\.' 'x_'
+            } | str join "\n")
+            let probe = $"($graph).graphviz-lint.tmp"
+            ($legalized + "\n") | save --force $probe
+            let res = (do { ^dot -Tcanon $probe } | complete)
+            rm $probe
+            if $res.exit_code != 0 or ($res.stderr | str contains 'Error:') {
                 print $"workflow graph PARSE FAILED: ($graph)"
                 print ($res.stderr | str trim | str substring 0..160)
                 return false
