@@ -193,7 +193,7 @@ def check-loop-assets [] {
             # fragile on parse errors (2.43 exits 0 with an Error on
             # stderr): treat either signal as failure.
             let legalized = (open $graph | lines | each {|line|
-                $line | str replace --all 'x\.' 'x_'
+                $line | str replace --all --regex 'x\.' 'x_'
             } | str join "\n")
             let probe = $"($graph).graphviz-lint.tmp"
             ($legalized + "\n") | save --force $probe
