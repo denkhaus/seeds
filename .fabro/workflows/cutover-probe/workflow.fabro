@@ -32,8 +32,20 @@ digraph CutoverProbe {
         output_schema="routing"
     ]
 
+    // Seam 3 (the implementer shape): a BROAD-write stage — fs_write UNSET,
+    // hide narrowed — must commit a PRODUCT-path write (a pinned write list
+    // here would deny exactly this; pass 5 died that way).
+    product [
+        label="Product: writes a source path",
+        prompt="@prompts/product.md",
+        reasoning_effort="low",
+        x.fs_hide=".fabro/**,.seeds/**,.agents/**",
+        output_schema="routing"
+    ]
+
     start -> ctx
     ctx -> stdin [label="Key out"]
     stdin -> mulch
-    mulch -> exit [label="Write out"]
+    mulch -> product [label="Write out"]
+    product -> exit [label="Product out"]
 }
