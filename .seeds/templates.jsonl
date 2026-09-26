@@ -1,0 +1,1 @@
+{"id":"tpl-e75d","name":"release-flow","steps":[{"title":"Bump version, landing commit, push {prefix}","type":"task","priority":2},{"title":"Tag {prefix}; verify publish + release workflows","type":"task","priority":2},{"title":"Refresh local copies and close the convoy {prefix}","type":"task","priority":2}]}
