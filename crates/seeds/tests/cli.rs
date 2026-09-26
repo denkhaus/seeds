@@ -794,7 +794,7 @@ fn global_help_lists_only_implemented_commands() {
 fn planned_commands_answer_not_implemented_yet() {
     let dir = temp_store("planned");
     write_records(&dir, &standard());
-    for command in ["tpl", "migrate-from-beads"] {
+    for command in ["tpl", "migrate-from-beads", "upgrade"] {
         let output = run(&dir, &[command]);
         assert_eq!(output.status.code(), Some(1), "{command} exits 1");
         let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
@@ -808,7 +808,9 @@ fn planned_commands_answer_not_implemented_yet() {
     // graduated with the full decomposition surface, seeds-de37;
     // config/init graduated with sd parity, seeds-c813;
     // onboard/completions graduated with sd-parity mechanics,
-    // seeds-d9f8; upgrade moved to a documented non-goal).
+    // seeds-d9f8). `upgrade` stays in PLANNED: it lands as a real
+    // in-process self-update with the distribution epic (seeds-d54c,
+    // operator decision 2026-09-26).
     for command in [
         "blocked",
         "block",
@@ -820,7 +822,6 @@ fn planned_commands_answer_not_implemented_yet() {
         "init",
         "onboard",
         "completions",
-        "upgrade",
     ] {
         let output = run(&dir, &[command]);
         let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");

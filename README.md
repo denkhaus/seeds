@@ -42,10 +42,12 @@ carrying its own expectation, never a silent split:
   (seeds-d9f8). `migrate-from-beads` is a deliberate **non-goal**: run
   the reference tool (`sd migrate-from-beads`) once on a beads store
   and switch — this crate reads the migrated `.seeds/` result
-  natively. `upgrade` is likewise a deliberate **non-goal**:
-  installation IS the upgrade path — `cargo install --path
-  crates/seeds` (or the tag-driven crates.io publish, seeds-e160)
-  replaces the binary; there is no in-process self-update to mirror.
+  natively. `upgrade` answers `not implemented yet` and lands with
+  the distribution epic (seeds-d54c) as a REAL in-process self-update
+  (operator decision 2026-09-26): the `self_update` crate against
+  GitHub Releases, with the reference's `--check`/`--json` UX wired on
+  top — different mechanics from the reference's package-manager
+  upgrade, deliberately.
 - **onboard section content:** the marker mechanics
   (`seeds:start`/`seeds:end`, the versioned `seeds-onboard-schema`
   comment, CLAUDE.md-before-AGENTS.md targeting, the
@@ -149,24 +151,23 @@ All work is tracked in this repo's own `.seeds/` tracker.
 
 ## Installation
 
-Any machine with [mise](https://mise.jdx.dev):
+From crates.io (live since v0.3.0, tag-driven):
 
-```
-mise use -g cargo:seeds@0.3.0
-```
-
-(The GitHub-Release binary path — `mise use -g github:denkhaus/seeds` —
-lands with the distribution epic, seeds-d54c.)
-
-Plain Cargo:
-
-```
-cargo install --locked seeds
-```
+- mise: `mise use -g cargo:seeds@0.3.0`
+- plain Cargo: `cargo install --locked seeds`
 
 Local development keeps the self-hosting install (seeds-3791):
 `cargo install --path crates/seeds` — rustup's cargo bin dir is already
 on PATH, so the repo's `.mise.toml` carries no tracker entry.
+
+Coming with the distribution epic (seeds-d54c): prebuilt
+GitHub-Release binaries for Linux and macOS — including a one-line
+installer (`curl … | bash` against an `install.sh` served from the
+releases: target detection, SHASUMS.txt verification, install to
+`~/.local/bin`), the mise GitHub backend (`mise use -g
+github:denkhaus/seeds`), and `seeds upgrade` for in-process
+self-update. Until those land, installing a newer version via any
+path above IS the upgrade.
 
 Publishing is tag-driven: pushing a `v*` tag whose version matches the
 workspace `Cargo.toml` publishes to crates.io via

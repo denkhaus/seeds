@@ -59,7 +59,7 @@ Run 'sd <command> --help' for command-specific help.";
 /// honesty, seeds-25b5): `seeds --help` lists only implemented commands,
 /// and invoking one of these answers with a clear "not implemented yet"
 /// message instead of a generic unknown-command error.
-pub(crate) const PLANNED: &[&str] = &["tpl", "migrate-from-beads"];
+pub(crate) const PLANNED: &[&str] = &["tpl", "migrate-from-beads", "upgrade"];
 
 pub(crate) const ONBOARD: &str = "\
 Usage: sd onboard [options]
