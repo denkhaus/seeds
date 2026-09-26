@@ -717,11 +717,11 @@ fn help_and_version_match_reference_surface() {
     write_records(&dir, &standard());
     let output = run(&dir, &["--version"]);
     assert_eq!(output.status.code(), Some(0));
-    assert!(
-        String::from_utf8(output.stdout.clone())
-            .expect("utf-8")
-            .contains("v0.5.15")
-    );
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    // Version identity (seeds-e160): the real crate version from
+    // CARGO_PKG_VERSION, with the sd-parity target on its own line.
+    assert!(stdout.contains(concat!("v", env!("CARGO_PKG_VERSION"))));
+    assert!(stdout.contains("sd-0.5.15 read+write compatible"));
 
     for (command, needle) in [
         ("create", "--priority <n>"),

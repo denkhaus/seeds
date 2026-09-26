@@ -1,8 +1,18 @@
 //! Reference help and template texts, mirroring sd 0.5.15 output.
 
-pub(crate) const GLOBAL: &str = "\
-seeds v0.5.15 — Git-native issue tracking
+/// Global help with the real crate version in its header line
+/// (seeds-e160 / d54c step 1): version identity comes from
+/// `CARGO_PKG_VERSION`; the sd-0.5.15 parity target rides on the
+/// `--version` output's own line instead of masquerading as the version.
+pub(crate) fn global() -> String {
+    format!(
+        "seeds v{version} — Git-native issue tracking\n\n{body}",
+        version = env!("CARGO_PKG_VERSION"),
+        body = GLOBAL_BODY
+    )
+}
 
+const GLOBAL_BODY: &str = "\
 Usage: sd <command> [options]
 
 Commands (implemented in this build):

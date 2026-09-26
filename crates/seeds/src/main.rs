@@ -45,17 +45,23 @@ fn main() -> ExitCode {
 
 fn dispatch(argv: &[String]) -> ExitCode {
     let Some(command) = argv.first() else {
-        println!("{}", helptext::GLOBAL);
+        println!("{}", helptext::global());
         return ExitCode::SUCCESS;
     };
     let rest = &argv[1..];
     match command.as_str() {
         "-h" | "--help" => {
-            println!("{}", helptext::GLOBAL);
+            println!("{}", helptext::global());
             ExitCode::SUCCESS
         }
         "-v" | "--version" => {
-            println!("seeds v0.5.15 — Git-native issue tracking");
+            // Version identity (seeds-e160): report the real crate
+            // version; the sd-0.5.15 parity target is a separate line.
+            println!(
+                "seeds v{} — Git-native issue tracking",
+                env!("CARGO_PKG_VERSION")
+            );
+            println!("sd-0.5.15 read+write compatible");
             ExitCode::SUCCESS
         }
         "create" => cmd_create(rest),

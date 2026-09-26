@@ -131,6 +131,32 @@ suite green at the tagged commit.
 
 All work is tracked in this repo's own `.seeds/` tracker.
 
+## Installation
+
+Any machine with [mise](https://mise.jdx.dev):
+
+```
+mise use -g cargo:seeds@0.3.0
+```
+
+(The GitHub-Release binary path — `mise use -g github:denkhaus/seeds` —
+lands with the distribution epic, seeds-d54c.)
+
+Plain Cargo:
+
+```
+cargo install --locked seeds
+```
+
+Local development keeps the self-hosting install (seeds-3791):
+`cargo install --path crates/seeds` — rustup's cargo bin dir is already
+on PATH, so the repo's `.mise.toml` carries no tracker entry.
+
+Publishing is tag-driven: pushing a `v*` tag whose version matches the
+workspace `Cargo.toml` publishes to crates.io via
+`.github/workflows/publish.yml` (needs the `CARGO_REGISTRY_TOKEN`
+secret; tags and crate version are equal, strictly).
+
 ## Push gate (operators)
 
 `lefthook.yml` runs `nu .fabro/scripts/push-gate.nu` as a pre-push hook:
