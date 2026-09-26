@@ -185,10 +185,13 @@ musl-static), verifies the artifact against the release's
 stays documented: `gh release download` from
 [the releases](https://github.com/denkhaus/seeds/releases).
 
-Coming with the rest of the distribution epic (seeds-d54c): the mise
-GitHub backend (`mise use -g github:denkhaus/seeds`) and `seeds
-upgrade` for in-process self-update. Until `upgrade` lands,
-installing a newer version via any path above IS the upgrade.
+Self-update (live since v0.4.0): `seeds upgrade` performs the
+in-process update from the releases (`--check` reports without
+installing); managed installs (image-baked, cargo-installed,
+mise-managed) are pointed at their own channel instead. Remaining
+from the distribution epic (seeds-d54c): the mise GitHub backend
+(`mise use -g github:denkhaus/seeds`) and the toolchain-image
+migration.
 
 Publishing is tag-driven: pushing a `v*` tag whose version matches the
 workspace `Cargo.toml` publishes to crates.io via
