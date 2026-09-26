@@ -88,9 +88,11 @@ jobs:
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             native: true
+            musl: true
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
             native: false
+            musl: true
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -101,6 +103,12 @@ jobs:
           toolchain: ${{ env.TOOLCHAIN }}
           targets: ${{ matrix.target }}
       - name: Build (release, locked, target)
+        # musl legs link with the self-contained rust-lld: the system
+        # cc/ld pair cannot cross-link aarch64-musl (unknown
+        # --fix-cortex-a53-843419) - lld is pure-Rust-toolchain, no
+        # cross gcc needed.
+        env:
+          RUSTFLAGS: ${{ matrix.musl && '-C linker=rust-lld' || '' }}
         run: cargo build --release --locked --target "${{ matrix.target }}"
       - name: Smoke-run the binary when the runner can execute it
         if: ${{ matrix.native }}
@@ -110,7 +118,7 @@ jobs:
           "$bin" --version
       - name: Smoke-verify static linking (musl contract)
         if: ${{ runner.os == 'Linux' }}
-        run: file "target/${{ matrix.target }}/release/seeds" | tee /dev/stderr | grep -q 'statically linked'
+        run: file "target/${{ matrix.target }}/release/seeds" | tee /dev/stderr | grep -Eq 'static(-pie)? linked'
       - name: Package tar.gz (binary at archive root)
         run: |
           name="seeds-${{ needs.resolve.outputs.version }}-${{ matrix.target }}.tar.gz"
