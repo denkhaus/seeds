@@ -771,6 +771,7 @@ fn global_help_lists_only_implemented_commands() {
         "doctor",
         "init",
         "config",
+        "upgrade",
         "onboard",
         "completions",
     ] {
@@ -782,7 +783,7 @@ fn global_help_lists_only_implemented_commands() {
         .split("Unimplemented reference commands")
         .next()
         .unwrap_or_default();
-    for absent in ["tpl", "migrate-from-beads", "upgrade"] {
+    for absent in ["tpl", "migrate-from-beads"] {
         assert!(
             !commands_section.contains(absent),
             "--help must not list unimplemented '{absent}' as a command"
@@ -794,7 +795,7 @@ fn global_help_lists_only_implemented_commands() {
 fn planned_commands_answer_not_implemented_yet() {
     let dir = temp_store("planned");
     write_records(&dir, &standard());
-    for command in ["tpl", "migrate-from-beads", "upgrade"] {
+    for command in ["tpl", "migrate-from-beads"] {
         let output = run(&dir, &[command]);
         assert_eq!(output.status.code(), Some(1), "{command} exits 1");
         let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
@@ -808,9 +809,7 @@ fn planned_commands_answer_not_implemented_yet() {
     // graduated with the full decomposition surface, seeds-de37;
     // config/init graduated with sd parity, seeds-c813;
     // onboard/completions graduated with sd-parity mechanics,
-    // seeds-d9f8). `upgrade` stays in PLANNED: it lands as a real
-    // in-process self-update with the distribution epic (seeds-d54c,
-    // operator decision 2026-09-26).
+    // seeds-d9f8; upgrade landed as the real self-update, seeds-bdcb).
     for command in [
         "blocked",
         "block",
@@ -822,6 +821,7 @@ fn planned_commands_answer_not_implemented_yet() {
         "init",
         "onboard",
         "completions",
+        "upgrade",
     ] {
         let output = run(&dir, &[command]);
         let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
@@ -1165,6 +1165,7 @@ fn completions_emit_the_implemented_surface_per_shell() {
             "plan",
             "init",
             "config",
+            "upgrade",
             "onboard",
             "completions",
         ] {
@@ -1174,7 +1175,6 @@ fn completions_emit_the_implemented_surface_per_shell() {
         // out of the completions.
         assert!(!script.contains("tpl"));
         assert!(!script.contains("migrate-from-beads"));
-        assert!(!script.contains("upgrade"));
         assert!(script.contains("seeds"), "{shell} names the seeds binary");
     }
     // Group subcommands are completable.

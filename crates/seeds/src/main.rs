@@ -26,6 +26,8 @@
 
 use std::process::ExitCode;
 
+#[cfg(feature = "upgrade")]
+use seeds::commands::UpgradeInput;
 use seeds::commands::{
     self, BlockInput, BlockedInput, CloseInput, CommandContext, CommandOutcome, CompletionsInput,
     ConfigInput, ConfigSub, CreateInput, DedupeInput, DepAddInput, DepListInput, DepRemoveInput,
@@ -58,10 +60,14 @@ fn dispatch(argv: &[String]) -> ExitCode {
         "-v" | "--version" => {
             // Version identity (seeds-e160): report the real crate
             // version; the sd-0.5.15 parity target is a separate line.
+            // Release builds carry a build stamp (d54c step 1).
             println!(
                 "seeds v{} — Git-native issue tracking",
                 env!("CARGO_PKG_VERSION")
             );
+            if let Some(sha) = option_env!("SEEDS_BUILD_SHA") {
+                println!("build {sha}");
+            }
             println!("sd-0.5.15 read+write compatible");
             ExitCode::SUCCESS
         }
@@ -86,6 +92,10 @@ fn dispatch(argv: &[String]) -> ExitCode {
         "init" => cmd_init(rest),
         "onboard" => cmd_onboard(rest),
         "completions" => cmd_completions(rest),
+        #[cfg(feature = "upgrade")]
+        "upgrade" => cmd_upgrade(rest),
+        #[cfg(not(feature = "upgrade"))]
+        "upgrade" => not_implemented_no_feature("upgrade"),
         "config" => cmd_config(rest),
         other => {
             // Help honesty (seeds-25b5): planned sd-parity commands
@@ -500,6 +510,30 @@ fn cmd_onboard(args: &[String]) -> ExitCode {
         json:        json_mode(&parsed),
     };
     report(&commands::onboard(&input))
+}
+
+#[cfg(feature = "upgrade")]
+fn cmd_upgrade(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::UPGRADE_SPEC, helptext::UPGRADE) else {
+        return ExitCode::FAILURE;
+    };
+    let input = UpgradeInput {
+        check: parsed.flags.contains("check"),
+        json:  json_mode(&parsed),
+    };
+    report(&commands::upgrade(&input))
+}
+
+/// The upgrade arm when compiled without the `upgrade` feature: the
+/// offline-pure core still answers honestly.
+#[cfg(not(feature = "upgrade"))]
+fn not_implemented_no_feature(command: &str) -> ExitCode {
+    eprintln!(
+        "error: command '{command}' is not implemented in this build \
+         (compiled without the `upgrade` feature) — run 'seeds --help' for \
+         the implemented commands"
+    );
+    ExitCode::FAILURE
 }
 
 fn cmd_completions(args: &[String]) -> ExitCode {

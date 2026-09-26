@@ -149,6 +149,11 @@ const COMMANDS: &[CommandSpec] = &[
         subcommands: &["show", "set", "unset", "schema", "help"],
     },
     CommandSpec {
+        name:        "upgrade",
+        description: "Upgrade seeds to the latest version from GitHub Releases",
+        subcommands: &[],
+    },
+    CommandSpec {
         name:        "onboard",
         description: "Add seeds section to CLAUDE.md / AGENTS.md",
         subcommands: &[],

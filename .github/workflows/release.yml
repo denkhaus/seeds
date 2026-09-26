@@ -93,6 +93,9 @@ jobs:
             os: ubuntu-latest
             native: false
             musl: true
+            cross-gcc: gcc-aarch64-linux-gnu
+            cc: aarch64-linux-gnu-gcc
+            ar: aarch64-linux-gnu-ar
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -102,13 +105,22 @@ jobs:
         with:
           toolchain: ${{ env.TOOLCHAIN }}
           targets: ${{ matrix.target }}
+      - name: Provision the cross C toolchain (ring needs cc on aarch64-musl)
+        if: ${{ matrix.cross-gcc != '' }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq '${{ matrix.cross-gcc }}'
+          '${{ matrix.cc }}' --version | head -1
       - name: Build (release, locked, target)
         # musl legs link with the self-contained rust-lld: the system
         # cc/ld pair cannot cross-link aarch64-musl (unknown
         # --fix-cortex-a53-843419) - lld is pure-Rust-toolchain, no
-        # cross gcc needed.
+        # cross gcc needed. SEEDS_BUILD_SHA stamps --version (d54c 1).
         env:
           RUSTFLAGS: ${{ matrix.musl && '-C linker=rust-lld' || '' }}
+          SEEDS_BUILD_SHA: ${{ github.sha }}
+          CC_aarch64_unknown_linux_musl: ${{ matrix.cc }}
+          AR_aarch64_unknown_linux_musl: ${{ matrix.ar }}
         run: cargo build --release --locked --target "${{ matrix.target }}"
       - name: Smoke-run the binary when the runner can execute it
         if: ${{ matrix.native }}

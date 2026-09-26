@@ -189,6 +189,8 @@ pub(crate) static ONBOARD_SPEC: &[OptSpec] = &[flag("stdout"), flag("check"), fl
 
 pub(crate) static COMPLETIONS_SPEC: &[OptSpec] = &[];
 
+pub(crate) static UPGRADE_SPEC: &[OptSpec] = &[flag("check"), flag("json")];
+
 pub(crate) static CONFIG_SCHEMA_SPEC: &[OptSpec] = &[flag("json")];
 
 pub(crate) static CONFIG_SHOW_SPEC: &[OptSpec] = &[opt("path"), flag("json")];

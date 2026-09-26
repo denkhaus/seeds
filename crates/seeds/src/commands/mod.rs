@@ -32,6 +32,8 @@ mod prime;
 mod query;
 mod stats_doctor;
 mod update_close;
+#[cfg(feature = "upgrade")]
+mod upgrade;
 
 pub use completions::{CompletionsInput, completions};
 pub use config_init::{ConfigInput, ConfigSub, InitInput, config, init};
@@ -51,6 +53,8 @@ pub use prime::{PrimeInput, prime};
 pub use query::{QueryCommand, QueryInput, list, query, ready, search};
 pub use stats_doctor::{DoctorInput, StatsInput, doctor, stats};
 pub use update_close::{CloseInput, UpdateInput, close, update};
+#[cfg(feature = "upgrade")]
+pub use upgrade::{InstallClass, UpgradeInput, classify_install, upgrade};
 
 /// One command's full observable result: the bytes to print and the
 /// process-exit meaning. The binary prints `stdout`/`stderr` verbatim

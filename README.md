@@ -42,12 +42,22 @@ carrying its own expectation, never a silent split:
   (seeds-d9f8). `migrate-from-beads` is a deliberate **non-goal**: run
   the reference tool (`sd migrate-from-beads`) once on a beads store
   and switch — this crate reads the migrated `.seeds/` result
-  natively. `upgrade` answers `not implemented yet` and lands with
-  the distribution epic (seeds-d54c) as a REAL in-process self-update
-  (operator decision 2026-09-26): the `self_update` crate against
-  GitHub Releases, with the reference's `--check`/`--json` UX wired on
-  top — different mechanics from the reference's package-manager
-  upgrade, deliberately.
+  natively. **`upgrade`** (seeds-bdcb): same surface as the
+  reference (`--check` exits 1 when outdated; `--json` carries
+  `{current, latest, upToDate}`), deliberately different mechanics —
+  the reference upgrades through npm; ours is an in-process self-update
+  against the GitHub Releases: download the target's tar.gz, verify it
+  against the release's `SHASUMS.txt` **on top of TLS**, swap the
+  binary beside itself with an atomic rename. Implementation note: the
+  d54c decision named the `self_update` crate, which cannot expose its
+  download for SHASUM verification — the decided verification outcome
+  won, so the stack is hand-rolled and minimal (ureq + rustls/ring,
+  sha2, flate2, tar) behind the default-on `upgrade` cargo feature; a
+  `--no-default-features` build keeps the core offline-pure. Managed
+  installs do not self-replace: image-baked (/usr, /opt → `just
+  run-images`), cargo-installed (`~/.cargo/bin` → `cargo install
+  --locked seeds`), mise-managed (`mise upgrade cargo:seeds`) each get
+  pointed at their own channel.
 - **onboard section content:** the marker mechanics
   (`seeds:start`/`seeds:end`, the versioned `seeds-onboard-schema`
   comment, CLAUDE.md-before-AGENTS.md targeting, the

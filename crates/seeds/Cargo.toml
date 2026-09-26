@@ -5,11 +5,24 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[features]
+default = ["upgrade"]
+# In-process self-update (seeds-d54c step 4): the ONLY network arm of
+# the crate. Everything it pulls is optional, so a build with
+# --no-default-features keeps the core offline-pure (the decided
+# feature-gate contract).
+upgrade = ["dep:ureq", "dep:sha2", "dep:flate2", "dep:tar"]
+
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 serde_yaml = "0.9"
 thiserror = "2"
+# upgrade feature (all optional, gated above)
+ureq = { version = "3", optional = true, default-features = false, features = ["rustls"] }
+sha2 = { version = "0.10", optional = true }
+flate2 = { version = "1", optional = true, default-features = false, features = ["rust_backend"] }
+tar = { version = "0.4", optional = true }
 
 [lints]
 workspace = true

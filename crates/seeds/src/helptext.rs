@@ -38,6 +38,7 @@ Commands (implemented in this build):
   sync              Stage and commit .seeds/ changes
   init              Initialize .seeds/ in current directory
   config            Read, write, and inspect .seeds/config.yaml
+  upgrade           Upgrade seeds to the latest version from GitHub Releases
   onboard           Add seeds section to CLAUDE.md / AGENTS.md
   completions <shell>  Output shell completion script
 
@@ -59,7 +60,17 @@ Run 'sd <command> --help' for command-specific help.";
 /// honesty, seeds-25b5): `seeds --help` lists only implemented commands,
 /// and invoking one of these answers with a clear "not implemented yet"
 /// message instead of a generic unknown-command error.
-pub(crate) const PLANNED: &[&str] = &["tpl", "migrate-from-beads", "upgrade"];
+pub(crate) const PLANNED: &[&str] = &["tpl", "migrate-from-beads"];
+
+pub(crate) const UPGRADE: &str = "\
+Usage: sd upgrade [options]
+
+Upgrade seeds to the latest version from GitHub Releases
+
+Options:
+  --check     Check for updates without installing
+  --json      Output as JSON
+  -h, --help  display help for command";
 
 pub(crate) const ONBOARD: &str = "\
 Usage: sd onboard [options]
