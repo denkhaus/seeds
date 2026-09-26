@@ -89,6 +89,10 @@ jobs:
             os: ubuntu-latest
             native: true
             musl: true
+            # ring's cc-rs demands a target-conventional compiler name;
+            # the host gcc compiles ring's freestanding C fine.
+            cc-x86: cc
+            ar-x86: ar
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
             native: false
@@ -121,6 +125,8 @@ jobs:
           SEEDS_BUILD_SHA: ${{ github.sha }}
           CC_aarch64_unknown_linux_musl: ${{ matrix.cc }}
           AR_aarch64_unknown_linux_musl: ${{ matrix.ar }}
+          CC_x86_64_unknown_linux_musl: ${{ matrix.cc-x86 }}
+          AR_x86_64_unknown_linux_musl: ${{ matrix.ar-x86 }}
         run: cargo build --release --locked --target "${{ matrix.target }}"
       - name: Smoke-run the binary when the runner can execute it
         if: ${{ matrix.native }}
