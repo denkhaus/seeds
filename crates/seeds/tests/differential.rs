@@ -36,8 +36,27 @@ use serde_json::{Value, json};
 /// driver. `create` is covered by the dedicated tailored case (random
 /// ids make a plain argv comparison meaningless there).
 const IMPLEMENTED_COMMANDS: &[&str] = &[
-    "create", "show", "list", "ready", "search", "update", "close", "dep", "prime", "sync",
-    "blocked", "block", "unblock", "label", "stats", "doctor", "plan", "init", "config",
+    "create",
+    "show",
+    "list",
+    "ready",
+    "search",
+    "update",
+    "close",
+    "dep",
+    "prime",
+    "sync",
+    "blocked",
+    "block",
+    "unblock",
+    "label",
+    "stats",
+    "doctor",
+    "plan",
+    "init",
+    "config",
+    "onboard",
+    "completions",
 ];
 
 /// Fields whose values are stamped `now` by both binaries at run time;
@@ -862,6 +881,31 @@ fn matrix() -> Vec<Case> {
             name:    "config_unset_missing_json",
             command: "config",
             args:    &["config", "unset", "--json", "plan_templates"],
+        },
+        // onboard: the generic check surface coincides byte-for-byte;
+        // the section CONTENT is a documented deviation (README
+        // DEVIATIONS) and is covered by cli.rs instead.
+        Case {
+            name:    "onboard_check_missing",
+            command: "onboard",
+            args:    &["onboard", "--check"],
+        },
+        Case {
+            name:    "onboard_check_missing_json",
+            command: "onboard",
+            args:    &["onboard", "--check", "--json"],
+        },
+        // completions: error surface coincides; the scripts enumerate
+        // the implemented surface (deviation), covered by cli.rs.
+        Case {
+            name:    "completions_unknown_shell",
+            command: "completions",
+            args:    &["completions", "tcsh"],
+        },
+        Case {
+            name:    "completions_missing_shell",
+            command: "completions",
+            args:    &["completions"],
         },
     ]
 }

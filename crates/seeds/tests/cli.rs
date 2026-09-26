@@ -753,8 +753,26 @@ fn global_help_lists_only_implemented_commands() {
     assert_eq!(output.status.code(), Some(0));
     let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
     for command in [
-        "create", "show", "list", "ready", "search", "update", "close", "dep", "prime", "dedupe",
-        "blocked", "block", "unblock", "label", "stats", "doctor",
+        "create",
+        "show",
+        "list",
+        "ready",
+        "search",
+        "update",
+        "close",
+        "dep",
+        "prime",
+        "dedupe",
+        "blocked",
+        "block",
+        "unblock",
+        "label",
+        "stats",
+        "doctor",
+        "init",
+        "config",
+        "onboard",
+        "completions",
     ] {
         assert!(text.contains(command), "--help lists {command}");
     }
@@ -764,7 +782,7 @@ fn global_help_lists_only_implemented_commands() {
         .split("Unimplemented reference commands")
         .next()
         .unwrap_or_default();
-    for absent in ["tpl", "onboard", "migrate-from-beads"] {
+    for absent in ["tpl", "migrate-from-beads", "upgrade"] {
         assert!(
             !commands_section.contains(absent),
             "--help must not list unimplemented '{absent}' as a command"
@@ -776,7 +794,7 @@ fn global_help_lists_only_implemented_commands() {
 fn planned_commands_answer_not_implemented_yet() {
     let dir = temp_store("planned");
     write_records(&dir, &standard());
-    for command in ["tpl", "upgrade", "completions"] {
+    for command in ["tpl", "migrate-from-beads"] {
         let output = run(&dir, &[command]);
         assert_eq!(output.status.code(), Some(1), "{command} exits 1");
         let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
@@ -788,9 +806,21 @@ fn planned_commands_answer_not_implemented_yet() {
     // The hygiene batch graduated: these must NOT answer
     // not-implemented anymore (help honesty, seeds-c228; plan
     // graduated with the full decomposition surface, seeds-de37;
-    // config/init graduated with sd parity, seeds-c813).
+    // config/init graduated with sd parity, seeds-c813;
+    // onboard/completions graduated with sd-parity mechanics,
+    // seeds-d9f8; upgrade moved to a documented non-goal).
     for command in [
-        "blocked", "block", "unblock", "stats", "doctor", "plan", "config", "init",
+        "blocked",
+        "block",
+        "unblock",
+        "stats",
+        "doctor",
+        "plan",
+        "config",
+        "init",
+        "onboard",
+        "completions",
+        "upgrade",
     ] {
         let output = run(&dir, &[command]);
         let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
@@ -981,4 +1011,191 @@ fn stats_json_has_stable_keys() {
     assert_eq!(stats["inProgress"], json!(1));
     assert_eq!(stats["closed"], json!(1));
     assert_eq!(stats["blocked"], json!(1));
+}
+
+// ---------------------------------------------------------------------------
+// onboard (seeds-d9f8)
+// ---------------------------------------------------------------------------
+
+fn onboard_section(dir: &Path, file: &str) -> String {
+    fs::read_to_string(dir.join(file)).expect("agent doc")
+}
+
+#[test]
+fn onboard_creates_claude_md_with_marked_section() {
+    let dir = temp_store("onboard_create");
+    write_records(&dir, &standard());
+    let output = run(&dir, &["onboard"]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(stdout.contains("✓ Created"), "created message: {stdout}");
+    let doc = onboard_section(&dir, "CLAUDE.md");
+    assert!(doc.contains("<!-- seeds:start -->"));
+    assert!(doc.contains("<!-- seeds:end -->"));
+    // Version identity: the section carries the real crate version and
+    // the schema comment that drives update detection.
+    assert!(doc.contains(&format!(
+        "<!-- seeds-onboard:v{} -->",
+        env!("CARGO_PKG_VERSION")
+    )));
+    assert!(doc.contains("<!-- seeds-onboard-schema:7 -->"));
+    // Naming deviation (README DEVIATIONS): the live CLI is `seeds`.
+    assert!(doc.contains("```\nseeds prime\n```"));
+    assert!(!doc.contains("`sd "));
+}
+
+#[test]
+fn onboard_is_idempotent_and_reports_unchanged() {
+    let dir = temp_store("onboard_twice");
+    write_records(&dir, &standard());
+    run(&dir, &["onboard"]);
+    let output = run(&dir, &["onboard"]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(stdout.contains("already up to date"));
+    let json = stdout_json(&run(&dir, &["onboard", "--json"]));
+    assert_eq!(json["action"], json!("unchanged"));
+    assert_eq!(json["command"], json!("onboard"));
+}
+
+#[test]
+fn onboard_appends_to_existing_doc_and_falls_back_to_agents_md() {
+    let dir = temp_store("onboard_append");
+    write_records(&dir, &standard());
+    fs::write(dir.join("AGENTS.md"), "existing docs\n").expect("AGENTS.md");
+    let output = run(&dir, &["onboard"]);
+    assert_eq!(output.status.code(), Some(0));
+    let doc = onboard_section(&dir, "AGENTS.md");
+    assert!(doc.starts_with("existing docs"));
+    assert!(doc.contains("<!-- seeds:start -->"));
+    let json = stdout_json(&run(&dir, &["onboard", "--json"]));
+    assert_eq!(json["action"], json!("unchanged"));
+    let path = json["file"].as_str().expect("file").to_owned();
+    assert!(
+        path.ends_with("AGENTS.md"),
+        "file targets AGENTS.md: {path}"
+    );
+}
+
+#[test]
+fn onboard_updates_stale_schema_and_checks_status() {
+    let dir = temp_store("onboard_update");
+    write_records(&dir, &standard());
+    run(&dir, &["onboard"]);
+    let doc_path = dir.join("CLAUDE.md");
+    let stale = onboard_section(&dir, "CLAUDE.md").replace("schema:7", "schema:6");
+    fs::write(&doc_path, stale).expect("rewrite");
+
+    let check = run(&dir, &["onboard", "--check"]);
+    assert!(
+        String::from_utf8(check.stdout.clone())
+            .expect("utf-8")
+            .contains("Status: outdated")
+    );
+    let check_json = stdout_json(&run(&dir, &["onboard", "--check", "--json"]));
+    assert_eq!(check_json["status"], json!("outdated"));
+
+    let update = run(&dir, &["onboard"]);
+    assert!(
+        String::from_utf8(update.stdout.clone())
+            .expect("utf-8")
+            .contains("✓ Updated seeds section in")
+    );
+    assert!(onboard_section(&dir, "CLAUDE.md").contains("schema:7"));
+    let json = stdout_json(&run(&dir, &["onboard", "--json"]));
+    assert_eq!(json["action"], json!("unchanged"));
+}
+
+#[test]
+fn onboard_check_missing_reports_and_exits_zero() {
+    let dir = temp_store("onboard_missing");
+    write_records(&dir, &standard());
+    let output = run(&dir, &["onboard", "--check"]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(stdout.contains("Status: missing (no CLAUDE.md found)"));
+    let json = stdout_json(&run(&dir, &["onboard", "--check", "--json"]));
+    assert_eq!(json["status"], json!("missing"));
+    assert!(json["file"].is_null());
+}
+
+#[test]
+fn onboard_stdout_prints_section_without_writing() {
+    let dir = temp_store("onboard_stdout");
+    write_records(&dir, &standard());
+    let output = run(&dir, &["onboard", "--stdout"]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(stdout.contains("<!-- seeds:start -->"));
+    assert!(!dir.join("CLAUDE.md").exists());
+    assert!(!dir.join("AGENTS.md").exists());
+}
+
+// ---------------------------------------------------------------------------
+// completions (seeds-d9f8)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn completions_emit_the_implemented_surface_per_shell() {
+    let dir = temp_store("completions");
+    write_records(&dir, &standard());
+    for shell in ["bash", "zsh", "fish"] {
+        let output = run(&dir, &["completions", shell]);
+        assert_eq!(output.status.code(), Some(0), "{shell} exits 0");
+        let script = String::from_utf8(output.stdout.clone()).expect("utf-8");
+        for command in [
+            "create",
+            "show",
+            "list",
+            "ready",
+            "update",
+            "close",
+            "dep",
+            "blocked",
+            "block",
+            "unblock",
+            "label",
+            "stats",
+            "doctor",
+            "prime",
+            "search",
+            "dedupe",
+            "sync",
+            "plan",
+            "init",
+            "config",
+            "onboard",
+            "completions",
+        ] {
+            assert!(script.contains(command), "{shell} lists {command}");
+        }
+        // Help honesty (seeds-25b5): the retired reference surface stays
+        // out of the completions.
+        assert!(!script.contains("tpl"));
+        assert!(!script.contains("migrate-from-beads"));
+        assert!(!script.contains("upgrade"));
+        assert!(script.contains("seeds"), "{shell} names the seeds binary");
+    }
+    // Group subcommands are completable.
+    let bash = String::from_utf8(run(&dir, &["completions", "bash"]).stdout).expect("utf-8");
+    assert!(bash.contains("add remove list"));
+}
+
+#[test]
+fn completions_reject_unknown_shell_and_missing_argument() {
+    let dir = temp_store("completions_bad");
+    write_records(&dir, &standard());
+    let unknown = run(&dir, &["completions", "tcsh"]);
+    assert_eq!(unknown.status.code(), Some(1));
+    let stderr = String::from_utf8(unknown.stderr.clone()).expect("utf-8");
+    assert_eq!(
+        stderr.trim(),
+        "✗ Unknown shell: tcsh. Supported: bash, zsh, fish"
+    );
+    assert_eq!(unknown.stdout.len(), 0);
+
+    let missing = run(&dir, &["completions"]);
+    assert_eq!(missing.status.code(), Some(1));
+    let stderr = String::from_utf8(missing.stderr.clone()).expect("utf-8");
+    assert_eq!(stderr.trim(), "error: missing required argument 'shell'");
 }

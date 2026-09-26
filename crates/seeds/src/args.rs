@@ -185,6 +185,10 @@ pub(crate) static PLAN_LIST_SPEC: &[OptSpec] = &[
 
 pub(crate) static INIT_SPEC: &[OptSpec] = &[flag("json")];
 
+pub(crate) static ONBOARD_SPEC: &[OptSpec] = &[flag("stdout"), flag("check"), flag("json")];
+
+pub(crate) static COMPLETIONS_SPEC: &[OptSpec] = &[];
+
 pub(crate) static CONFIG_SCHEMA_SPEC: &[OptSpec] = &[flag("json")];
 
 pub(crate) static CONFIG_SHOW_SPEC: &[OptSpec] = &[opt("path"), flag("json")];

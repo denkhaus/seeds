@@ -8,8 +8,9 @@ git-native issue-tracker format.
 `issues.jsonl`, `plans.jsonl`, `templates.jsonl`). Unknown record fields are
 preserved on every write; additive fields are the only sanctioned extension
 mechanism. The CLI surface (`seeds create/show/list/ready/update/close/dep/
-prime/search/plan/config/init`) mirrors the reference tool until this repo's own
-line replaces it (self-hosting cutover).
+prime/search/plan/config/init/onboard/completions`) mirrors the
+reference tool until this repo's own line replaces it (self-hosting
+cutover).
 
 ## CLI surface contract
 
@@ -32,15 +33,30 @@ Deliberate divergences from the reference — each documented here and
 carrying its own expectation, never a silent split:
 
 - **Help honesty:** `seeds --help` lists only implemented commands;
-  unimplemented-but-planned reference commands (`tpl`,
-  `onboard`, `upgrade`, `completions`) answer a clear `not
-  implemented yet` message instead of the reference's real
+  unimplemented-but-planned reference commands (`tpl`) answer a clear
+  `not implemented yet` message instead of the reference's real
   implementations. `plan` graduated with the full decomposition
   surface (seeds-de37); `init` and the `config` group
-  (schema/show/set/unset) graduated with sd parity (seeds-c813).
-  `migrate-from-beads` is a deliberate **non-goal**: run the reference
-  tool (`sd migrate-from-beads`) once on a beads store and switch —
-  this crate reads the migrated `.seeds/` result natively.
+  (schema/show/set/unset) graduated with sd parity (seeds-c813);
+  `onboard` and `completions` graduated with sd-parity mechanics
+  (seeds-d9f8). `migrate-from-beads` is a deliberate **non-goal**: run
+  the reference tool (`sd migrate-from-beads`) once on a beads store
+  and switch — this crate reads the migrated `.seeds/` result
+  natively. `upgrade` is likewise a deliberate **non-goal**:
+  installation IS the upgrade path — `cargo install --path
+  crates/seeds` (or the tag-driven crates.io publish, seeds-e160)
+  replaces the binary; there is no in-process self-update to mirror.
+- **onboard section content:** the marker mechanics
+  (`seeds:start`/`seeds:end`, the versioned `seeds-onboard-schema`
+  comment, CLAUDE.md-before-AGENTS.md targeting, the
+  `{action,status,file}` envelopes, exit codes) are differential-pinned
+  against the reference; the section BODY names the live `seeds` CLI
+  and this implementation's version/home instead of the retired `sd`
+  reference wording.
+- **completions surface:** the shell scripts enumerate the implemented
+  command surface only (the help-honesty rule above), not the
+  reference's full list; the error surface (`unknown shell`, missing
+  argument) is differential-pinned.
 - **config additive-fields writes:** `seeds config set/unset` preserve
   unknown top-level keys already present in `config.yaml` (and keep
   file order) instead of failing the reference's

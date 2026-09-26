@@ -27,10 +27,11 @@
 use std::process::ExitCode;
 
 use seeds::commands::{
-    self, BlockInput, BlockedInput, CloseInput, CommandContext, CommandOutcome, ConfigInput,
-    ConfigSub, CreateInput, DedupeInput, DepAddInput, DepListInput, DepRemoveInput, DoctorInput,
-    InitInput, LabelAddInput, LabelListAllInput, LabelListInput, LabelRemoveInput, PrimeInput,
-    QueryCommand, QueryInput, StatsInput, SyncInput, UnblockInput, UpdateInput,
+    self, BlockInput, BlockedInput, CloseInput, CommandContext, CommandOutcome, CompletionsInput,
+    ConfigInput, ConfigSub, CreateInput, DedupeInput, DepAddInput, DepListInput, DepRemoveInput,
+    DoctorInput, InitInput, LabelAddInput, LabelListAllInput, LabelListInput, LabelRemoveInput,
+    OnboardInput, PrimeInput, QueryCommand, QueryInput, StatsInput, SyncInput, UnblockInput,
+    UpdateInput,
 };
 
 mod args;
@@ -83,6 +84,8 @@ fn dispatch(argv: &[String]) -> ExitCode {
         "sync" => cmd_sync(rest),
         "plan" => cmd_plan(rest),
         "init" => cmd_init(rest),
+        "onboard" => cmd_onboard(rest),
+        "completions" => cmd_completions(rest),
         "config" => cmd_config(rest),
         other => {
             // Help honesty (seeds-25b5): planned sd-parity commands
@@ -485,6 +488,29 @@ fn cmd_init(args: &[String]) -> ExitCode {
         json: json_mode(&parsed),
     };
     report(&commands::init(&input))
+}
+
+fn cmd_onboard(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::ONBOARD_SPEC, helptext::ONBOARD) else {
+        return ExitCode::FAILURE;
+    };
+    let input = OnboardInput {
+        check:       parsed.flags.contains("check"),
+        stdout_only: parsed.flags.contains("stdout"),
+        json:        json_mode(&parsed),
+    };
+    report(&commands::onboard(&input))
+}
+
+fn cmd_completions(args: &[String]) -> ExitCode {
+    let Some(parsed) = parsed_or_help(args, args::COMPLETIONS_SPEC, helptext::COMPLETIONS) else {
+        return ExitCode::FAILURE;
+    };
+    let Some(shell) = parsed.positionals.first().cloned() else {
+        eprintln!("error: missing required argument 'shell'");
+        return ExitCode::FAILURE;
+    };
+    report(&commands::completions(&CompletionsInput { shell }))
 }
 
 fn cmd_config(args: &[String]) -> ExitCode {

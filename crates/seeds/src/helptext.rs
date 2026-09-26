@@ -38,10 +38,11 @@ Commands (implemented in this build):
   sync              Stage and commit .seeds/ changes
   init              Initialize .seeds/ in current directory
   config            Read, write, and inspect .seeds/config.yaml
+  onboard           Add seeds section to CLAUDE.md / AGENTS.md
+  completions <shell>  Output shell completion script
 
-Unimplemented reference commands (tpl, migrate-from-beads,
-onboard, upgrade, completions) answer 'not implemented
-yet' when invoked.
+Unimplemented reference commands (tpl, migrate-from-beads)
+answer 'not implemented yet' when invoked.
 
 Options:
   -h, --help        Show help
@@ -58,13 +59,29 @@ Run 'sd <command> --help' for command-specific help.";
 /// honesty, seeds-25b5): `seeds --help` lists only implemented commands,
 /// and invoking one of these answers with a clear "not implemented yet"
 /// message instead of a generic unknown-command error.
-pub(crate) const PLANNED: &[&str] = &[
-    "tpl",
-    "migrate-from-beads",
-    "onboard",
-    "upgrade",
-    "completions",
-];
+pub(crate) const PLANNED: &[&str] = &["tpl", "migrate-from-beads"];
+
+pub(crate) const ONBOARD: &str = "\
+Usage: sd onboard [options]
+
+Add seeds section to CLAUDE.md / AGENTS.md
+
+Options:
+  --stdout    Print what would be written to stdout
+  --check     Check status without modifying files
+  --json      Output as JSON
+  -h, --help  display help for command";
+
+pub(crate) const COMPLETIONS: &str = "\
+Usage: sd completions [options] <shell>
+
+Output shell completion script
+
+Arguments:
+  shell       Shell type (bash, zsh, fish)
+
+Options:
+  -h, --help  display help for command";
 
 pub(crate) const INIT: &str = "\
 Usage: sd init [options]
