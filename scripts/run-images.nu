@@ -6,13 +6,16 @@
 # pushes to ghcr.io/denkhaus/seeds-toolchain:<git-sha12> — the tag form
 # the server-managed environment pins (same convention as the origin
 # loop's fabro-toolchain push in denkhaus/fabro scripts/run-images.nu;
-# simplified: no cargo-chef cook context. Self-hosting cutover
-# (seeds-3791): the Dockerfile COPYs the seeds crate source and bakes
-# the `seeds` binary, so the build context is the REPO ROOT (pruned by
-# the root .dockerignore) and the rebuild gate hashes the Dockerfile
-# PLUS the copied sources (Cargo.toml, Cargo.lock, crates/) via
-# `git ls-files -s` blob hashes — a crate change with an unchanged
-# Dockerfile still rebuilds).
+# simplified: no cargo-chef cook context. Distribution cutover
+# (seeds-4eb4, d54c step 5): the tracker binary comes from the pinned
+# GitHub Releases artifact (ARG SEEDS_VERSION in the Dockerfile); the
+# Dockerfile still COPYs the crate sources - but only for the sd-ref
+# fixture warm layer. The build context stays the REPO ROOT (pruned by
+# the root .dockerignore) and the rebuild gate keeps hashing the
+# Dockerfile PLUS the copied sources (Cargo.toml, Cargo.lock, crates/)
+# via `git ls-files -s` blob hashes - a crate change with an unchanged
+# Dockerfile still rebuilds (fixture sync), and a SEEDS_VERSION bump
+# changes the Dockerfile itself.
 #
 # Requires a ghcr.io docker login with write:packages:
 #   gh auth refresh -s write:packages

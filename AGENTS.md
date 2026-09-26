@@ -20,7 +20,10 @@ The Rust toolchain is owned by rustup (pinned `nightly-2026-09-22`);
 mise owns just/bun/nushell/ripgrep and (bootstrap phase) the jayminwest
 ml CLI. The tracker is this repo's own `seeds` binary (self-hosting
 cutover, seeds-3791): `cargo install --path crates/seeds` puts it on
-PATH via rustup's cargo bin; the toolchain image bakes it in.
+PATH via rustup's cargo bin; the toolchain image consumes the pinned
+GitHub Releases artifact (`ARG SEEDS_VERSION` in
+`.fabro/Dockerfile.toolchain`, seeds-d54c) — bump the pin to move the
+image to a new release.
 
 ## Issue tracking (Seeds)
 

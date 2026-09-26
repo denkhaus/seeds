@@ -161,37 +161,35 @@ All work is tracked in this repo's own `.seeds/` tracker.
 
 ## Installation
 
-From crates.io (live since v0.3.0, tag-driven):
-
-- mise: `mise use -g cargo:seeds@0.3.0`
-- plain Cargo: `cargo install --locked seeds`
-
-Local development keeps the self-hosting install (seeds-3791):
-`cargo install --path crates/seeds` — rustup's cargo bin dir is already
-on PATH, so the repo's `.mise.toml` carries no tracker entry.
-
-Without a Rust toolchain (prebuilt binaries from the GitHub
-Releases):
+The canonical path — one line, no toolchain (prebuilt, musl-static,
+SHASUMS.txt verified on top of TLS, installs to `~/.local/bin`;
+override with `SEEDS_INSTALL_DIR`, pin with `SEEDS_VERSION` or the
+first argument):
 
 ```
 curl -fsSL https://github.com/denkhaus/seeds/releases/latest/download/install.sh | sh
 ```
 
-The installer detects the target (Linux/macOS, x86_64/aarch64,
-musl-static), verifies the artifact against the release's
-`SHASUMS.txt` on top of TLS, and installs to `~/.local/bin`
-(override with `SEEDS_INSTALL_DIR`; pin a version with
-`SEEDS_VERSION=<v>` or the first argument). The plain alternative
-stays documented: `gh release download` from
+Via mise, either the release binaries or the crates.io source build:
+
+- `mise use -g github:denkhaus/seeds` (release binaries)
+- `mise use -g cargo:seeds@<version>` (compiles from crates.io)
+
+Plain Cargo from crates.io: `cargo install --locked seeds`. The plain
+asset alternative: `gh release download` from
 [the releases](https://github.com/denkhaus/seeds/releases).
+
+Local development keeps the self-hosting install (seeds-3791):
+`cargo install --path crates/seeds` — rustup's cargo bin dir is already
+on PATH, so the repo's `.mise.toml` carries no tracker entry.
 
 Self-update (live since v0.4.0): `seeds upgrade` performs the
 in-process update from the releases (`--check` reports without
 installing); managed installs (image-baked, cargo-installed,
-mise-managed) are pointed at their own channel instead. Remaining
-from the distribution epic (seeds-d54c): the mise GitHub backend
-(`mise use -g github:denkhaus/seeds`) and the toolchain-image
-migration.
+mise-managed) are pointed at their own channel instead. The
+toolchain image consumes the pinned release artifact
+(`ARG SEEDS_VERSION` in `.fabro/Dockerfile.toolchain`, seeds-d54c
+step 5) — bumping it rebuilds via the content-hash gate.
 
 Publishing is tag-driven: pushing a `v*` tag whose version matches the
 workspace `Cargo.toml` publishes to crates.io via

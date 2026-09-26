@@ -95,15 +95,18 @@ RUN set -eux; \
 # lookups at test time.
 ENV SEEDS_COMPAT_SD=/mise/bun-global/bin/sd-ref
 
-# Self-hosting cutover (seeds-3791): build this repo's own `seeds`
-# binary and install it onto PATH. Build context is the REPO ROOT (see
-# scripts/run-images.nu; the root .dockerignore keeps the context to
-# Cargo.toml, Cargo.lock, and crates/). The clone at
-# /repos/denkhaus/seeds at run time does not shadow /usr/local/bin, so
-# the baked binary stays available; the content-hash gate in
-# scripts/run-images.nu covers the copied sources, so any crate change
-# rebuilds the image (repin the pushed sha tag after merge, same flow as
-# the python3 fix).
+# Distribution cutover (seeds-4eb4, d54c step 5): the tracker comes
+# from the pinned GitHub Releases artifact instead of a source build -
+# SHASUMS.txt verified on top of TLS, musl-static, /usr/local/bin. The
+# image therefore tracks RELEASED versions: bump SEEDS_VERSION (which
+# changes this file, so the content-hash gate in scripts/run-images.nu
+# rebuilds) and repin the pushed sha tag after merge, same flow as
+# before. The sources are still COPYed below - but only for the sd-ref
+# fixture warm layer; the tracker itself no longer builds from them.
+# The clone at /repos/denkhaus/seeds at run time does not shadow
+# /usr/local/bin, so the baked binary stays available.
+ARG SEEDS_VERSION=0.4.0
+RUN set -eux;     base="https://github.com/denkhaus/seeds/releases/download/v${SEEDS_VERSION}";     asset="seeds-${SEEDS_VERSION}-x86_64-unknown-linux-musl.tar.gz";     curl -fsSL -o "/tmp/${asset}" "${base}/${asset}";     curl -fsSL -o /tmp/SHASUMS.txt "${base}/SHASUMS.txt";     grep "  ${asset}\$" /tmp/SHASUMS.txt | (cd /tmp && sha256sum -c -);     tar -xzf "/tmp/${asset}" -C /tmp;     mv /tmp/seeds /usr/local/bin/seeds;     chmod +x /usr/local/bin/seeds;     seeds --version | grep -q "v${SEEDS_VERSION}";     rm -f "/tmp/${asset}" /tmp/SHASUMS.txt
 COPY Cargo.toml Cargo.lock /src/
 COPY crates /src/crates
 
@@ -116,8 +119,6 @@ RUN set -eux; \
     mise exec -- bun install --cwd /src/crates/seeds/tests/fixtures/sd-reference --frozen-lockfile; \
     /src/crates/seeds/tests/fixtures/sd-reference/sd --version | grep -qx '0.5.15'
 RUN set -eux; \
-    cargo install --path /src/crates/seeds --locked --root /usr/local; \
-    seeds --version; \
     rm -rf /src
 
 # python3 (stdlib only, late layer to preserve cache): LOAD-BEARING for
