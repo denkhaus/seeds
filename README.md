@@ -160,14 +160,25 @@ Local development keeps the self-hosting install (seeds-3791):
 `cargo install --path crates/seeds` — rustup's cargo bin dir is already
 on PATH, so the repo's `.mise.toml` carries no tracker entry.
 
-Coming with the distribution epic (seeds-d54c): prebuilt
-GitHub-Release binaries for Linux and macOS — including a one-line
-installer (`curl … | bash` against an `install.sh` served from the
-releases: target detection, SHASUMS.txt verification, install to
-`~/.local/bin`), the mise GitHub backend (`mise use -g
-github:denkhaus/seeds`), and `seeds upgrade` for in-process
-self-update. Until those land, installing a newer version via any
-path above IS the upgrade.
+Without a Rust toolchain (prebuilt binaries from the GitHub
+Releases):
+
+```
+curl -fsSL https://github.com/denkhaus/seeds/releases/latest/download/install.sh | sh
+```
+
+The installer detects the target (Linux/macOS, x86_64/aarch64,
+musl-static), verifies the artifact against the release's
+`SHASUMS.txt` on top of TLS, and installs to `~/.local/bin`
+(override with `SEEDS_INSTALL_DIR`; pin a version with
+`SEEDS_VERSION=<v>` or the first argument). The plain alternative
+stays documented: `gh release download` from
+[the releases](https://github.com/denkhaus/seeds/releases).
+
+Coming with the rest of the distribution epic (seeds-d54c): the mise
+GitHub backend (`mise use -g github:denkhaus/seeds`) and `seeds
+upgrade` for in-process self-update. Until `upgrade` lands,
+installing a newer version via any path above IS the upgrade.
 
 Publishing is tag-driven: pushing a `v*` tag whose version matches the
 workspace `Cargo.toml` publishes to crates.io via

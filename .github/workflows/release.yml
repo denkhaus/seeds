@@ -134,6 +134,9 @@ jobs:
     needs: [resolve, build]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.tag }}
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -143,7 +146,7 @@ jobs:
         run: |
           ls -1 seeds-*.tar.gz | LC_ALL=C sort | xargs shasum -a 256 > SHASUMS.txt
           cat SHASUMS.txt
-      - name: Create or update the release
+      - name: "Create or update the release (install.sh rides along when the tag has it)"
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.resolve.outputs.tag }}
@@ -152,8 +155,10 @@ jobs:
         run: |
           args=(--title "seeds v$VERSION" --generate-notes)
           if [ "$DRAFT" = "true" ]; then args+=(--draft); fi
+          assets=(dist/seeds-*.tar.gz dist/SHASUMS.txt)
+          if [ -f scripts/install.sh ]; then assets+=(scripts/install.sh); fi
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/seeds-*.tar.gz dist/SHASUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$TAG" dist/seeds-*.tar.gz dist/SHASUMS.txt --repo "$GITHUB_REPOSITORY" "${args[@]}"
+            gh release create "$TAG" "${assets[@]}" --repo "$GITHUB_REPOSITORY" "${args[@]}"
           fi
