@@ -52,7 +52,27 @@ def build-one [dockerfile: string, tag: string, push: bool] {
     if $inspect.exit_code == 0 {
         let current = ($inspect.stdout | str trim)
         if $current == $hash {
-            print $"run-images: ($tag) up to date \(sha ($hash | str substring 0..11)\)"
+            # Up to date LOCALLY - but with --push the registry tag is
+            # the contract (seeds-7128): a never-pushed or failed push
+            # must retry, so probe the remote before returning.
+            if not $push {
+                print $"run-images: ($tag) up to date \(sha ($hash | str substring 0..11)\)"
+                return
+            }
+            let sha12 = (git rev-parse --short=12 HEAD | str trim)
+            let remote = $"ghcr.io/denkhaus/seeds-toolchain:($sha12)"
+            let manifest = (do {
+                ^docker manifest inspect $remote
+            } | complete)
+            if $manifest.exit_code == 0 {
+                print $"run-images: ($tag) up to date \(sha ($hash | str substring 0..11)\), registry tag ($sha12) present"
+                return
+            }
+            print $"run-images: ($tag) up to date locally, but registry tag ($sha12) is missing - pushing"
+            docker tag $tag $remote
+            print $"run-images: pushing ($remote) ..."
+            docker push $remote
+            print $"run-images: pushed ($remote) — server-managed environments pin this sha tag"
             return
         }
     }
