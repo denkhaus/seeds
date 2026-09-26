@@ -39,6 +39,7 @@ Commands (implemented in this build):
   init              Initialize .seeds/ in current directory
   config            Read, write, and inspect .seeds/config.yaml
   upgrade           Upgrade seeds to the latest version from GitHub Releases
+  tpl               Manage issue templates (molecules)
   onboard           Add seeds section to CLAUDE.md / AGENTS.md
   completions <shell>  Output shell completion script
 
@@ -60,7 +61,95 @@ Run 'sd <command> --help' for command-specific help.";
 /// honesty, seeds-25b5): `seeds --help` lists only implemented commands,
 /// and invoking one of these answers with a clear "not implemented yet"
 /// message instead of a generic unknown-command error.
-pub(crate) const PLANNED: &[&str] = &["tpl", "migrate-from-beads"];
+pub(crate) const PLANNED: &[&str] = &["migrate-from-beads"];
+
+pub(crate) const TPL: &str = "\"
+Usage: sd tpl [options] [command]
+
+Manage issue templates (molecules)
+
+Options:
+  -h, --help             display help for command
+
+Commands:
+  create [options]       Create a new template
+  step                   Manage template steps
+  list [options]         List all templates
+  show [options] <id>    Show template with steps
+  pour [options] <id>    Instantiate template into issues
+  status [options] <id>  Show convoy status for a template
+  help [command]         display help for command";
+
+pub(crate) const TPL_CREATE: &str = "\"
+Usage: sd tpl create [options]
+
+Create a new template
+
+Options:
+  --name <text>  Template name
+  --json         Output as JSON
+  -h, --help     display help for command";
+
+pub(crate) const TPL_STEP: &str = "\"
+Usage: sd tpl step [options] [command]
+
+Manage template steps
+
+Options:
+  -h, --help          display help for command
+
+Commands:
+  add [options] <id>  Add a step to a template
+  help [command]      display help for command";
+
+pub(crate) const TPL_STEP_ADD: &str = "\"
+Usage: sd tpl step add [options] <id>
+
+Add a step to a template
+
+Options:
+  --title <text>  Step title
+  --type <type>   Step type (task|bug|feature|epic) (default: \"task\")
+  --priority <n>  Step priority 0-4 (default: \"2\")
+  --json          Output as JSON
+  -h, --help      display help for command";
+
+pub(crate) const TPL_LIST: &str = "\"
+Usage: sd tpl list [options]
+
+List all templates
+
+Options:
+  --json      Output as JSON
+  -h, --help  display help for command";
+
+pub(crate) const TPL_SHOW: &str = "\"
+Usage: sd tpl show [options] <id>
+
+Show template with steps
+
+Options:
+  --json      Output as JSON
+  -h, --help  display help for command";
+
+pub(crate) const TPL_POUR: &str = "\"
+Usage: sd tpl pour [options] <id>
+
+Instantiate template into issues
+
+Options:
+  --prefix <text>  Prefix for issue titles
+  --json           Output as JSON
+  -h, --help       display help for command";
+
+pub(crate) const TPL_STATUS: &str = "\"
+Usage: sd tpl status [options] <id>
+
+Show convoy status for a template
+
+Options:
+  --json      Output as JSON
+  -h, --help  display help for command";
 
 pub(crate) const UPGRADE: &str = "\
 Usage: sd upgrade [options]

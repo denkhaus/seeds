@@ -31,6 +31,7 @@ mod plan;
 mod prime;
 mod query;
 mod stats_doctor;
+mod tpl;
 mod update_close;
 #[cfg(feature = "upgrade")]
 mod upgrade;
@@ -52,6 +53,7 @@ pub use plan::{PlanInput, PlanSub, plan};
 pub use prime::{PrimeInput, prime};
 pub use query::{QueryCommand, QueryInput, list, query, ready, search};
 pub use stats_doctor::{DoctorInput, StatsInput, doctor, stats};
+pub use tpl::{TplInput, TplSub, tpl};
 pub use update_close::{CloseInput, UpdateInput, close, update};
 #[cfg(feature = "upgrade")]
 pub use upgrade::{InstallClass, UpgradeInput, classify_install, upgrade};

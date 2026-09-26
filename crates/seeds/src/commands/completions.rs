@@ -149,6 +149,11 @@ const COMMANDS: &[CommandSpec] = &[
         subcommands: &["show", "set", "unset", "schema", "help"],
     },
     CommandSpec {
+        name:        "tpl",
+        description: "Manage issue templates (molecules)",
+        subcommands: &["create", "step", "list", "show", "pour", "status"],
+    },
+    CommandSpec {
         name:        "upgrade",
         description: "Upgrade seeds to the latest version from GitHub Releases",
         subcommands: &[],

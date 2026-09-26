@@ -57,6 +57,7 @@ const IMPLEMENTED_COMMANDS: &[&str] = &[
     "config",
     "onboard",
     "completions",
+    "tpl",
 ];
 
 /// Fields whose values are stamped `now` by both binaries at run time;
@@ -907,6 +908,38 @@ fn matrix() -> Vec<Case> {
             command: "completions",
             args:    &["completions"],
         },
+        // tpl: the static + error surface is byte-comparable; the
+        // random-id lifecycle has its tailored test above (seeds-fb5f).
+        Case {
+            name:    "tpl_list_empty",
+            command: "tpl",
+            args:    &["tpl", "list"],
+        },
+        Case {
+            name:    "tpl_list_empty_json",
+            command: "tpl",
+            args:    &["tpl", "list", "--json"],
+        },
+        Case {
+            name:    "tpl_show_missing",
+            command: "tpl",
+            args:    &["tpl", "show", "tpl-none", "--json"],
+        },
+        Case {
+            name:    "tpl_status_empty",
+            command: "tpl",
+            args:    &["tpl", "status", "tpl-none"],
+        },
+        Case {
+            name:    "tpl_status_empty_json",
+            command: "tpl",
+            args:    &["tpl", "status", "tpl-none", "--json"],
+        },
+        Case {
+            name:    "tpl_pour_missing_prefix",
+            command: "tpl",
+            args:    &["tpl", "pour", "tpl-none"],
+        },
     ]
 }
 
@@ -1551,4 +1584,191 @@ fn differential_plan_matches_sd() {
     }
     fs::remove_dir_all(&pair.reference_dir).ok();
     fs::remove_dir_all(&pair.ours_dir).ok();
+}
+
+/// `tpl`: the molecules group (seeds-fb5f). The full lifecycle runs
+/// through BOTH binaries on twin stores; random `tpl-<hex4>` and
+/// `<project>-<hex4>` ids are normalized positionally, volatile
+/// timestamps like everywhere else. The `{prefix}` placeholder rides
+/// in a step title so the substitution is proven differentially.
+#[test]
+fn differential_tpl_matches_sd() {
+    let Some(reference) = reference() else {
+        skip_note();
+        return;
+    };
+    let pair = fixture_pair("tpl");
+
+    let run_json = |dir: &Path, program: &Path, args: &[&str]| -> Value {
+        let output = capture(dir, program, args);
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "tpl step {args:?} exited nonzero on {}",
+            program.display()
+        );
+        parse_json(&String::from_utf8_lossy(&output.stdout))
+            .unwrap_or_else(|| panic!("tpl step {args:?} emitted no JSON"))
+    };
+
+    let sd_side = TplSide::run(&pair.reference_dir, &reference, &run_json);
+    let our_side = TplSide::run(&pair.ours_dir, &our_binary(), &run_json);
+
+    // 1. The lifecycles' normalized envelopes must agree step by step.
+    assert_eq!(sd_side.outputs, our_side.outputs, "tpl: envelope diverged");
+
+    // 2. The resulting templates.jsonl must agree (id normalized).
+    let sd_templates = normalized_templates(&pair.reference_dir, &sd_side.tpl_id);
+    let our_templates = normalized_templates(&pair.ours_dir, &our_side.tpl_id);
+    assert_eq!(sd_templates, our_templates, "tpl: templates.jsonl diverged");
+
+    // 3. The poured issue records must agree positionally (ids and volatile
+    //    stamps normalized; convoy + chain shapes compared).
+    let sd_records = normalized_poured(&pair.reference_dir, &sd_side);
+    let our_records = normalized_poured(&pair.ours_dir, &our_side);
+    assert_eq!(sd_records, our_records, "tpl: poured records diverged");
+
+    fs::remove_dir_all(&pair.reference_dir).ok();
+    fs::remove_dir_all(&pair.ours_dir).ok();
+}
+
+/// One binary's tpl lifecycle: the collected normalized envelopes plus
+/// the ids needed for store normalization.
+struct TplSide {
+    tpl_id:  String,
+    poured:  Vec<String>,
+    outputs: Vec<Value>,
+}
+
+impl TplSide {
+    fn run(dir: &Path, program: &Path, run_json: &dyn Fn(&Path, &Path, &[&str]) -> Value) -> Self {
+        let created = run_json(dir, program, &[
+            "tpl",
+            "create",
+            "--name",
+            "release-flow",
+            "--json",
+        ]);
+        let tpl_id = created["id"].as_str().expect("tpl create id").to_owned();
+
+        let mut outputs = vec![normalize_tpl_value(created, &tpl_id, &[])];
+
+        // The template id rides as the `<id>` placeholder so each
+        // call states its own argv position (step add wants it after
+        // `add`, show/pour/status as the first positional).
+        let invoke = |args: &[&str]| -> Value {
+            let full: Vec<&str> = args
+                .iter()
+                .map(|arg| {
+                    if *arg == "<id>" {
+                        tpl_id.as_str()
+                    } else {
+                        *arg
+                    }
+                })
+                .collect();
+            let value = run_json(dir, program, &full);
+            normalize_tpl_value(value, &tpl_id, &[])
+        };
+
+        outputs.push(invoke(&[
+            "tpl",
+            "step",
+            "add",
+            "<id>",
+            "--title",
+            "Bump version",
+            "--priority",
+            "1",
+            "--json",
+        ]));
+        outputs.push(invoke(&[
+            "tpl",
+            "step",
+            "add",
+            "<id>",
+            "--title",
+            "Tag {prefix} release",
+            "--type",
+            "feature",
+            "--json",
+        ]));
+        outputs.push(invoke(&["tpl", "show", "<id>", "--json"]));
+        outputs.push(invoke(&["tpl", "list", "--json"]));
+
+        let poured_value = invoke(&["tpl", "pour", "<id>", "--prefix", "v9", "--json"]);
+        let poured: Vec<String> = poured_value["ids"]
+            .as_array()
+            .expect("pour ids")
+            .iter()
+            .map(|id| id.as_str().expect("id text").to_owned())
+            .collect();
+        outputs.push(normalize_tpl_value(poured_value, &tpl_id, &poured));
+        outputs.push(normalize_tpl_value(
+            invoke(&["tpl", "status", "<id>", "--json"]),
+            &tpl_id,
+            &poured,
+        ));
+
+        Self {
+            tpl_id,
+            poured,
+            outputs,
+        }
+    }
+}
+
+/// Rewrites the lifecycle's random ids into stable markers: the
+/// template id becomes `<tpl>`, poured issue ids become `<p1>`, `<p2>`
+/// (in pour order), volatile timestamps become `<volatile>`.
+fn normalize_tpl_value(mut value: Value, tpl_id: &str, poured: &[String]) -> Value {
+    fn walk(value: &mut Value, tpl_id: &str, poured: &[String]) {
+        match value {
+            Value::String(text) => {
+                if text == tpl_id {
+                    "<tpl>".clone_into(text);
+                    return;
+                }
+                if let Some(position) = poured.iter().position(|id| id == text) {
+                    *text = format!("<p{}>", position + 1);
+                }
+            }
+            Value::Object(map) => {
+                for (_key, inner) in map {
+                    walk(inner, tpl_id, poured);
+                }
+            }
+            Value::Array(items) => {
+                for item in items {
+                    walk(item, tpl_id, poured);
+                }
+            }
+            _ => {}
+        }
+    }
+    walk(&mut value, tpl_id, poured);
+    normalize_volatile(&mut value);
+    value
+}
+
+/// The normalized templates.jsonl records.
+fn normalized_templates(dir: &Path, tpl_id: &str) -> Vec<Value> {
+    let text = fs::read_to_string(dir.join(".seeds/templates.jsonl")).expect("templates.jsonl");
+    text.lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            let value: Value = serde_json::from_str(line).expect("valid template record");
+            normalize_tpl_value(value, tpl_id, &[])
+        })
+        .collect()
+}
+
+/// The pour-appended issue records, normalized (fixture records
+/// excluded, positional id markers, volatile stamps neutralized).
+fn normalized_poured(dir: &Path, side: &TplSide) -> Vec<Value> {
+    store_records(dir)
+        .into_iter()
+        .filter(|record| record["convoy"].as_str() == Some(side.tpl_id.as_str()))
+        .map(|record| normalize_tpl_value(record, &side.tpl_id, &side.poured))
+        .collect()
 }

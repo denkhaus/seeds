@@ -783,25 +783,26 @@ fn global_help_lists_only_implemented_commands() {
         .split("Unimplemented reference commands")
         .next()
         .unwrap_or_default();
-    for absent in ["tpl", "migrate-from-beads"] {
-        assert!(
-            !commands_section.contains(absent),
-            "--help must not list unimplemented '{absent}' as a command"
-        );
-    }
+    // The one remaining unimplemented reference command (the
+    // documented non-goal) must not appear as a listed command.
+    assert!(
+        !commands_section.contains("migrate-from-beads"),
+        "--help must not list 'migrate-from-beads' as a command"
+    );
 }
 
 #[test]
 fn planned_commands_answer_not_implemented_yet() {
     let dir = temp_store("planned");
     write_records(&dir, &standard());
-    for command in ["tpl", "migrate-from-beads"] {
-        let output = run(&dir, &[command]);
-        assert_eq!(output.status.code(), Some(1), "{command} exits 1");
+    // The one remaining planned-command holdout answers honestly.
+    {
+        let output = run(&dir, &["migrate-from-beads"]);
+        assert_eq!(output.status.code(), Some(1), "migrate-from-beads exits 1");
         let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
         assert!(
             stderr.contains("not implemented yet"),
-            "{command} stderr: {stderr}"
+            "migrate-from-beads stderr: {stderr}"
         );
     }
     // The hygiene batch graduated: these must NOT answer
@@ -809,7 +810,8 @@ fn planned_commands_answer_not_implemented_yet() {
     // graduated with the full decomposition surface, seeds-de37;
     // config/init graduated with sd parity, seeds-c813;
     // onboard/completions graduated with sd-parity mechanics,
-    // seeds-d9f8; upgrade landed as the real self-update, seeds-bdcb).
+    // seeds-d9f8; upgrade landed as the real self-update, seeds-bdcb;
+    // tpl graduated as the molecules group, seeds-fb5f).
     for command in [
         "blocked",
         "block",
@@ -822,6 +824,7 @@ fn planned_commands_answer_not_implemented_yet() {
         "onboard",
         "completions",
         "upgrade",
+        "tpl",
     ] {
         let output = run(&dir, &[command]);
         let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
@@ -1173,7 +1176,6 @@ fn completions_emit_the_implemented_surface_per_shell() {
         }
         // Help honesty (seeds-25b5): the retired reference surface stays
         // out of the completions.
-        assert!(!script.contains("tpl"));
         assert!(!script.contains("migrate-from-beads"));
         assert!(script.contains("seeds"), "{shell} names the seeds binary");
     }

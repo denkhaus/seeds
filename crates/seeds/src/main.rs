@@ -32,8 +32,8 @@ use seeds::commands::{
     self, BlockInput, BlockedInput, CloseInput, CommandContext, CommandOutcome, CompletionsInput,
     ConfigInput, ConfigSub, CreateInput, DedupeInput, DepAddInput, DepListInput, DepRemoveInput,
     DoctorInput, InitInput, LabelAddInput, LabelListAllInput, LabelListInput, LabelRemoveInput,
-    OnboardInput, PrimeInput, QueryCommand, QueryInput, StatsInput, SyncInput, UnblockInput,
-    UpdateInput,
+    OnboardInput, PrimeInput, QueryCommand, QueryInput, StatsInput, SyncInput, TplInput, TplSub,
+    UnblockInput, UpdateInput,
 };
 
 mod args;
@@ -90,6 +90,7 @@ fn dispatch(argv: &[String]) -> ExitCode {
         "sync" => cmd_sync(rest),
         "plan" => cmd_plan(rest),
         "init" => cmd_init(rest),
+        "tpl" => cmd_tpl(rest),
         "onboard" => cmd_onboard(rest),
         "completions" => cmd_completions(rest),
         #[cfg(feature = "upgrade")]
@@ -498,6 +499,127 @@ fn cmd_init(args: &[String]) -> ExitCode {
         json: json_mode(&parsed),
     };
     report(&commands::init(&input))
+}
+
+fn cmd_tpl(args: &[String]) -> ExitCode {
+    let Some(sub) = args.first().cloned() else {
+        eprintln!("{}", helptext::TPL);
+        return ExitCode::FAILURE;
+    };
+    if sub == "-h" || sub == "--help" {
+        println!("{}", helptext::TPL);
+        return ExitCode::SUCCESS;
+    }
+    let rest = &args[1..];
+    let (input, json) = match sub.as_str() {
+        "create" => {
+            let Some(parsed) = parsed_or_help(rest, args::TPL_CREATE_SPEC, helptext::TPL_CREATE)
+            else {
+                return ExitCode::FAILURE;
+            };
+            let Some(name) = parsed.options.get("name").cloned() else {
+                eprintln!("error: required option '--name <text>' not specified");
+                return ExitCode::FAILURE;
+            };
+            (TplSub::Create { name }, json_mode(&parsed))
+        }
+        "step" => {
+            let Some(step_sub) = rest.first().cloned() else {
+                eprintln!("{}", helptext::TPL_STEP);
+                return ExitCode::FAILURE;
+            };
+            if step_sub == "-h" || step_sub == "--help" {
+                println!("{}", helptext::TPL_STEP);
+                return ExitCode::SUCCESS;
+            }
+            if step_sub != "add" {
+                eprintln!("error: unknown command '{step_sub}'");
+                return ExitCode::FAILURE;
+            }
+            let inner = &rest[1..];
+            let Some(parsed) =
+                parsed_or_help(inner, args::TPL_STEP_ADD_SPEC, helptext::TPL_STEP_ADD)
+            else {
+                return ExitCode::FAILURE;
+            };
+            let Some(id) = parsed.positionals.first().cloned() else {
+                eprintln!("error: missing required argument 'id'");
+                return ExitCode::FAILURE;
+            };
+            let Some(title) = parsed.options.get("title").cloned() else {
+                eprintln!("error: required option '--title <text>' not specified");
+                return ExitCode::FAILURE;
+            };
+            (
+                TplSub::StepAdd {
+                    id,
+                    title,
+                    kind: parsed.options.get("type").cloned(),
+                    pri: parsed.options.get("priority").cloned(),
+                },
+                json_mode(&parsed),
+            )
+        }
+        "list" => {
+            let Some(parsed) = parsed_or_help(rest, args::TPL_LIST_SPEC, helptext::TPL_LIST) else {
+                return ExitCode::FAILURE;
+            };
+            (TplSub::List, json_mode(&parsed))
+        }
+        "show" | "status" => {
+            let (help, spec) = if sub == "show" {
+                (helptext::TPL_SHOW, args::TPL_ID_SPEC)
+            } else {
+                (helptext::TPL_STATUS, args::TPL_ID_SPEC)
+            };
+            let Some(parsed) = parsed_or_help(rest, spec, help) else {
+                return ExitCode::FAILURE;
+            };
+            let Some(id) = parsed.positionals.first().cloned() else {
+                eprintln!("error: missing required argument 'id'");
+                return ExitCode::FAILURE;
+            };
+            let kind = if sub == "show" {
+                TplSub::Show { id }
+            } else {
+                TplSub::Status { id }
+            };
+            (kind, json_mode(&parsed))
+        }
+        "pour" => {
+            let Some(parsed) = parsed_or_help(rest, args::TPL_POUR_SPEC, helptext::TPL_POUR) else {
+                return ExitCode::FAILURE;
+            };
+            let Some(prefix) = parsed.options.get("prefix").cloned() else {
+                eprintln!("error: required option '--prefix <text>' not specified");
+                return ExitCode::FAILURE;
+            };
+            let Some(id) = parsed.positionals.first().cloned() else {
+                eprintln!("error: missing required argument 'id'");
+                return ExitCode::FAILURE;
+            };
+            (TplSub::Pour { id, prefix }, json_mode(&parsed))
+        }
+        "help" => {
+            let text = match rest.first().map(String::as_str) {
+                Some("create") => helptext::TPL_CREATE,
+                Some("step") => helptext::TPL_STEP,
+                Some("list") => helptext::TPL_LIST,
+                Some("show") => helptext::TPL_SHOW,
+                Some("pour") => helptext::TPL_POUR,
+                Some("status") => helptext::TPL_STATUS,
+                _ => helptext::TPL,
+            };
+            println!("{text}");
+            return ExitCode::SUCCESS;
+        }
+        other => {
+            eprintln!("{}", helptext::TPL);
+            eprintln!("error: unknown command '{other}'");
+            return ExitCode::FAILURE;
+        }
+    };
+    report(&commands::tpl(&ctx(), &TplInput { sub: input, json }))
 }
 
 fn cmd_onboard(args: &[String]) -> ExitCode {

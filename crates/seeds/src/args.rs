@@ -191,6 +191,17 @@ pub(crate) static COMPLETIONS_SPEC: &[OptSpec] = &[];
 
 pub(crate) static UPGRADE_SPEC: &[OptSpec] = &[flag("check"), flag("json")];
 
+pub(crate) static TPL_CREATE_SPEC: &[OptSpec] = &[opt("name"), flag("json")];
+
+pub(crate) static TPL_STEP_ADD_SPEC: &[OptSpec] =
+    &[opt("title"), opt("type"), opt("priority"), flag("json")];
+
+pub(crate) static TPL_LIST_SPEC: &[OptSpec] = &[flag("json")];
+
+pub(crate) static TPL_ID_SPEC: &[OptSpec] = &[flag("json")];
+
+pub(crate) static TPL_POUR_SPEC: &[OptSpec] = &[opt("prefix"), flag("json")];
+
 pub(crate) static CONFIG_SCHEMA_SPEC: &[OptSpec] = &[flag("json")];
 
 pub(crate) static CONFIG_SHOW_SPEC: &[OptSpec] = &[opt("path"), flag("json")];

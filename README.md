@@ -8,9 +8,9 @@ git-native issue-tracker format.
 `issues.jsonl`, `plans.jsonl`, `templates.jsonl`). Unknown record fields are
 preserved on every write; additive fields are the only sanctioned extension
 mechanism. The CLI surface (`seeds create/show/list/ready/update/close/dep/
-prime/search/plan/config/init/onboard/completions`) mirrors the
-reference tool until this repo's own line replaces it (self-hosting
-cutover).
+prime/search/plan/config/init/upgrade/tpl/onboard/completions`)
+mirrors the reference tool until this repo's own line replaces it
+(self-hosting cutover).
 
 ## CLI surface contract
 
@@ -32,14 +32,12 @@ future command inherits differential coverage by convention.
 Deliberate divergences from the reference — each documented here and
 carrying its own expectation, never a silent split:
 
-- **Help honesty:** `seeds --help` lists only implemented commands;
-  unimplemented-but-planned reference commands (`tpl`) answer a clear
-  `not implemented yet` message instead of the reference's real
-  implementations. `plan` graduated with the full decomposition
-  surface (seeds-de37); `init` and the `config` group
-  (schema/show/set/unset) graduated with sd parity (seeds-c813);
-  `onboard` and `completions` graduated with sd-parity mechanics
-  (seeds-d9f8). `migrate-from-beads` is a deliberate **non-goal**: run
+- **Help honesty:** `seeds --help` lists only implemented commands.
+  The full reference surface has graduated: `plan` (seeds-de37),
+  `init` + the `config` group (seeds-c813), `onboard`/`completions`
+  (seeds-d9f8), `upgrade` (seeds-bdcb), and the `tpl` molecules group
+  (seeds-fb5f). The one holdout, `migrate-from-beads`, is a
+  deliberate **non-goal**: run
   the reference tool (`sd migrate-from-beads`) once on a beads store
   and switch — this crate reads the migrated `.seeds/` result
   natively. **`upgrade`** (seeds-bdcb): same surface as the
