@@ -118,7 +118,7 @@ jobs:
           "$bin" --version
       - name: Smoke-verify static linking (musl contract)
         if: ${{ runner.os == 'Linux' }}
-        run: file "target/${{ matrix.target }}/release/seeds" | tee /dev/stderr | grep -Eq 'static(-pie)? linked'
+        run: file "target/${{ matrix.target }}/release/seeds" | tee /dev/stderr | grep -Eq 'static[a-z-]* linked'
       - name: Package tar.gz (binary at archive root)
         run: |
           name="seeds-${{ needs.resolve.outputs.version }}-${{ matrix.target }}.tar.gz"
