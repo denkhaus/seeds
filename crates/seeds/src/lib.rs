@@ -25,7 +25,7 @@ mod render;
 mod store;
 mod timeutil;
 
-pub use config::Config;
+pub use config::{Config, VcsManager};
 pub use error::{Error, IdError, RecordError};
 pub use id::{PlanId, SeedId, TemplateId};
 pub use model::{Fields, PlanRecord, Priority, SeedRecord, SeedType, Status, TemplateRecord};

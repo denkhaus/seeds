@@ -288,7 +288,13 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
     // config
     let config_check = match std::fs::read_to_string(root.join("config.yaml")) {
         Ok(text) => match crate::Config::parse(&text, &root.join("config.yaml")) {
-            Ok(_) => passed("config", "Config is valid"),
+            Ok(config) => passed(
+                "config",
+                &format!(
+                    "Config is valid (vcs_manager: {})",
+                    config.vcs_manager.as_str()
+                ),
+            ),
             Err(error) => Check {
                 name:    "config",
                 status:  CheckStatus::Fail,

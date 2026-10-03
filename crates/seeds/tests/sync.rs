@@ -199,6 +199,85 @@ fn sync_json_envelopes() {
     fs::remove_dir_all(&dir).ok();
 }
 
+/// `vcs_manager: gitbutler` (seeds-5b36): sync detects and reports the
+/// dirty store but never issues a git write — HEAD stays put, nothing
+/// is staged, and the output names the paths, the ready-made message,
+/// and the `but commit` handoff.
+#[test]
+fn sync_gitbutler_mode_reports_without_committing() {
+    let dir = temp_repo("gitbutler");
+    fs::write(
+        dir.join(".seeds/config.yaml"),
+        "project: \"tst\"\nversion: \"1\"\nvcs_manager: gitbutler\n",
+    )
+    .expect("config.yaml");
+    fs::write(dir.join(".seeds/issues.jsonl"), ISSUE_LINE).expect("issues.jsonl");
+    git_ok(&dir, &["add", ".seeds"]);
+    git_ok(&dir, &["commit", "-q", "-m", "init"]);
+    let head_before = git_ok(&dir, &["rev-parse", "HEAD"]);
+
+    fs::write(dir.join(".seeds/plans.jsonl"), "x\n").expect("dirty plans");
+    let output = run(&dir, &["sync"]);
+    assert!(output.status.success(), "stdout: {}", text(&output));
+    let stdout = text(&output);
+    assert!(
+        stdout.contains("gitbutler mode: no commit created"),
+        "announces the mode: {stdout}"
+    );
+    assert!(
+        stdout.contains("but commit -b <branch> -m <msg> <ids>"),
+        "carries the handoff hint: {stdout}"
+    );
+    assert!(
+        stdout.contains(".seeds/plans.jsonl"),
+        "names the changed path: {stdout}"
+    );
+    assert!(
+        stdout.contains(&format!("Commit message: seeds: sync {}", utc_today())),
+        "carries the ready-made message: {stdout}"
+    );
+    // The guardrail: no commit object, nothing staged.
+    assert_eq!(
+        git_ok(&dir, &["rev-parse", "HEAD"]),
+        head_before,
+        "gitbutler mode creates no commit"
+    );
+    let staged = git_ok(&dir, &["diff", "--cached", "--name-only"]);
+    assert!(staged.is_empty(), "nothing staged: {staged}");
+    assert_eq!(commit_count(&dir), 1);
+
+    // JSON envelope: committed stays false and the mode is named.
+    let output = run(&dir, &["sync", "--json"]);
+    assert!(output.status.success());
+    let value: Value = serde_json::from_str(&text(&output)).expect("JSON envelope");
+    assert_eq!(value["success"], Value::Bool(true));
+    assert_eq!(value["committed"], Value::Bool(false));
+    assert_eq!(value["vcsManager"], json_str("gitbutler"));
+    assert_eq!(
+        value["message"],
+        json_str(&format!("seeds: sync {}", utc_today()))
+    );
+    let changes = value["changes"].as_str().expect("changes string");
+    assert!(
+        changes.contains(".seeds/plans.jsonl"),
+        "per file: {changes}"
+    );
+    assert_eq!(
+        git_ok(&dir, &["rev-parse", "HEAD"]),
+        head_before,
+        "the JSON pass also stays read-only"
+    );
+
+    // No-op: a clean store stays the boring no-changes path.
+    git_ok(&dir, &["add", ".seeds"]);
+    git_ok(&dir, &["commit", "-q", "-m", "second"]);
+    let output = run(&dir, &["sync"]);
+    assert!(output.status.success());
+    assert_eq!(text(&output), "✓ No changes to commit.");
+
+    fs::remove_dir_all(&dir).ok();
+}
+
 fn json_str(s: &str) -> Value {
     Value::String(s.to_owned())
 }

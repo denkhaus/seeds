@@ -85,6 +85,17 @@ carrying its own expectation, never a silent split:
 - **sync commit body:** the sync commit's body carries the
   `git diff --cached --shortstat` line, making sync history greppable
   by size; the reference commits with a subject only.
+- **sync VCS manager (gitbutler report-only):** `.seeds/config.yaml`
+  key `vcs_manager: git | gitbutler` (absent = `git`, byte-identical
+  behavior) selects how `seeds sync` hands over changes. Under
+  `gitbutler` — a workspace GitButler manages, where a plain git
+  commit would corrupt the applied virtual branches — sync performs no
+  git write at all: it keeps the change detection and per-file
+  preview, then prints the exact changed `.seeds/` paths, the commit
+  message it would have used, and a `but commit -b <branch> -m <msg>
+  <ids>` handoff hint, exiting 0 (but commits select file ids from
+  `but diff`, not paths, so the CLI cannot delegate the commit).
+  `doctor` reports the active `vcs_manager` in its config check.
 - **Atomic tracker writes:** every store save lands via
   temp-file+rename, so a crash can never leave a partial JSONL store
   observable; the reference rewrites files in place.
