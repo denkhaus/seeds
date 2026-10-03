@@ -752,19 +752,10 @@ fn matrix() -> Vec<Case> {
             command: "stats",
             args:    &["stats", "--format", "json"],
         },
-        // doctor: check surface, JSON envelope, exit code (fixture
-        // carries one bidirectional mismatch plus the missing
-        // .gitattributes warning)
-        Case {
-            name:    "doctor_default",
-            command: "doctor",
-            args:    &["doctor"],
-        },
-        Case {
-            name:    "doctor_json",
-            command: "doctor",
-            args:    &["doctor", "--json"],
-        },
+        // doctor: one documented deviation (the config pass message
+        // carries our additive vcs_manager annotation, seeds-5b36) —
+        // the tailored test `differential_doctor_matches_sd` below
+        // normalizes it (README DEVIATIONS).
         // plan: read-only surface on the empty-plan fixture (the
         // mutating subcommands live in the tailored plan test)
         Case {
@@ -978,6 +969,13 @@ fn matrix_covers_every_implemented_command() {
             "init",
             "differential_init_matches_sd",
         ),
+        (
+            // doctor's config pass message carries our additive
+            // vcs_manager annotation (seeds-5b36) — the tailored test
+            // strips it and compares the rest byte-for-byte.
+            "doctor",
+            "differential_doctor_matches_sd",
+        ),
     ];
     let cases = matrix();
     for command in IMPLEMENTED_COMMANDS {
@@ -1144,6 +1142,47 @@ fn differential_init_matches_sd() {
     }
     fs::remove_dir_all(&sd_dir).ok();
     fs::remove_dir_all(&ours_dir).ok();
+}
+
+/// doctor: full check surface, JSON envelope, and exit codes, with one
+/// documented deviation — the config pass message appends the active
+/// `vcs_manager` (seeds-5b36, README DEVIATIONS). Stripping that
+/// suffix makes both modes byte-comparable against the reference.
+#[test]
+fn differential_doctor_matches_sd() {
+    let Some(reference) = reference() else {
+        skip_note();
+        return;
+    };
+    for args in [&["doctor"][..], &["doctor", "--json"][..]] {
+        let case = format!("doctor_{}", args[1..].join("_"));
+        let pair = fixture_pair(&case);
+        let sd = capture(&pair.reference_dir, &reference, args);
+        let ours = capture(&pair.ours_dir, &our_binary(), args);
+        assert_eq!(
+            sd.status.code(),
+            ours.status.code(),
+            "{case}: exit code diverged"
+        );
+        assert_eq!(
+            sd.stderr.is_empty(),
+            ours.stderr.is_empty(),
+            "{case}: stderr emptiness diverged"
+        );
+        let strip = |text: &str| {
+            text.replace(" (vcs_manager: git)", "")
+                .replace(" (vcs_manager: gitbutler)", "")
+        };
+        let sd_text = String::from_utf8_lossy(&sd.stdout);
+        let ours_text = String::from_utf8_lossy(&ours.stdout);
+        assert_eq!(
+            strip(sd_text.trim()),
+            strip(ours_text.trim()),
+            "{case}: stdout diverged after vcs_manager normalization"
+        );
+        fs::remove_dir_all(&pair.reference_dir).ok();
+        fs::remove_dir_all(&pair.ours_dir).ok();
+    }
 }
 
 /// `sync` tailors the comparison (seeds-540e): it mutates git history,

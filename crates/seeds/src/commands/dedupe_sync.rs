@@ -185,6 +185,9 @@ enum SyncOutcome {
     Status(String),
     /// `--dry-run` on a dirty store (never commits).
     DryRun { changes: String, message: String },
+    /// `vcs_manager: gitbutler` on a dirty store: the paths and the
+    /// ready-made message, but no git write (seeds-5b36).
+    Gitbutler { changes: String, message: String },
     /// A commit was created.
     Committed(String),
 }
@@ -236,6 +239,27 @@ impl SyncOutcome {
                 } else {
                     push_line(&mut out, "✓ Dry run — would commit:");
                     push_line(&mut out, changes);
+                    push_line(&mut out, &format!("Commit message: {message}"));
+                }
+            }
+            Self::Gitbutler { changes, message } => {
+                if json {
+                    push_line(
+                        &mut out,
+                        &envelope_pretty("sync", &[
+                            ("committed", json!(false)),
+                            ("vcsManager", json!("gitbutler")),
+                            ("message", json!(message)),
+                            ("changes", json!(changes)),
+                        ]),
+                    );
+                } else {
+                    push_line(
+                        &mut out,
+                        "✓ gitbutler mode: no commit created — commit these via \
+                         `but commit -b <branch> -m <msg> <ids>`:",
+                    );
+                    push_line(&mut out, &changed_paths(changes).join("\n"));
                     push_line(&mut out, &format!("Commit message: {message}"));
                 }
             }
@@ -306,6 +330,17 @@ pub fn sync(ctx: &CommandContext, input: &SyncInput) -> CommandOutcome {
         if input.dry_run {
             return Ok(SyncOutcome::DryRun { changes, message });
         }
+        let config_path = seeds_dir.join("config.yaml");
+        let config_text = std::fs::read_to_string(&config_path)
+            .map_err(|source| message_of(format!("reading {}: {source}", config_path.display())))?;
+        let config = crate::Config::parse(&config_text, &config_path)
+            .map_err(|error| message_of(error.to_string()))?;
+        if config.vcs_manager == crate::VcsManager::GitButler {
+            // GitButler cannot tolerate a plain git write behind the
+            // workspace's back — report-only is the correct seam
+            // (but commits select file ids, not paths).
+            return Ok(SyncOutcome::Gitbutler { changes, message });
+        }
         git(&repo, &["add", "-A", "--", &seeds_path]).map_err(&message_of)?;
         // The shortstat body line makes sync history greppable by size.
         let shortstat = git(&repo, &[
@@ -329,6 +364,12 @@ pub fn sync(ctx: &CommandContext, input: &SyncInput) -> CommandOutcome {
         Ok(outcome) => outcome.report(json),
         Err(error) => error.into_outcome(),
     }
+}
+
+/// The path column of `git status --porcelain -uall` output (two
+/// status chars, a space, then the path), one entry per line.
+fn changed_paths(changes: &str) -> Vec<&str> {
+    changes.lines().filter_map(|line| line.get(3..)).collect()
 }
 
 /// Runs `git` in `repo`, returning trimmed stdout; a non-zero exit
