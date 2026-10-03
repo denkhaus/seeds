@@ -95,3 +95,17 @@ INVARIANT: run sandboxes NEVER install hooks — a toolchain/bootstrap
 develop line (every stage push would hit the gate seeing its own active
 run). Never add hook installation to `.fabro/Dockerfile*` or
 `.github/workflows/`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in this repo's own Seeds tracker (`.seeds/`, `seeds` CLI, prefix `seeds-`) — not GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage labels are used as-is (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root; read before exploring, create lazily via `/domain-modeling`. See `docs/agents/domain.md`.
