@@ -99,6 +99,17 @@ carrying its own expectation, never a silent split:
 - **Atomic tracker writes:** every store save lands via
   temp-file+rename, so a crash can never leave a partial JSONL store
   observable; the reference rewrites files in place.
+- **Store writer lock (seeds-0d7b):** every mutating command wraps its
+  whole load→mutate→save cycle in an advisory exclusive lock on
+  `.seeds/.lock` (std `File::try_lock`, flock semantics), so two seeds
+  processes can never silently drop each other's records — the second
+  writer waits up to 5 s, then fails fast. The kernel releases the
+  lock on holder death (crash-safe: no stale-lockfile machinery);
+  `init`'s `.seeds/.gitignore` (`*.lock`) keeps the zero-byte lock
+  file out of version control, and read commands neither take nor
+  create it. The reference has no locking at all. Library embedders:
+  `Store::open_exclusive` is the locked session, `Store::open`/`save`
+  leave locking to the caller.
 - **show's `--json` vs `--format json` error quirk (pinned, not
   diverged):** for a single missing id the reference answers a failure
   envelope under `--json` but a plain stderr `Error: …` under

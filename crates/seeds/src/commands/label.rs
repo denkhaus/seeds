@@ -36,7 +36,7 @@ pub fn label_add(ctx: &CommandContext, input: &LabelAddInput) -> CommandOutcome 
         }
         let labels = input.labels.clone();
         let mut store = ctx
-            .open_store()
+            .open_store_exclusive()
             .map_err(|message| CommandError::new("label", message, json))?;
         if store.issue(&id).is_none() {
             return Err(CommandError::new(
@@ -118,7 +118,7 @@ pub fn label_remove(ctx: &CommandContext, input: &LabelRemoveInput) -> CommandOu
         }
         let labels = input.labels.clone();
         let mut store = ctx
-            .open_store()
+            .open_store_exclusive()
             .map_err(|message| CommandError::new("label", message, json))?;
         if store.issue(&id).is_none() {
             return Err(CommandError::new(

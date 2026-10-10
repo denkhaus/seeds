@@ -15,6 +15,7 @@ use serde_json::Value;
 use serde_yaml::{Mapping, Value as Yaml};
 
 use super::{CommandContext, CommandError, CommandOutcome, envelope_pretty, push_line};
+use crate::WriterLock;
 
 /// The reference's JSON Schema for `.seeds/config.yaml`, emitted
 /// verbatim by `config schema`.
@@ -199,13 +200,28 @@ fn load_doc(ctx: &CommandContext, json: bool) -> Result<ConfigDoc, CommandOutcom
     Ok(ConfigDoc { path, root })
 }
 
-/// Writes the config document back, preserving every key and order.
+/// Acquires the store writer lock for a config read-modify-write
+/// (seeds-0d7b): `config set`/`unset` load, edit, and persist inside
+/// one locked session, so a concurrent seeds process can wait its
+/// turn but never overwrite the edit. The guard must outlive the
+/// whole `load_doc` … `write_doc` cycle.
+fn locked_config(ctx: &CommandContext, json: bool) -> Result<WriterLock, CommandOutcome> {
+    let root = ctx
+        .resolve()
+        .map_err(|message| CommandError::new("config", message, json).into_outcome())?
+        .to_path_buf();
+    WriterLock::acquire(&root)
+        .map_err(|error| CommandError::new("config", error.to_string(), json).into_outcome())
+}
+
+/// Writes the config document back atomically (seeds-540e temp
+/// sibling + rename), preserving every key and order.
 fn write_doc(doc: &ConfigDoc) -> Result<(), String> {
     let mut body = dump_mapping(&doc.root, 0);
     if !body.ends_with('\n') {
         body.push('\n');
     }
-    fs::write(&doc.path, body)
+    crate::store::write_file(&doc.path, body)
         .map_err(|error| format!("cannot write {}: {error}", doc.path.display()))
 }
 
@@ -275,6 +291,10 @@ fn show(ctx: &CommandContext, path: Option<&str>, json: bool) -> CommandOutcome 
 /// `config set`: YAML-parse the value, write it at the dot-path,
 /// validate, and persist (unknown keys preserved).
 fn set(ctx: &CommandContext, path: &str, value: &str, json: bool) -> CommandOutcome {
+    let _lock = match locked_config(ctx, json) {
+        Ok(lock) => lock,
+        Err(outcome) => return outcome,
+    };
     let mut doc = match load_doc(ctx, json) {
         Ok(doc) => doc,
         Err(outcome) => return outcome,
@@ -326,6 +346,10 @@ fn set(ctx: &CommandContext, path: &str, value: &str, json: bool) -> CommandOutc
 /// `config unset`: remove the dot-path, validate, persist. A missing
 /// path is a successful no-op (the reference's behavior).
 fn unset(ctx: &CommandContext, path: &str, json: bool) -> CommandOutcome {
+    let _lock = match locked_config(ctx, json) {
+        Ok(lock) => lock,
+        Err(outcome) => return outcome,
+    };
     let mut doc = match load_doc(ctx, json) {
         Ok(doc) => doc,
         Err(outcome) => return outcome,

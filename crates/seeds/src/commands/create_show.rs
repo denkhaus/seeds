@@ -48,7 +48,9 @@ pub fn create(ctx: &CommandContext, input: &CreateInput) -> CommandOutcome {
             .map_or(Ok(2_u8), parse_priority)
             .map_err(|message| message_of(&message))?;
 
-        let mut store = ctx.open_store().map_err(|message| message_of(&message))?;
+        let mut store = ctx
+            .open_store_exclusive()
+            .map_err(|message| message_of(&message))?;
         let id = fresh_seed_id(&store);
         let now = timeutil::now_iso();
         let mut fields = Fields::new();

@@ -802,7 +802,8 @@ fn repair_bidirectional(root: &Path, mismatches: &[Mismatch]) -> Result<usize, S
     } else {
         format!("{}\n", lines.join("\n"))
     };
-    std::fs::write(&path, body).map_err(|error| format!("writing issues.jsonl: {error}"))?;
+    crate::store::write_file(&path, body)
+        .map_err(|error| format!("writing issues.jsonl: {error}"))?;
     Ok(repaired)
 }
 

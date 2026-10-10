@@ -173,7 +173,24 @@ pub enum PlanSub {
 pub fn plan(ctx: &CommandContext, input: &PlanInput) -> CommandOutcome {
     let json = input.json;
     let fail = move |message: String| CommandError::new("plan", message, json);
-    let mut store = match ctx.open_store() {
+    // Write subs open the store under the writer lock (seeds-0d7b);
+    // read subs stay lock-free and never create `.seeds/.lock`.
+    let exclusive = matches!(
+        input.sub,
+        PlanSub::Submit { .. }
+            | PlanSub::Outcome { .. }
+            | PlanSub::Review { .. }
+            | PlanSub::Edit { .. }
+            | PlanSub::Create { .. }
+            | PlanSub::Adopt { .. }
+            | PlanSub::Reorder { .. }
+            | PlanSub::Release { .. }
+    );
+    let mut store = match if exclusive {
+        ctx.open_store_exclusive()
+    } else {
+        ctx.open_store()
+    } {
         Ok(store) => store,
         Err(message) => return fail(message).into_outcome(),
     };

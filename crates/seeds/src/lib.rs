@@ -13,6 +13,11 @@
 //! [`serde_json::Map`](serde_json::Map) (with the `preserve_order`
 //! feature) as the serialization source of truth, so a load→save cycle
 //! reproduces sd's compact JSONL byte for byte, unknown fields included.
+//!
+//! Mutating commands run under an advisory writer lock on
+//! `.seeds/.lock` ([`WriterLock`], seeds-0d7b): one load→mutate→save
+//! cycle at a time per store, with the kernel releasing the lock on
+//! holder death. Readers stay lock-free.
 
 pub mod commands;
 mod config;
@@ -20,6 +25,7 @@ mod dedupe;
 mod doctor;
 mod error;
 mod id;
+mod lock;
 mod model;
 mod render;
 mod store;
@@ -28,5 +34,6 @@ mod timeutil;
 pub use config::{Config, VcsManager};
 pub use error::{Error, IdError, RecordError};
 pub use id::{PlanId, SeedId, TemplateId};
+pub use lock::WriterLock;
 pub use model::{Fields, PlanRecord, Priority, SeedRecord, SeedType, Status, TemplateRecord};
 pub use store::Store;

@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use crate::config::Config;
 use crate::error::Error;
+use crate::lock::WriterLock;
 use crate::model::{Fields, PlanRecord, SeedRecord, TemplateRecord};
 
 /// A loaded `.seeds/` store.
@@ -12,9 +13,17 @@ use crate::model::{Fields, PlanRecord, SeedRecord, TemplateRecord};
 /// `Store::open` reads `config.yaml` plus the three JSONL files;
 /// `save` writes all four back. Records round-trip with their exact
 /// field ordering and unknown fields intact.
-#[derive(Clone, Debug)]
+///
+/// A store is a session, not a shareable snapshot: it is not `Clone`.
+/// `open_exclusive` additionally holds the store writer lock
+/// (seeds-0d7b) for the session's whole load→mutate→save cycle, so a
+/// concurrent writer cannot drop this session's changes; the lock
+/// releases when the store drops.
+#[derive(Debug)]
 pub struct Store {
     root:          PathBuf,
+    /// The writer lock held by `open_exclusive` sessions.
+    lock:          Option<WriterLock>,
     /// The parsed `config.yaml`.
     pub config:    Config,
     /// The `issues.jsonl` records.
@@ -46,11 +55,30 @@ impl Store {
 
         Ok(Self {
             root: root.to_owned(),
+            lock: None,
             config,
             issues,
             plans,
             templates,
         })
+    }
+
+    /// Opens the store under the writer lock (seeds-0d7b): the
+    /// advisory exclusive lock on `.seeds/.lock` is acquired BEFORE
+    /// the files are read and held until the store drops, so the
+    /// whole load→mutate→save cycle of one session is atomic against
+    /// other seeds processes. A concurrent writer waits up to the
+    /// acquire timeout, then fails fast with [`Error::LockTimeout`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error`] on lock acquisition, I/O, YAML, or
+    /// record-validation failures.
+    pub fn open_exclusive(root: impl AsRef<Path>) -> Result<Self, Error> {
+        let lock = WriterLock::acquire(root.as_ref())?;
+        let mut store = Self::open(root)?;
+        store.lock = Some(lock);
+        Ok(store)
     }
 
     /// Writes all four store files back.
@@ -114,7 +142,7 @@ fn read_file(path: &Path) -> Result<String, Error> {
 /// Writes `contents` to `path` atomically (seeds-540e): the payload
 /// lands in a hidden temp sibling first and is renamed over the
 /// target, so a crash can never leave a partial JSONL store behind.
-fn write_file(path: &Path, contents: String) -> Result<(), Error> {
+pub(crate) fn write_file(path: &Path, contents: String) -> Result<(), Error> {
     let name = path
         .file_name()
         .and_then(|name| name.to_str())

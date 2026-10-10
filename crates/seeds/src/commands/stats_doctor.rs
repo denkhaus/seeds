@@ -3,7 +3,7 @@
 use serde_json::{Map, Value, json};
 
 use super::{CommandContext, CommandError, CommandOutcome, envelope_pretty};
-use crate::{Status, doctor, render};
+use crate::{Status, WriterLock, doctor, render};
 
 /// Typed input for `stats`.
 #[derive(Clone, Debug, Default)]
@@ -84,6 +84,16 @@ pub fn doctor(ctx: &CommandContext, input: &DoctorInput) -> CommandOutcome {
         let root = ctx
             .resolve()
             .map_err(|message| CommandError::new("doctor", message, json))?;
+        // Repairs rewrite store files: one writer at a time
+        // (seeds-0d7b). The report-only mode stays lock-free.
+        let _lock = if fix {
+            Some(
+                WriterLock::acquire(root)
+                    .map_err(|error| CommandError::new("doctor", error.to_string(), json))?,
+            )
+        } else {
+            None
+        };
         doctor::run(root, fix).map_err(|message| CommandError::new("doctor", message, json))
     })();
     match result {

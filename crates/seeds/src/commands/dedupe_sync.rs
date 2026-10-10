@@ -7,7 +7,7 @@ use std::process::Command;
 use serde_json::{Value, json};
 
 use super::{CommandContext, CommandError, CommandOutcome, envelope_pretty, push_line};
-use crate::{dedupe, timeutil};
+use crate::{WriterLock, dedupe, timeutil};
 
 /// One file's dedupe outcome for reporting.
 struct DedupeFile {
@@ -56,6 +56,13 @@ pub fn dedupe(ctx: &CommandContext, input: &DedupeInput) -> CommandOutcome {
     let result = (|| -> Result<Vec<DedupeFile>, CommandError> {
         let message_of = |text: String| CommandError::new("dedupe", text, json);
         let root = ctx.resolve().map_err(&message_of)?.to_path_buf();
+        // The heal rewrites store files: one writer at a time
+        // (seeds-0d7b). Report mode reads only and stays lock-free.
+        let _lock = if write {
+            Some(WriterLock::acquire(&root).map_err(|error| message_of(error.to_string()))?)
+        } else {
+            None
+        };
         let mut files = Vec::new();
         for name in dedupe::TRACKER_FILES {
             let path = root.join(name);

@@ -44,6 +44,13 @@ pub enum Error {
         #[source]
         source: serde_yaml::Error,
     },
+    /// Another process still held the store writer lock past the wait
+    /// timeout (seeds-0d7b).
+    #[error("another seeds process holds the store writer lock `{path}` — timed out waiting")]
+    LockTimeout {
+        /// The lock file that stayed held.
+        path: PathBuf,
+    },
 }
 
 /// Failure while validating a single record's fields.

@@ -48,7 +48,7 @@ pub fn update(ctx: &CommandContext, input: &UpdateInput) -> CommandOutcome {
         let Some(id) = input.id.clone() else {
             return Err(message_of("usage: sd update <id>".to_owned()));
         };
-        let mut store = ctx.open_store().map_err(&message_of)?;
+        let mut store = ctx.open_store_exclusive().map_err(&message_of)?;
         if store.issue(&id).is_none() {
             return Err(message_of(format!("Issue not found: {id}")));
         }
@@ -186,7 +186,7 @@ pub fn close(ctx: &CommandContext, input: &CloseInput) -> CommandOutcome {
             ));
         }
         let mut store = ctx
-            .open_store()
+            .open_store_exclusive()
             .map_err(|message| CommandError::new("close", message, json))?;
         for id in &input.ids {
             if store.issue(id).is_none() {

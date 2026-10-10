@@ -75,9 +75,18 @@ pub struct TplInput {
 pub fn tpl(ctx: &CommandContext, input: &TplInput) -> CommandOutcome {
     let json = input.json;
     let result = (|| -> Result<String, CommandError> {
-        let mut store = ctx
-            .open_store()
-            .map_err(|message| CommandError::new("tpl", &message, json))?;
+        // Write subs open the store under the writer lock (seeds-0d7b);
+        // read subs stay lock-free and never create `.seeds/.lock`.
+        let exclusive = matches!(
+            input.sub,
+            TplSub::Create { .. } | TplSub::StepAdd { .. } | TplSub::Pour { .. }
+        );
+        let mut store = if exclusive {
+            ctx.open_store_exclusive()
+        } else {
+            ctx.open_store()
+        }
+        .map_err(|message| CommandError::new("tpl", &message, json))?;
         match &input.sub {
             TplSub::Create { name } => {
                 let id = fresh_tpl_id(&store);

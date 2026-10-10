@@ -57,7 +57,7 @@ pub fn dep_add(ctx: &CommandContext, input: &DepAddInput) -> CommandOutcome {
         let issue_id = input.ids[0].clone();
         let depends_on_id = input.ids[1].clone();
         let mut store = ctx
-            .open_store()
+            .open_store_exclusive()
             .map_err(|message| CommandError::new("dep", message, json))?;
         for id in [&issue_id, &depends_on_id] {
             if store.issue(id).is_none() {
@@ -138,7 +138,7 @@ pub fn dep_remove(ctx: &CommandContext, input: &DepRemoveInput) -> CommandOutcom
         let issue_id = input.ids[0].clone();
         let depends_on_id = input.ids[1].clone();
         let mut store = ctx
-            .open_store()
+            .open_store_exclusive()
             .map_err(|message| CommandError::new("dep", message, json))?;
         for id in [&issue_id, &depends_on_id] {
             if store.issue(id).is_none() {
@@ -344,7 +344,7 @@ pub fn block(ctx: &CommandContext, input: &BlockInput) -> CommandOutcome {
             ));
         };
         let mut store = ctx
-            .open_store()
+            .open_store_exclusive()
             .map_err(|message| CommandError::new("block", message, json))?;
         for target in [&id, &blocker_id] {
             if store.issue(target).is_none() {
@@ -429,7 +429,7 @@ pub fn unblock(ctx: &CommandContext, input: &UnblockInput) -> CommandOutcome {
             ));
         }
         let mut store = ctx
-            .open_store()
+            .open_store_exclusive()
             .map_err(|message| CommandError::new("unblock", message, json))?;
         if store.issue(&id).is_none() {
             return Err(CommandError::new(
