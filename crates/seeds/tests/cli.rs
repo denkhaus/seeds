@@ -705,6 +705,45 @@ fn prime_outputs_context_compact_and_json() {
     let value = stdout_json(&run(&dir, &["prime", "--json"]));
     assert_eq!(value["command"], json!("prime"));
     assert_eq!(value["sections"]["mode"], json!("full"));
+
+    // The round-trip pace line (seeds-8fc5): one compact line under
+    // the anchor of each text template, one top-level `pace` key in the
+    // JSON envelope — no week table, no full metric block.
+    for args in [&["prime"][..], &["prime", "--compact"][..]] {
+        let output = run(&dir, args);
+        assert_eq!(output.status.code(), Some(0), "args: {args:?}");
+        let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+        assert!(
+            text.contains("> **Pace**: "),
+            "pace line in {args:?}: {text}"
+        );
+        assert!(text.contains("open to target"), "{text}");
+        assert!(!text.contains("Week (ISO, UTC)"), "no table: {text}");
+    }
+    let value = stdout_json(&run(&dir, &["prime", "--json"]));
+    let pace = value["pace"].as_str().expect("pace key in envelope");
+    assert!(pace.contains("open to target"), "{pace}");
+    assert!(pace.contains("ETA"), "{pace}");
+    // The content mirror stays the static template (documented shape).
+    let content = value["content"].as_str().expect("content mirror");
+    assert!(!content.contains("> **Pace**:"), "content stays static");
+
+    // The examples name the live `seeds` CLI (README DEVIATIONS):
+    // nothing provides `sd` on PATH since the self-hosting cutover,
+    // so an `sd` example would send agents at a missing command.
+    let output = run(&dir, &["prime"]);
+    let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(
+        text.contains("Run `seeds prime` after compaction"),
+        "{text}"
+    );
+    assert!(text.contains("`seeds ready`"), "{text}");
+    assert!(!text.contains("`sd "), "no retired sd commands: {text}");
+    let value = stdout_json(&run(&dir, &["prime", "--json"]));
+    assert_eq!(
+        value["sections"]["commandGroups"][0]["commands"][0]["command"],
+        json!("seeds ready")
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1015,6 +1054,89 @@ fn stats_json_has_stable_keys() {
     assert_eq!(stats["inProgress"], json!(1));
     assert_eq!(stats["closed"], json!(1));
     assert_eq!(stats["blocked"], json!(1));
+}
+
+/// `stats --pace` renders the pace section (seeds-8fc5): the JSON
+/// contract keys next to the parity stats, an honest null ETA when the
+/// window carries no closures, and the week table in text mode.
+#[test]
+fn stats_pace_renders_section_and_contract() {
+    let dir = temp_store("stats-pace");
+    write_records(&dir, &standard());
+    let output = run(&dir, &["stats", "--pace"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(text.starts_with("Project Statistics\n"), "{text}");
+    assert!(text.contains("\nPace\n"), "{text}");
+    assert!(text.contains("Rate (30d):"), "{text}");
+    assert!(text.contains("Lead time (median):"), "{text}");
+    assert!(text.contains("Open to target:"), "{text}");
+    assert!(text.contains("Week (ISO, UTC)"), "{text}");
+
+    let value = stdout_json(&run(&dir, &["stats", "--pace", "--json"]));
+    let pace = &value["pace"];
+    for key in [
+        "window_days",
+        "min_closures",
+        "rate_window",
+        "closures_in_window",
+        "rate_all_time",
+        "closures_total",
+        "history_weeks",
+        "lead_time_median_hours",
+        "open_to_target",
+        "excluded_open",
+        "exclusion_labels",
+        "eta",
+        "eta_reason",
+        "weeks",
+    ] {
+        assert!(pace.get(key).is_some(), "pace.{key} present");
+    }
+    // The fixture's only close carries no closedAt: zero windowed
+    // closures → a null ETA that says why instead of guessing.
+    assert_eq!(pace["closures_in_window"], json!(0));
+    assert_eq!(pace["eta"], Value::Null);
+    assert_eq!(pace["eta_reason"], "zero_closures_in_window");
+    // The parity stats ride along unchanged.
+    assert_eq!(value["stats"]["total"], json!(6));
+}
+
+/// Any pace option implies `--pace`; garbage values name the flag on
+/// stderr; the help surface documents the whole group.
+#[test]
+fn stats_pace_options_imply_section_and_garbage_is_named() {
+    let dir = temp_store("stats-pace-flags");
+    write_records(&dir, &standard());
+    let output = run(&dir, &["stats", "--window", "7"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(text.contains("Rate (7d):"), "{text}");
+
+    for bad_args in [
+        &["stats", "--window", "soon"][..],
+        &["stats", "--window", "0"][..],
+        &["stats", "--min-closures", "many"][..],
+    ] {
+        let bad = run(&dir, bad_args);
+        assert_eq!(bad.status.code(), Some(1), "args: {bad_args:?}");
+        let stderr = String::from_utf8(bad.stderr.clone()).expect("utf-8");
+        let flag = bad_args[1];
+        assert!(stderr.contains(flag), "stderr names {flag}: {stderr}");
+    }
+
+    let help = run(&dir, &["stats", "--help"]);
+    assert_eq!(help.status.code(), Some(0));
+    let text = String::from_utf8(help.stdout.clone()).expect("utf-8");
+    for flag in [
+        "--pace",
+        "--window",
+        "--min-closures",
+        "--exclude-label",
+        "--since",
+    ] {
+        assert!(text.contains(flag), "help lists {flag}");
+    }
 }
 
 // ---------------------------------------------------------------------------

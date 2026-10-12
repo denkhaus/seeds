@@ -314,7 +314,7 @@ pub(crate) fn label_list_all_text(counts: &[(String, usize)]) -> String {
 
 /// Pads `text` to `width` with at least one trailing space (the
 /// reference's `padEnd` layout for label/type/priority columns).
-fn pad_field(text: &str, width: usize) -> String {
+pub(crate) fn pad_field(text: &str, width: usize) -> String {
     let padding = width.saturating_sub(text.chars().count()).max(1);
     format!("{text}{}", " ".repeat(padding))
 }

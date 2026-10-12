@@ -63,6 +63,20 @@ carrying its own expectation, never a silent split:
   against the reference; the section BODY names the live `seeds` CLI
   and this implementation's version/home instead of the retired `sd`
   reference wording.
+- **prime template content:** the session-context template (text and
+  JSON sections) keeps the reference's shape, section set, and exit
+  codes, but its examples name the live `seeds` CLI (`seeds ready`,
+  `seeds prime`, …) instead of the retired `sd` binary — nothing
+  provides `sd` on PATH since the self-hosting cutover (seeds-3791),
+  so `sd` examples would send agents at a command that does not exist.
+  Second additive deviation: every invocation carries the round-trip
+  pace line (seeds-8fc5) — `> **Pace**: …` under the anchor line of
+  each text template, and a top-level `pace` key (before `content`) in
+  the JSON envelope; the `content` mirror stays the static template.
+  Both are pinned by the tailored `differential_prime_matches_sd`,
+  which rewrites the reference's `sd ` command prefixes to `seeds `,
+  strips our pace lines, and compares stdout byte-for-byte on all four
+  surfaces.
 - **completions surface:** the shell scripts enumerate the implemented
   command surface only (the help-honesty rule above), not the
   reference's full list; the error surface (`unknown shell`, missing
@@ -143,6 +157,15 @@ carrying its own expectation, never a silent split:
   behavior already matches, so this is pinned parity (differential +
   a native stable-keys test), not a divergence. Group maps preserve
   first-seen encounter order, as sd does.
+- **stats `--pace` (native addition, seeds-8fc5):** closure rates
+  (windowed + all-time), median lead time, the open target with its
+  `--exclude-label` list, an ETA to production readiness, and the
+  weekly ISO-created/closed/net/open series — reconstructed from
+  `createdAt`/`closedAt` snapshots under an injected clock, with a
+  null ETA plus reason whenever the window carries too few closures.
+  Counting rule and rejected alternatives: ADR-0002; terms:
+  `GLOSSARY.md`. The flag group is additive (`sd stats` without the
+  flags is unchanged, differentially pinned).
 - **plan (decomposition surface, seeds-de37):** all 13 subcommands
   (`templates`, `prompt`, `submit`, `show`, `validate`, `outcome`,
   `review`, `edit`, `create`, `adopt`, `reorder`, `release`, `list`)

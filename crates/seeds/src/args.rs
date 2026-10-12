@@ -110,7 +110,15 @@ pub(crate) static DEP_LIST_SPEC: &[OptSpec] = &[flag("json")];
 
 pub(crate) static BLOCKED_SPEC: &[OptSpec] = &[opt("format"), flag("json")];
 
-pub(crate) static STATS_SPEC: &[OptSpec] = &[opt("format"), flag("json")];
+pub(crate) static STATS_SPEC: &[OptSpec] = &[
+    flag("pace"),
+    opt("window"),
+    opt("min-closures"),
+    opt("exclude-label"),
+    opt("since"),
+    opt("format"),
+    flag("json"),
+];
 
 pub(crate) static DOCTOR_SPEC: &[OptSpec] = &[
     flag("fix"),

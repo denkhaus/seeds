@@ -507,6 +507,16 @@ Usage: sd stats [options]
 Project statistics
 
 Options:
+  --pace            Include pace metrics: closure rates, lead time, ETA
+                     to production readiness, and the weekly open/closed
+                     series (any pace option below implies --pace)
+  --window <days>   Pace observation window in days (default: 30)
+  --min-closures <n>  Minimum closures in the window before an ETA is
+                     offered (default: 5)
+  --exclude-label <labels>  Open seeds with these labels leave the pace
+                     target (comma-separated)
+  --since <date>    First week of the pace table, YYYY-MM-DD
+                     (default: full history)
   --format <mode>  Output format (markdown|compact|plain|ids|json)
   --json           Output as JSON (alias for --format json)
   -h, --help       display help for command";
