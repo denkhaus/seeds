@@ -134,7 +134,7 @@ pub fn update(ctx: &CommandContext, input: &UpdateInput) -> CommandOutcome {
         .count();
         if verb_count > 1 {
             return Err(message_of(
-                "--set-description, --append-description, and --replace-in-description                  are mutually exclusive"
+                "--set-description, --append-description, and --replace-in-description are mutually exclusive"
                     .to_owned(),
             ));
         }
