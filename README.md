@@ -180,6 +180,27 @@ carrying its own expectation, never a silent split:
   only via submit/create writes); (2) `Invalid JSON in plan file:`
   error detail carries this build's serde parser wording, not Bun's.
 
+- **update description verbs (seeds-0297):** the description is the
+  one narrative field, so `update` names its mutations explicitly —
+  `--set-description <text>` (wholesale replace) and
+  `--append-description <text>` (appended after exactly one blank
+  line; trimmed both sides; both verbs together → hard error;
+  empty append → error). The reference's three set-aliases
+  (`--description`, `--desc`, `--body`) are REMOVED from `update`
+  and reduced to `--description` alone on `create` (initial
+  population has no history to destroy) — unknown flags fail loud,
+  by design: the format freeze protects `.seeds/`, not the CLI
+  surface, and a loud usage error is recoverable where a silent
+  replace was not. Text output gains a change-shape line
+  (`description: set 1126 -> 1900 chars` /
+  `description: appended +774 (total 1900)`) after the unchanged
+  `✓ Updated <id>` line; the JSON envelope stays untouched. The
+  library stays additive: `UpdateInput.description` keeps set
+  semantics, `UpdateInput.append_description` is new. CLI field
+  naming rule: narrative fields get mutation verbs, scalar
+  single-line fields stay bare (`--title`), collections keep
+  add/remove/set, objects keep merge/clear.
+
 Format credit: [jayminwest/seeds](https://github.com/jayminwest/seeds) —
 this repository is an independent implementation of that format, not a fork.
 

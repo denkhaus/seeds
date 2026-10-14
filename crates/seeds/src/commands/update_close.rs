@@ -13,46 +13,91 @@ use crate::{SeedRecord, Status, timeutil};
 #[derive(Clone, Debug, Default)]
 pub struct UpdateInput {
     /// The target id (`None` reproduces the usage error).
-    pub id:               Option<String>,
+    pub id:                 Option<String>,
     /// `--status` raw text.
-    pub status:           Option<String>,
+    pub status:             Option<String>,
     /// `--title`.
-    pub title:            Option<String>,
+    pub title:              Option<String>,
     /// `--assignee` (empty string clears).
-    pub assignee:         Option<String>,
-    /// `--description` (replaces wholesale).
-    pub description:      Option<String>,
+    pub assignee:           Option<String>,
+    /// `--set-description` (replaces wholesale).
+    pub description:        Option<String>,
+    /// `--append-description` (appended after one blank line).
+    pub append_description: Option<String>,
     /// `--type` raw text.
-    pub kind:             Option<String>,
+    pub kind:               Option<String>,
     /// `--priority` raw text.
-    pub priority:         Option<String>,
+    pub priority:           Option<String>,
     /// `--add-label` raw comma list.
-    pub add_label:        Option<String>,
+    pub add_label:          Option<String>,
     /// `--remove-label` raw comma list.
-    pub remove_label:     Option<String>,
+    pub remove_label:       Option<String>,
     /// `--set-labels` raw comma list.
-    pub set_labels:       Option<String>,
+    pub set_labels:         Option<String>,
     /// `--extensions` raw JSON object text.
-    pub extensions:       Option<String>,
+    pub extensions:         Option<String>,
     /// `--clear-extensions`.
-    pub clear_extensions: bool,
+    pub clear_extensions:   bool,
     /// JSON envelope output.
-    pub json:             bool,
+    pub json:               bool,
+}
+
+/// The change-shape note for a description write: which verb ran and
+/// the character sizes it produced.
+#[derive(Clone, Copy, Debug)]
+enum DescriptionShape {
+    /// `--set-description`: whole-field replace, old → new chars.
+    Set { old: usize, new: usize },
+    /// `--append-description`: added → total chars.
+    Appended { added: usize, total: usize },
+}
+
+impl DescriptionShape {
+    fn to_line(self) -> String {
+        match self {
+            Self::Set { old, new } => format!("description: set {old} -> {new} chars"),
+            Self::Appended { added, total } => {
+                format!("description: appended +{added} (total {total})")
+            }
+        }
+    }
+}
+
+/// Appends `text` to `existing`, separated by exactly one blank line;
+/// a missing or blank `existing` yields `text` alone.
+fn join_appended(existing: Option<&str>, text: &str) -> String {
+    match existing.map(str::trim_end).filter(|head| !head.is_empty()) {
+        Some(head) => format!("{head}\n\n{text}"),
+        None => text.to_owned(),
+    }
 }
 
 /// `update` — mutates one record's fields, bumping `updatedAt`.
 pub fn update(ctx: &CommandContext, input: &UpdateInput) -> CommandOutcome {
     let json = input.json;
-    let result = (|| -> Result<SeedRecord, CommandError> {
+    let result = (|| -> Result<(SeedRecord, Option<DescriptionShape>), CommandError> {
         let message_of = |text: String| CommandError::new("update", text, json);
         let Some(id) = input.id.clone() else {
             return Err(message_of("usage: sd update <id>".to_owned()));
         };
+        if input.description.is_some() && input.append_description.is_some() {
+            return Err(message_of(
+                "--set-description and --append-description are mutually exclusive".to_owned(),
+            ));
+        }
+        if input
+            .append_description
+            .as_deref()
+            .is_some_and(|text| text.trim().is_empty())
+        {
+            return Err(message_of("--append-description requires text".to_owned()));
+        }
         let mut store = ctx.open_store_exclusive().map_err(&message_of)?;
         if store.issue(&id).is_none() {
             return Err(message_of(format!("Issue not found: {id}")));
         }
         let now = timeutil::now_iso();
+        let mut description_shape = None;
         {
             let record = store.issue_mut(&id).expect("existence checked above");
             if let Some(status) = input.status.as_deref() {
@@ -76,7 +121,22 @@ pub fn update(ctx: &CommandContext, input: &UpdateInput) -> CommandOutcome {
                 None => {}
             }
             if let Some(description) = input.description.as_deref() {
+                let shape = DescriptionShape::Set {
+                    old: record.description().map_or(0, |text| text.chars().count()),
+                    new: description.chars().count(),
+                };
                 record.set_description(Some(description));
+                description_shape = Some(shape);
+            }
+            if let Some(text) = input.append_description.as_deref() {
+                let appended = text.trim();
+                let joined = join_appended(record.description(), appended);
+                let shape = DescriptionShape::Appended {
+                    added: appended.chars().count(),
+                    total: joined.chars().count(),
+                };
+                record.set_description(Some(&joined));
+                description_shape = Some(shape);
             }
             if let Some(kind) = input.kind.as_deref() {
                 let kind = parse_seed_type(kind).map_err(&message_of)?;
@@ -146,16 +206,20 @@ pub fn update(ctx: &CommandContext, input: &UpdateInput) -> CommandOutcome {
         store
             .save()
             .map_err(|error| message_of(error.to_string()))?;
-        Ok(store.issue(&id).expect("record was just updated").clone())
+        let record = store.issue(&id).expect("record was just updated").clone();
+        Ok((record, description_shape))
     })();
     match result {
-        Ok(record) => {
+        Ok((record, description_shape)) => {
             let mut out = String::new();
             if json {
                 let issue = issue_value(&record);
                 push_line(&mut out, &envelope_pretty("update", &[("issue", issue)]));
             } else {
                 push_line(&mut out, &format!("✓ Updated {}", record.id()));
+                if let Some(shape) = description_shape {
+                    push_line(&mut out, &shape.to_line());
+                }
             }
             CommandOutcome::ok(out)
         }

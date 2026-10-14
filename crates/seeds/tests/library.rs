@@ -124,6 +124,25 @@ fn typed_inputs_produce_the_reference_envelopes() {
     });
     let envelope: Value = serde_json::from_str(&outcome.stdout).expect("envelope JSON");
     assert_eq!(envelope["issue"]["status"], "in_progress");
+
+    // description stays the set path; append_description is the
+    // additive append verb (seeds-0297): one blank line between.
+    let outcome = commands::update(&ctx, &UpdateInput {
+        id: Some(id.clone()),
+        description: Some("Base".to_owned()),
+        json: true,
+        ..Default::default()
+    });
+    assert!(outcome.success, "set failed: {}", outcome.stderr);
+    let outcome = commands::update(&ctx, &UpdateInput {
+        id: Some(id),
+        append_description: Some("Note".to_owned()),
+        json: true,
+        ..Default::default()
+    });
+    assert!(outcome.success, "append failed: {}", outcome.stderr);
+    let envelope: Value = serde_json::from_str(&outcome.stdout).expect("envelope JSON");
+    assert_eq!(envelope["issue"]["description"], "Base\n\nNote");
 }
 
 #[test]

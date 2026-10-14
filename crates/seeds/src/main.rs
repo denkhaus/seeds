@@ -248,19 +248,20 @@ fn cmd_update(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = UpdateInput {
-        id:               parsed.positionals.first().cloned(),
-        status:           parsed.options.get("status").cloned(),
-        title:            parsed.options.get("title").cloned(),
-        assignee:         parsed.options.get("assignee").cloned(),
-        description:      parsed.options.get("description").cloned(),
-        kind:             parsed.options.get("type").cloned(),
-        priority:         parsed.options.get("priority").cloned(),
-        add_label:        parsed.options.get("add-label").cloned(),
-        remove_label:     parsed.options.get("remove-label").cloned(),
-        set_labels:       parsed.options.get("set-labels").cloned(),
-        extensions:       parsed.options.get("extensions").cloned(),
-        clear_extensions: parsed.flags.contains("clear-extensions"),
-        json:             json_mode(&parsed),
+        id:                 parsed.positionals.first().cloned(),
+        status:             parsed.options.get("status").cloned(),
+        title:              parsed.options.get("title").cloned(),
+        assignee:           parsed.options.get("assignee").cloned(),
+        description:        parsed.options.get("set-description").cloned(),
+        append_description: parsed.options.get("append-description").cloned(),
+        kind:               parsed.options.get("type").cloned(),
+        priority:           parsed.options.get("priority").cloned(),
+        add_label:          parsed.options.get("add-label").cloned(),
+        remove_label:       parsed.options.get("remove-label").cloned(),
+        set_labels:         parsed.options.get("set-labels").cloned(),
+        extensions:         parsed.options.get("extensions").cloned(),
+        clear_extensions:   parsed.flags.contains("clear-extensions"),
+        json:               json_mode(&parsed),
     };
     report(&commands::update(&ctx(), &input))
 }

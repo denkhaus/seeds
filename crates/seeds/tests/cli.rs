@@ -495,7 +495,7 @@ fn update_applies_fields_and_json_shape() {
         "in_progress",
         "--title",
         "Renamed",
-        "--desc",
+        "--set-description",
         "via alias",
         "--add-label",
         "a,b",
@@ -562,6 +562,117 @@ fn update_extensions_merge_and_clear() {
         stored.get("extensions").is_none(),
         "clear-extensions removes"
     );
+}
+
+#[test]
+fn update_description_verbs_append_and_change_shape() {
+    let dir = temp_store("update-desc-verbs");
+    write_records(&dir, &standard());
+
+    // Set names its change shape: old -> new chars (tst-0002 starts
+    // with the 27-char "Mention parity in the guide").
+    let output = run(&dir, &[
+        "update",
+        "tst-0002",
+        "--set-description",
+        "Original body.\n\n",
+    ]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines[0], "✓ Updated tst-0002");
+    assert_eq!(lines[1], "description: set 27 -> 16 chars");
+
+    // Append joins with exactly one blank line: trailing whitespace on
+    // the existing text is trimmed, the appended text both sides.
+    let output = run(&dir, &[
+        "update",
+        "tst-0002",
+        "--append-description",
+        " Evidence block. ",
+    ]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines[1], "description: appended +15 (total 31)");
+    let stored = read_records(&dir)
+        .into_iter()
+        .find(|record| record["id"] == json!("tst-0002"))
+        .expect("record");
+    assert_eq!(
+        stored["description"],
+        json!("Original body.\n\nEvidence block.")
+    );
+
+    // Append onto a record without a description: first content, no
+    // leading blank line, shape line still reports the total.
+    let output = run(&dir, &[
+        "update",
+        "tst-0003",
+        "--append-description",
+        "First note",
+    ]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines[1], "description: appended +10 (total 10)");
+    let stored = read_records(&dir)
+        .into_iter()
+        .find(|record| record["id"] == json!("tst-0003"))
+        .expect("record");
+    assert_eq!(stored["description"], json!("First note"));
+}
+
+#[test]
+fn update_description_verbs_reject_bad_input() {
+    let dir = temp_store("update-desc-verbs-errors");
+    write_records(&dir, &standard());
+
+    let output = run(&dir, &[
+        "update",
+        "tst-0002",
+        "--set-description",
+        "a",
+        "--append-description",
+        "b",
+    ]);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
+    assert!(stderr.contains("mutually exclusive"), "stderr: {stderr}");
+
+    let output = run(&dir, &["update", "tst-0002", "--append-description", "  "]);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
+    assert!(
+        stderr.contains("--append-description requires text"),
+        "stderr: {stderr}"
+    );
+}
+
+#[test]
+fn update_description_set_aliases_are_gone() {
+    let dir = temp_store("update-alias-purge");
+    write_records(&dir, &standard());
+    // The pre-verb aliases fail loud on both write commands (the
+    // documented deviation, seeds-0297).
+    for (command, id_args, flag) in [
+        ("update", vec!["tst-0002"], "--description"),
+        ("update", vec!["tst-0002"], "--desc"),
+        ("update", vec!["tst-0002"], "--body"),
+        ("create", vec![], "--desc"),
+        ("create", vec![], "--body"),
+    ] {
+        let mut args = vec![command];
+        args.extend(id_args);
+        args.extend([flag, "x"]);
+        let output = run(&dir, &args);
+        assert_eq!(output.status.code(), Some(1), "{flag} on {command} fails");
+        let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
+        assert!(
+            stderr.contains(&format!("unknown option '{flag}'")),
+            "{flag} on {command}: stderr: {stderr}"
+        );
+    }
 }
 
 #[test]
@@ -767,6 +878,7 @@ fn help_and_version_match_reference_surface() {
         ("list", "--priority-max <n>"),
         ("ready", "--respect-schedule"),
         ("update", "--clear-extensions"),
+        ("update", "--append-description <text>"),
         ("search", "Case-insensitive substring"),
     ] {
         let output = run(&dir, &[command, "--help"]);
