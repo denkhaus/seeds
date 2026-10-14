@@ -344,20 +344,21 @@ Usage: sd update [options] <id>
 Update issue fields
 
 Options:
-  --status <status>            New status (open|in_progress|closed)
-  --title <text>               New title
-  --assignee <name>            New assignee
-  --set-description <text>     Replace the whole description
-  --append-description <text>  Append to the description (one blank line between)
-  --type <type>                New type (task|bug|feature|epic)
-  --priority <n>               New priority 0-4 or P0-P4
-  --add-label <labels>         Add label(s) (comma-separated)
-  --remove-label <labels>      Remove label(s) (comma-separated)
-  --set-labels <labels>        Set labels (comma-separated, empty to clear)
-  --extensions <json>          Shallow-merge JSON object into Issue.extensions
-  --clear-extensions           Remove the extensions field
-  --json                       Output as JSON
-  -h, --help                   display help for command";
+  --status <status>                 New status (open|in_progress|closed)
+  --title <text>                    New title
+  --assignee <name>                 New assignee
+  --set-description <text>          Replace the whole description
+  --append-description <text>       Append to the description (one blank line between)
+  --replace-in-description <json>   Replace one exact span: {\"find\": string, \"replace\": string}
+  --type <type>                     New type (task|bug|feature|epic)
+  --priority <n>                    New priority 0-4 or P0-P4
+  --add-label <labels>              Add label(s) (comma-separated)
+  --remove-label <labels>           Remove label(s) (comma-separated)
+  --set-labels <labels>             Set labels (comma-separated, empty to clear)
+  --extensions <json>               Shallow-merge JSON object into Issue.extensions
+  --clear-extensions                Remove the extensions field
+  --json                            Output as JSON
+  -h, --help                        display help for command";
 
 pub(crate) const CLOSE: &str = "\
 Usage: sd close [options] <id> [ids...]

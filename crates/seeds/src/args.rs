@@ -87,6 +87,7 @@ pub(crate) static UPDATE_SPEC: &[OptSpec] = &[
     opt("assignee"),
     opt("set-description"),
     opt("append-description"),
+    opt("replace-in-description"),
     opt("type"),
     opt("priority"),
     opt("add-label"),

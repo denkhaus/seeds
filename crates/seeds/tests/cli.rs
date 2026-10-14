@@ -676,6 +676,130 @@ fn update_description_set_aliases_are_gone() {
 }
 
 #[test]
+fn update_replace_in_description_span_surgery() {
+    let dir = temp_store("update-replace-in");
+    write_records(&dir, &standard());
+    run(&dir, &[
+        "update",
+        "tst-0002",
+        "--set-description",
+        "Demand line.\nBasis: hash-aaaa\nDesign: keep",
+    ]);
+
+    // Exactly one occurrence: replaced, shape line names the sizes
+    // (42 chars -> 42 chars, same-length hash swap).
+    let output = run(&dir, &[
+        "update",
+        "tst-0002",
+        "--replace-in-description",
+        r#"{"find": "hash-aaaa", "replace": "hash-bbbb"}"#,
+    ]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines[0], "✓ Updated tst-0002");
+    assert_eq!(lines[1], "description: replaced span (42 -> 42 chars)");
+    let stored = read_records(&dir)
+        .into_iter()
+        .find(|record| record["id"] == json!("tst-0002"))
+        .expect("record");
+    assert_eq!(
+        stored["description"],
+        json!("Demand line.\nBasis: hash-bbbb\nDesign: keep")
+    );
+
+    // Empty replace deletes the span (span semantics: the trailing
+    // newline stays, 42 -> 30 chars).
+    let output = run(&dir, &[
+        "update",
+        "tst-0002",
+        "--replace-in-description",
+        r#"{"find": "\nDesign: keep", "replace": ""}"#,
+    ]);
+    assert_eq!(output.status.code(), Some(0));
+    let stored = read_records(&dir)
+        .into_iter()
+        .find(|record| record["id"] == json!("tst-0002"))
+        .expect("record");
+    assert_eq!(
+        stored["description"],
+        json!("Demand line.\nBasis: hash-bbbb")
+    );
+}
+
+#[test]
+fn update_replace_in_description_fails_loud() {
+    let dir = temp_store("update-replace-in-errors");
+    write_records(&dir, &standard());
+    run(&dir, &[
+        "update",
+        "tst-0002",
+        "--set-description",
+        "one tag and tag again",
+    ]);
+
+    let cases: Vec<(&[&str], &str)> = vec![
+        (
+            &[
+                "update",
+                "tst-0002",
+                "--replace-in-description",
+                r#"{"find": "tag", "replace": "x"}"#,
+            ],
+            "2 occurrences",
+        ),
+        (
+            &[
+                "update",
+                "tst-0002",
+                "--replace-in-description",
+                r#"{"find": "missing", "replace": "x"}"#,
+            ],
+            "text not found",
+        ),
+        (
+            &[
+                "update",
+                "tst-0002",
+                "--replace-in-description",
+                r#"{"find": "", "replace": "x"}"#,
+            ],
+            "find must not be empty",
+        ),
+        (
+            &["update", "tst-0002", "--replace-in-description", "not json"],
+            "must be a JSON object",
+        ),
+        (
+            &[
+                "update",
+                "tst-0002",
+                "--replace-in-description",
+                r#"{"find": "one"}"#,
+            ],
+            "must be a JSON object",
+        ),
+        (
+            &[
+                "update",
+                "tst-0002",
+                "--set-description",
+                "x",
+                "--replace-in-description",
+                r#"{"find": "y", "replace": "z"}"#,
+            ],
+            "mutually exclusive",
+        ),
+    ];
+    for (args, needle) in cases {
+        let output = run(&dir, args);
+        assert_eq!(output.status.code(), Some(1), "{args:?} fails");
+        let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
+        assert!(stderr.contains(needle), "{args:?}: stderr: {stderr}");
+    }
+}
+
+#[test]
 fn update_takes_no_format_flag_and_reports_missing_issue() {
     let dir = temp_store("update-flags");
     write_records(&dir, &standard());

@@ -201,6 +201,18 @@ carrying its own expectation, never a silent split:
   single-line fields stay bare (`--title`), collections keep
   add/remove/set, objects keep merge/clear.
 
+- **update --replace-in-description (seeds-4c65):** span-level
+  correction joins the description verbs —
+  `--replace-in-description '{"find": "...", "replace": "..."}'`
+  replaces exactly one occurrence of an exact substring (the
+  `--extensions` JSON-carrier pattern; the "in" carries the
+  span-level scope). find-not-found (snippet in the error), multiple
+  occurrences (count in the error), empty find, and malformed
+  payloads fail loud; an empty `replace` deletes the span. Output:
+  `description: replaced span (1900 -> 1923 chars)`. Library: the
+  additive `UpdateInput.replace_in_description` takes the same raw
+  JSON text, parsed library-side.
+
 Format credit: [jayminwest/seeds](https://github.com/jayminwest/seeds) —
 this repository is an independent implementation of that format, not a fork.
 
