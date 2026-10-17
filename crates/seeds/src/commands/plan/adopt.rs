@@ -108,8 +108,8 @@ pub(super) fn run_create(
     if plan_id == "aborted" {
         return CommandOutcome {
             success: false,
-            stdout:  String::new(),
-            stderr:  tail,
+            stdout: String::new(),
+            stderr: tail,
         };
     }
     if let Err(save_error) = store.save() {
@@ -126,11 +126,11 @@ pub(super) fn run_create(
         });
         return CommandOutcome {
             success: true,
-            stdout:  format!(
+            stdout: format!(
                 "{}\n",
                 serde_json::to_string_pretty(&envelope).expect("serializes")
             ),
-            stderr:  String::new(),
+            stderr: String::new(),
         };
     }
     let mut out = String::new();
@@ -381,13 +381,14 @@ pub(super) fn run_adopt(
         let mut parent_blocked_by: Vec<String> = store.issues[parent_idx]
             .field("blockedBy")
             .and_then(Value::as_array)
-            .map_or_default(|items| {
+            .map(|items| {
                 items
                     .iter()
                     .filter_map(Value::as_str)
                     .map(String::from)
                     .collect()
-            });
+            })
+            .unwrap_or_default();
         for (seed_id, _) in &resolved {
             if !parent_blocked_by.contains(seed_id) {
                 parent_blocked_by.push(seed_id.clone());
@@ -412,13 +413,14 @@ pub(super) fn run_adopt(
         let prior_adopted: Vec<String> = store.plans[plan_idx]
             .field("adoptedChildren")
             .and_then(Value::as_array)
-            .map_or_default(|items| {
+            .map(|items| {
                 items
                     .iter()
                     .filter_map(Value::as_str)
                     .map(String::from)
                     .collect()
-            });
+            })
+            .unwrap_or_default();
         {
             let record = &mut store.plans[plan_idx];
             let fields = record.fields_mut();
@@ -456,11 +458,11 @@ pub(super) fn run_adopt(
         });
         return CommandOutcome {
             success: true,
-            stdout:  format!(
+            stdout: format!(
                 "{}\n",
                 serde_json::to_string_pretty(&envelope).expect("serializes")
             ),
-            stderr:  String::new(),
+            stderr: String::new(),
         };
     }
     let mut out = String::new();
@@ -473,8 +475,8 @@ pub(super) fn run_adopt(
     );
     CommandOutcome {
         success: true,
-        stdout:  out,
-        stderr:  String::new(),
+        stdout: out,
+        stderr: String::new(),
     }
 }
 
@@ -554,14 +556,15 @@ pub(super) fn run_release(
             let kept: Vec<String> = parent
                 .field("blockedBy")
                 .and_then(Value::as_array)
-                .map_or_default(|items| {
+                .map(|items| {
                     items
                         .iter()
                         .filter_map(Value::as_str)
                         .filter(|id| !released.contains(&id.to_string()))
                         .map(String::from)
                         .collect()
-                });
+                })
+                .unwrap_or_default();
             parent.set_field("blockedBy", json!(kept));
             parent.set_field("updatedAt", json!(now));
         }
@@ -575,14 +578,15 @@ pub(super) fn run_release(
         let kept_adopted: Vec<String> = store.plans[plan_idx]
             .field("adoptedChildren")
             .and_then(Value::as_array)
-            .map_or_default(|items| {
+            .map(|items| {
                 items
                     .iter()
                     .filter_map(Value::as_str)
                     .filter(|id| !released.iter().any(|r| r == id))
                     .map(String::from)
                     .collect()
-            });
+            })
+            .unwrap_or_default();
         {
             let record = &mut store.plans[plan_idx];
             let fields = record.fields_mut();
@@ -614,11 +618,11 @@ pub(super) fn run_release(
         });
         return CommandOutcome {
             success: true,
-            stdout:  format!(
+            stdout: format!(
                 "{}\n",
                 serde_json::to_string_pretty(&envelope).expect("serializes")
             ),
-            stderr:  String::new(),
+            stderr: String::new(),
         };
     }
     let mut out = String::new();
@@ -631,8 +635,8 @@ pub(super) fn run_release(
     );
     CommandOutcome {
         success: true,
-        stdout:  out,
-        stderr:  String::new(),
+        stdout: out,
+        stderr: String::new(),
     }
 }
 
@@ -713,11 +717,11 @@ pub(super) fn run_reorder(
         });
         return CommandOutcome {
             success: true,
-            stdout:  format!(
+            stdout: format!(
                 "{}\n",
                 serde_json::to_string_pretty(&envelope).expect("serializes")
             ),
-            stderr:  String::new(),
+            stderr: String::new(),
         };
     }
     let mut out = String::new();
@@ -728,7 +732,7 @@ pub(super) fn run_reorder(
     success_line(&mut out, &format!("order: {}", children.join(", ")));
     CommandOutcome {
         success: true,
-        stdout:  out,
-        stderr:  String::new(),
+        stdout: out,
+        stderr: String::new(),
     }
 }

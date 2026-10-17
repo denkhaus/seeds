@@ -54,8 +54,8 @@ pub fn init(input: &InitInput) -> CommandOutcome {
         push_line(&mut text, &stdout);
         return CommandOutcome {
             success: true,
-            stdout:  text,
-            stderr:  String::new(),
+            stdout: text,
+            stderr: String::new(),
         };
     }
     if dir.is_dir() {
@@ -66,8 +66,8 @@ pub fn init(input: &InitInput) -> CommandOutcome {
         );
         return CommandOutcome {
             success: true,
-            stdout:  text,
-            stderr:  String::new(),
+            stdout: text,
+            stderr: String::new(),
         };
     }
     if let Err(message) = write_init_files(&dir, &cwd) {
@@ -80,8 +80,8 @@ pub fn init(input: &InitInput) -> CommandOutcome {
     );
     CommandOutcome {
         success: true,
-        stdout:  text,
-        stderr:  String::new(),
+        stdout: text,
+        stderr: String::new(),
     }
 }
 
@@ -129,7 +129,7 @@ pub enum ConfigSub {
     /// Set the value at a dot-`path`; `value` is YAML-parsed.
     Set {
         /// Dot-path to write.
-        path:  String,
+        path: String,
         /// The raw value text, parsed as YAML.
         value: String,
     },
@@ -144,7 +144,7 @@ pub enum ConfigSub {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ConfigInput {
     /// Which subcommand to run.
-    pub sub:  ConfigSub,
+    pub sub: ConfigSub,
     /// Whether output is the JSON envelope form.
     pub json: bool,
 }
@@ -254,10 +254,10 @@ fn show(ctx: &CommandContext, path: Option<&str>, json: bool) -> CommandOutcome 
     };
     let Some(path) = path else {
         if json {
-            return ok_json("config show", &[(
-                "config",
-                yaml_to_json(&Yaml::Mapping(doc.root)),
-            )]);
+            return ok_json(
+                "config show",
+                &[("config", yaml_to_json(&Yaml::Mapping(doc.root)))],
+            );
         }
         let mut stdout = String::new();
         stdout.push_str(&dump_mapping(&doc.root, 0));
@@ -271,10 +271,10 @@ fn show(ctx: &CommandContext, path: Option<&str>, json: bool) -> CommandOutcome 
     match get_path(&Yaml::Mapping(doc.root), &segments) {
         Some(value) => {
             if json {
-                return ok_json("config show", &[
-                    ("path", Value::from(path)),
-                    ("value", yaml_to_json(value)),
-                ]);
+                return ok_json(
+                    "config show",
+                    &[("path", Value::from(path)), ("value", yaml_to_json(value))],
+                );
             }
             let mut stdout = String::new();
             push_line(&mut stdout, &render_value(value));
@@ -326,10 +326,13 @@ fn set(ctx: &CommandContext, path: &str, value: &str, json: bool) -> CommandOutc
         return CommandError::new("config", message, json).into_outcome();
     }
     if json {
-        return ok_json("config set", &[
-            ("path", Value::from(path)),
-            ("value", yaml_to_json(&written)),
-        ]);
+        return ok_json(
+            "config set",
+            &[
+                ("path", Value::from(path)),
+                ("value", yaml_to_json(&written)),
+            ],
+        );
     }
     let mut stdout = String::new();
     push_line(
@@ -357,10 +360,10 @@ fn unset(ctx: &CommandContext, path: &str, json: bool) -> CommandOutcome {
     let segments = split_path(path);
     if get_path(&Yaml::Mapping(doc.root.clone()), &segments).is_none() {
         if json {
-            return ok_json("config unset", &[
-                ("path", Value::from(path)),
-                ("removed", Value::Bool(false)),
-            ]);
+            return ok_json(
+                "config unset",
+                &[("path", Value::from(path)), ("removed", Value::Bool(false))],
+            );
         }
         let mut stdout = String::new();
         push_line(&mut stdout, &format!("No such path: {path}"));
@@ -380,10 +383,10 @@ fn unset(ctx: &CommandContext, path: &str, json: bool) -> CommandOutcome {
         return CommandError::new("config", message, json).into_outcome();
     }
     if json {
-        return ok_json("config unset", &[
-            ("path", Value::from(path)),
-            ("removed", Value::Bool(true)),
-        ]);
+        return ok_json(
+            "config unset",
+            &[("path", Value::from(path)), ("removed", Value::Bool(true))],
+        );
     }
     let mut stdout = String::new();
     push_line(&mut stdout, &format!("✓ Unset {path}"));
@@ -707,10 +710,13 @@ mod tests {
     #[test]
     fn show_text_matches_reference_dump_style() {
         let (_dir, ctx) = store("show", FIXTURE);
-        let outcome = config(&ctx, &ConfigInput {
-            sub:  ConfigSub::Show { path: None },
-            json: false,
-        });
+        let outcome = config(
+            &ctx,
+            &ConfigInput {
+                sub: ConfigSub::Show { path: None },
+                json: false,
+            },
+        );
         assert!(outcome.success);
         assert_eq!(
             outcome.stdout,
@@ -721,10 +727,13 @@ mod tests {
     #[test]
     fn show_json_envelope_carries_the_whole_document() {
         let (_dir, ctx) = store("show-json", FIXTURE);
-        let outcome = config(&ctx, &ConfigInput {
-            sub:  ConfigSub::Show { path: None },
-            json: true,
-        });
+        let outcome = config(
+            &ctx,
+            &ConfigInput {
+                sub: ConfigSub::Show { path: None },
+                json: true,
+            },
+        );
         let value: Value = serde_json::from_str(&outcome.stdout).expect("envelope parses");
         assert_eq!(value["command"], "config show");
         assert_eq!(value["config"]["version"], "1");
@@ -743,12 +752,15 @@ mod tests {
             ("reviewers", "[\"a\",\"b\"]\n"),
             ("weird", "a: 1\n"),
         ] {
-            let outcome = config(&ctx, &ConfigInput {
-                sub:  ConfigSub::Show {
-                    path: Some(path.to_owned()),
+            let outcome = config(
+                &ctx,
+                &ConfigInput {
+                    sub: ConfigSub::Show {
+                        path: Some(path.to_owned()),
+                    },
+                    json: false,
                 },
-                json: false,
-            });
+            );
             assert_eq!(outcome.stdout, expected, "path {path}");
         }
     }
@@ -756,12 +768,15 @@ mod tests {
     #[test]
     fn show_path_missing_fails_with_reference_message() {
         let (_dir, ctx) = store("show-missing", FIXTURE);
-        let outcome = config(&ctx, &ConfigInput {
-            sub:  ConfigSub::Show {
-                path: Some("nope.deep".to_owned()),
+        let outcome = config(
+            &ctx,
+            &ConfigInput {
+                sub: ConfigSub::Show {
+                    path: Some("nope.deep".to_owned()),
+                },
+                json: false,
             },
-            json: false,
-        });
+        );
         assert!(!outcome.success);
         assert_eq!(outcome.stderr, "Error: Path not found: nope.deep\n");
     }
@@ -772,13 +787,16 @@ mod tests {
             "set",
             "project: tst\nversion: \"1\"\nmax_plan_depth: 3\nreviewers:\n  - operator\n",
         );
-        let outcome = config(&ctx, &ConfigInput {
-            sub:  ConfigSub::Set {
-                path:  "max_plan_depth".to_owned(),
-                value: "5".to_owned(),
+        let outcome = config(
+            &ctx,
+            &ConfigInput {
+                sub: ConfigSub::Set {
+                    path: "max_plan_depth".to_owned(),
+                    value: "5".to_owned(),
+                },
+                json: false,
             },
-            json: false,
-        });
+        );
         assert!(outcome.success);
         assert_eq!(outcome.stdout, "✓ Set max_plan_depth = 5\n");
         let rewritten =
@@ -792,13 +810,16 @@ mod tests {
     #[test]
     fn set_creates_nested_paths_under_known_keys() {
         let (dir, ctx) = store("set-nested", FIXTURE);
-        let outcome = config(&ctx, &ConfigInput {
-            sub:  ConfigSub::Set {
-                path:  "plan_templates.feature.description".to_owned(),
-                value: "Custom".to_owned(),
+        let outcome = config(
+            &ctx,
+            &ConfigInput {
+                sub: ConfigSub::Set {
+                    path: "plan_templates.feature.description".to_owned(),
+                    value: "Custom".to_owned(),
+                },
+                json: false,
             },
-            json: false,
-        });
+        );
         assert!(outcome.success, "stderr: {}", outcome.stderr);
         let rewritten =
             fs::read_to_string(dir.join(".seeds/config.yaml")).expect("rewritten config");
@@ -808,13 +829,16 @@ mod tests {
     #[test]
     fn set_rejects_unknown_top_level_keys() {
         let (_dir, ctx) = store("set-unknown", FIXTURE);
-        let outcome = config(&ctx, &ConfigInput {
-            sub:  ConfigSub::Set {
-                path:  "ghost".to_owned(),
-                value: "1".to_owned(),
+        let outcome = config(
+            &ctx,
+            &ConfigInput {
+                sub: ConfigSub::Set {
+                    path: "ghost".to_owned(),
+                    value: "1".to_owned(),
+                },
+                json: true,
             },
-            json: true,
-        });
+        );
         assert!(!outcome.success);
         let value: Value = serde_json::from_str(&outcome.stdout).expect("envelope parses");
         assert_eq!(value["command"], "config");
@@ -835,13 +859,16 @@ mod tests {
                 "'max_plan_depth' must be a integer",
             ),
         ] {
-            let outcome = config(&ctx, &ConfigInput {
-                sub:  ConfigSub::Set {
-                    path:  path.to_owned(),
-                    value: value.to_owned(),
+            let outcome = config(
+                &ctx,
+                &ConfigInput {
+                    sub: ConfigSub::Set {
+                        path: path.to_owned(),
+                        value: value.to_owned(),
+                    },
+                    json: false,
                 },
-                json: false,
-            });
+            );
             assert!(!outcome.success, "{path} should fail");
             assert!(
                 outcome.stderr.contains(expected),
@@ -854,24 +881,30 @@ mod tests {
     #[test]
     fn unset_removes_and_reports_missing_paths_as_noop() {
         let (dir, ctx) = store("unset", FIXTURE);
-        let removed = config(&ctx, &ConfigInput {
-            sub:  ConfigSub::Unset {
-                path: "max_plan_depth".to_owned(),
+        let removed = config(
+            &ctx,
+            &ConfigInput {
+                sub: ConfigSub::Unset {
+                    path: "max_plan_depth".to_owned(),
+                },
+                json: false,
             },
-            json: false,
-        });
+        );
         assert!(removed.success);
         assert_eq!(removed.stdout, "✓ Unset max_plan_depth\n");
         let rewritten =
             fs::read_to_string(dir.join(".seeds/config.yaml")).expect("rewritten config");
         assert_eq!(rewritten, "project: tst\nversion: \"1\"\n");
 
-        let missing = config(&ctx, &ConfigInput {
-            sub:  ConfigSub::Unset {
-                path: "ghost".to_owned(),
+        let missing = config(
+            &ctx,
+            &ConfigInput {
+                sub: ConfigSub::Unset {
+                    path: "ghost".to_owned(),
+                },
+                json: false,
             },
-            json: false,
-        });
+        );
         assert!(missing.success);
         assert_eq!(missing.stdout, "No such path: ghost\n");
     }
@@ -880,12 +913,15 @@ mod tests {
     fn unset_required_key_fails_validation() {
         let (_dir, ctx) = store("unset-required", FIXTURE);
         for key in ["project", "version"] {
-            let outcome = config(&ctx, &ConfigInput {
-                sub:  ConfigSub::Unset {
-                    path: key.to_owned(),
+            let outcome = config(
+                &ctx,
+                &ConfigInput {
+                    sub: ConfigSub::Unset {
+                        path: key.to_owned(),
+                    },
+                    json: false,
                 },
-                json: false,
-            });
+            );
             assert!(!outcome.success, "unset {key} should fail");
             assert!(
                 outcome.stderr.contains(&format!("add a '{key}' field")),
@@ -897,15 +933,21 @@ mod tests {
 
     #[test]
     fn schema_outputs_pretty_and_compact_forms() {
-        let pretty = config(&CommandContext::from_cwd(), &ConfigInput {
-            sub:  ConfigSub::Schema,
-            json: false,
-        });
+        let pretty = config(
+            &CommandContext::from_cwd(),
+            &ConfigInput {
+                sub: ConfigSub::Schema,
+                json: false,
+            },
+        );
         assert!(pretty.stdout.starts_with("{\n  \"$schema\""));
-        let compact = config(&CommandContext::from_cwd(), &ConfigInput {
-            sub:  ConfigSub::Schema,
-            json: true,
-        });
+        let compact = config(
+            &CommandContext::from_cwd(),
+            &ConfigInput {
+                sub: ConfigSub::Schema,
+                json: true,
+            },
+        );
         assert_eq!(compact.stdout.matches('\n').count(), 1);
         let pretty_value: Value = serde_json::from_str(pretty.stdout.trim()).expect("pretty JSON");
         let compact_value: Value =

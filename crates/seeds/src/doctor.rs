@@ -30,9 +30,9 @@ const GITATTRIBUTES_ENTRIES: &str = "\
 /// One doctor check outcome.
 pub(crate) struct Check {
     /// The check's stable name (the reference's identifier).
-    pub name:    &'static str,
+    pub name: &'static str,
     /// `pass`, `warn`, or `fail`.
-    pub status:  CheckStatus,
+    pub status: CheckStatus,
     /// The headline message.
     pub message: String,
     /// Per-finding detail lines.
@@ -40,7 +40,7 @@ pub(crate) struct Check {
     /// Whether `--fix` can repair this finding.
     pub fixable: bool,
     /// The exact repair for a fixable finding (`--repair-report`).
-    pub repair:  Option<String>,
+    pub repair: Option<String>,
 }
 
 /// A check's outcome class.
@@ -69,7 +69,7 @@ pub(crate) struct Report {
     /// Every check, in the reference's fixed order.
     pub checks: Vec<Check>,
     /// Fixes `--fix` applied, as user-facing lines.
-    pub fixes:  Vec<String>,
+    pub fixes: Vec<String>,
 }
 
 impl Report {
@@ -296,21 +296,21 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
                 ),
             ),
             Err(error) => Check {
-                name:    "config",
-                status:  CheckStatus::Fail,
+                name: "config",
+                status: CheckStatus::Fail,
                 message: "Config is invalid".to_owned(),
                 details: vec![error.to_string()],
                 fixable: false,
-                repair:  None,
+                repair: None,
             },
         },
         Err(_) => Check {
-            name:    "config",
-            status:  CheckStatus::Fail,
+            name: "config",
+            status: CheckStatus::Fail,
             message: "config.yaml not found".to_owned(),
             details: Vec::new(),
             fixable: false,
-            repair:  None,
+            repair: None,
         },
     };
 
@@ -330,12 +330,12 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
         passed("jsonl-integrity", "All JSONL lines parse correctly")
     } else {
         Check {
-            name:    "jsonl-integrity",
-            status:  CheckStatus::Fail,
+            name: "jsonl-integrity",
+            status: CheckStatus::Fail,
             message: format!("{} malformed line(s) in JSONL files", malformed.len()),
             details: malformed.clone(),
             fixable: true,
-            repair:  Some("delete the malformed JSONL line(s)".to_owned()),
+            repair: Some("delete the malformed JSONL line(s)".to_owned()),
         }
     };
     if fix && jsonl_check.status == CheckStatus::Fail {
@@ -388,12 +388,12 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
         passed("schema-validation", "All issues have valid schema")
     } else {
         Check {
-            name:    "schema-validation",
-            status:  CheckStatus::Fail,
+            name: "schema-validation",
+            status: CheckStatus::Fail,
             message: format!("{} issue(s) with invalid schema", schema_issues.len()),
             details: schema_issues,
             fixable: false,
-            repair:  None,
+            repair: None,
         }
     };
 
@@ -409,12 +409,12 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
         passed("duplicate-ids", "No duplicate IDs")
     } else {
         Check {
-            name:    "duplicate-ids",
-            status:  CheckStatus::Fail,
+            name: "duplicate-ids",
+            status: CheckStatus::Fail,
             message: format!("{} duplicate id(s)", duplicate_ids.len()),
             details: duplicate_ids,
             fixable: true,
-            repair:  Some("run `seeds dedupe --write` to heal duplicates".to_owned()),
+            repair: Some("run `seeds dedupe --write` to heal duplicates".to_owned()),
         }
     };
 
@@ -440,12 +440,12 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
         )
     } else {
         Check {
-            name:    "referential-integrity",
-            status:  CheckStatus::Fail,
+            name: "referential-integrity",
+            status: CheckStatus::Fail,
             message: format!("{} dangling dependency reference(s)", dangling.len()),
             details: dangling,
             fixable: true,
-            repair:  Some(
+            repair: Some(
                 "remove the dangling references (or create the missing issues)".to_owned(),
             ),
         }
@@ -460,7 +460,7 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
                 if !blocks.iter().any(|blocked| blocked == id) {
                     mismatches.push(Mismatch::MissingBlocks {
                         dependent: id.clone(),
-                        blocker:   dep.clone(),
+                        blocker: dep.clone(),
                     });
                 }
             }
@@ -473,7 +473,7 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
                 let blocked_by = string_array(dependent.get("blockedBy")).unwrap_or_default();
                 if !blocked_by.iter().any(|dep| dep == id) {
                     mismatches.push(Mismatch::MissingBlockedBy {
-                        blocker:   id.clone(),
+                        blocker: id.clone(),
                         dependent: blocked.clone(),
                     });
                 }
@@ -545,12 +545,12 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
         passed("circular-dependencies", "No circular dependencies")
     } else {
         Check {
-            name:    "circular-dependencies",
-            status:  CheckStatus::Fail,
+            name: "circular-dependencies",
+            status: CheckStatus::Fail,
             message: format!("{} circular dependency cycle(s)", cycles.len()),
             details: cycles,
             fixable: false,
-            repair:  None,
+            repair: None,
         }
     };
 
@@ -566,12 +566,12 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
         passed("label-schema", "All label arrays are valid")
     } else {
         Check {
-            name:    "label-schema",
-            status:  CheckStatus::Fail,
+            name: "label-schema",
+            status: CheckStatus::Fail,
             message: format!("{} invalid label array(s)", bad_labels.len()),
             details: bad_labels,
             fixable: true,
-            repair:  Some("rewrite labels as an array of strings".to_owned()),
+            repair: Some("rewrite labels as an array of strings".to_owned()),
         }
     };
 
@@ -588,12 +588,12 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
         passed("extensions-schema", "All extensions fields are valid")
     } else {
         Check {
-            name:    "extensions-schema",
-            status:  CheckStatus::Fail,
+            name: "extensions-schema",
+            status: CheckStatus::Fail,
             message: format!("{} invalid extensions field(s)", bad_extensions.len()),
             details: bad_extensions,
             fixable: true,
-            repair:  Some("rewrite extensions as a JSON object".to_owned()),
+            repair: Some("rewrite extensions as a JSON object".to_owned()),
         }
     };
 
@@ -614,15 +614,15 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
         )
     } else {
         Check {
-            name:    "closed-fields-consistency",
-            status:  CheckStatus::Warn,
+            name: "closed-fields-consistency",
+            status: CheckStatus::Warn,
             message: format!(
                 "{} inconsistent status/close-metadata pair(s)",
                 inconsistent.len()
             ),
             details: inconsistent,
             fixable: true,
-            repair:  Some("set closedAt on closed issues, drop it on open ones".to_owned()),
+            repair: Some("set closedAt on closed issues, drop it on open ones".to_owned()),
         }
     };
 
@@ -638,12 +638,12 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
         passed("stale-locks", "No stale lock files")
     } else {
         Check {
-            name:    "stale-locks",
-            status:  CheckStatus::Warn,
+            name: "stale-locks",
+            status: CheckStatus::Warn,
             message: format!("{} stale lock file(s)", locks.len()),
             details: locks,
             fixable: true,
-            repair:  Some("delete the stale lock file(s)".to_owned()),
+            repair: Some("delete the stale lock file(s)".to_owned()),
         }
     };
 
@@ -664,25 +664,25 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
                 passed("gitattributes", "Gitattributes merge=union entries present")
             } else {
                 Check {
-                    name:    "gitattributes",
-                    status:  CheckStatus::Warn,
+                    name: "gitattributes",
+                    status: CheckStatus::Warn,
                     message: "Missing merge=union gitattributes entries".to_owned(),
                     details: missing
                         .iter()
                         .map(|entry| format!("{entry} merge=union entry missing"))
                         .collect(),
                     fixable: true,
-                    repair:  Some("append the missing merge=union entries".to_owned()),
+                    repair: Some("append the missing merge=union entries".to_owned()),
                 }
             }
         }
         Err(_) => Check {
-            name:    "gitattributes",
-            status:  CheckStatus::Warn,
+            name: "gitattributes",
+            status: CheckStatus::Warn,
             message: "Missing merge=union gitattributes entries".to_owned(),
             details: vec![".gitattributes file not found".to_owned()],
             fixable: true,
-            repair:  Some("create .gitattributes with the merge=union entries".to_owned()),
+            repair: Some("create .gitattributes with the merge=union entries".to_owned()),
         },
     };
     if fix && git_check.status == CheckStatus::Warn {
@@ -723,16 +723,10 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
 enum Mismatch {
     /// `dependent.blockedBy` names `blocker`, but `blocker.blocks`
     /// misses `dependent`.
-    MissingBlocks {
-        dependent: String,
-        blocker:   String,
-    },
+    MissingBlocks { dependent: String, blocker: String },
     /// `blocker.blocks` names `dependent`, but `dependent.blockedBy`
     /// misses `blocker`.
-    MissingBlockedBy {
-        blocker:   String,
-        dependent: String,
-    },
+    MissingBlockedBy { blocker: String, dependent: String },
 }
 
 impl Mismatch {

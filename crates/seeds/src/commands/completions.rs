@@ -30,7 +30,7 @@ const SHELLS: &[&str] = &["bash", "zsh", "fish"];
 /// A completable command: name, one-line description (the help
 /// surface's wording), and its fixed subcommand set when it is a group.
 struct CommandSpec {
-    name:        &'static str,
+    name: &'static str,
     description: &'static str,
     subcommands: &'static [&'static str],
 }
@@ -38,92 +38,92 @@ struct CommandSpec {
 /// The implemented command surface in help order.
 const COMMANDS: &[CommandSpec] = &[
     CommandSpec {
-        name:        "create",
+        name: "create",
         description: "Create a new issue",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "show",
+        name: "show",
         description: "Show one or more issues",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "list",
+        name: "list",
         description: "List issues with filters",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "ready",
+        name: "ready",
         description: "Show open issues with no unresolved blockers",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "update",
+        name: "update",
         description: "Update issue fields",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "close",
+        name: "close",
         description: "Close one or more issues",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "dep",
+        name: "dep",
         description: "Manage issue dependencies",
         subcommands: &["add", "remove", "list"],
     },
     CommandSpec {
-        name:        "blocked",
+        name: "blocked",
         description: "Show all blocked issues",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "block",
+        name: "block",
         description: "Add a blocker to an issue",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "unblock",
+        name: "unblock",
         description: "Remove blockers from an issue",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "label",
+        name: "label",
         description: "Manage issue labels",
         subcommands: &["add", "remove", "list", "list-all"],
     },
     CommandSpec {
-        name:        "stats",
+        name: "stats",
         description: "Project statistics",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "doctor",
+        name: "doctor",
         description: "Check project health and data integrity",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "prime",
+        name: "prime",
         description: "Output AI agent context",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "search",
+        name: "search",
         description: "Full-text search title + description",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "dedupe",
+        name: "dedupe",
         description: "Report and heal duplicate ids",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "sync",
+        name: "sync",
         description: "Stage and commit .seeds/ changes",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "plan",
+        name: "plan",
         description: "Plan management",
         subcommands: &[
             "templates",
@@ -139,32 +139,32 @@ const COMMANDS: &[CommandSpec] = &[
         ],
     },
     CommandSpec {
-        name:        "init",
+        name: "init",
         description: "Initialize .seeds/ in current directory",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "config",
+        name: "config",
         description: "Read, write, and inspect .seeds/config.yaml",
         subcommands: &["show", "set", "unset", "schema", "help"],
     },
     CommandSpec {
-        name:        "tpl",
+        name: "tpl",
         description: "Manage issue templates (molecules)",
         subcommands: &["create", "step", "list", "show", "pour", "status"],
     },
     CommandSpec {
-        name:        "upgrade",
+        name: "upgrade",
         description: "Upgrade seeds to the latest version from GitHub Releases",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "onboard",
+        name: "onboard",
         description: "Add seeds section to CLAUDE.md / AGENTS.md",
         subcommands: &[],
     },
     CommandSpec {
-        name:        "completions",
+        name: "completions",
         description: "Output shell completion script",
         subcommands: &[],
     },
@@ -181,8 +181,8 @@ pub fn completions(input: &CompletionsInput) -> CommandOutcome {
         other => {
             return CommandOutcome {
                 success: false,
-                stdout:  String::new(),
-                stderr:  format!(
+                stdout: String::new(),
+                stderr: format!(
                     "✗ Unknown shell: {other}. Supported: {}\n",
                     SHELLS.join(", ")
                 ),

@@ -11,8 +11,8 @@ use crate::{WriterLock, dedupe, timeutil};
 
 /// One file's dedupe outcome for reporting.
 struct DedupeFile {
-    name:          &'static str,
-    duplicates:    Vec<dedupe::Duplicate>,
+    name: &'static str,
+    duplicates: Vec<dedupe::Duplicate>,
     dropped_lines: usize,
 }
 
@@ -44,7 +44,7 @@ pub struct DedupeInput {
     /// `--write` (heal the files; report-only otherwise).
     pub write: bool,
     /// JSON envelope output.
-    pub json:  bool,
+    pub json: bool,
 }
 
 /// `dedupe` — detects (and with `--write`, heals) duplicate-id lines in
@@ -179,8 +179,8 @@ pub fn dedupe(ctx: &CommandContext, input: &DedupeInput) -> CommandOutcome {
     // remain; `--write` heals by definition and always succeeds.
     CommandOutcome {
         success: write || duplicate_ids == 0,
-        stdout:  out,
-        stderr:  String::new(),
+        stdout: out,
+        stderr: String::new(),
     }
 }
 
@@ -207,10 +207,13 @@ impl SyncOutcome {
                 if json {
                     push_line(
                         &mut out,
-                        &envelope_pretty("sync", &[
-                            ("committed", json!(false)),
-                            ("message", json!("Nothing to commit")),
-                        ]),
+                        &envelope_pretty(
+                            "sync",
+                            &[
+                                ("committed", json!(false)),
+                                ("message", json!("Nothing to commit")),
+                            ],
+                        ),
                     );
                 } else {
                     push_line(&mut out, "✓ No changes to commit.");
@@ -220,10 +223,13 @@ impl SyncOutcome {
                 if json {
                     push_line(
                         &mut out,
-                        &envelope_pretty("sync", &[
-                            ("hasChanges", json!(!changes.is_empty())),
-                            ("changes", json!(changes)),
-                        ]),
+                        &envelope_pretty(
+                            "sync",
+                            &[
+                                ("hasChanges", json!(!changes.is_empty())),
+                                ("changes", json!(changes)),
+                            ],
+                        ),
                     );
                 } else if changes.is_empty() {
                     push_line(&mut out, "✓ No uncommitted .seeds/ changes.");
@@ -236,12 +242,15 @@ impl SyncOutcome {
                 if json {
                     push_line(
                         &mut out,
-                        &envelope_pretty("sync", &[
-                            ("dryRun", json!(true)),
-                            ("wouldCommit", json!(true)),
-                            ("message", json!(message)),
-                            ("changes", json!(changes)),
-                        ]),
+                        &envelope_pretty(
+                            "sync",
+                            &[
+                                ("dryRun", json!(true)),
+                                ("wouldCommit", json!(true)),
+                                ("message", json!(message)),
+                                ("changes", json!(changes)),
+                            ],
+                        ),
                     );
                 } else {
                     push_line(&mut out, "✓ Dry run — would commit:");
@@ -253,12 +262,15 @@ impl SyncOutcome {
                 if json {
                     push_line(
                         &mut out,
-                        &envelope_pretty("sync", &[
-                            ("committed", json!(false)),
-                            ("vcsManager", json!("gitbutler")),
-                            ("message", json!(message)),
-                            ("changes", json!(changes)),
-                        ]),
+                        &envelope_pretty(
+                            "sync",
+                            &[
+                                ("committed", json!(false)),
+                                ("vcsManager", json!("gitbutler")),
+                                ("message", json!(message)),
+                                ("changes", json!(changes)),
+                            ],
+                        ),
                     );
                 } else {
                     push_line(
@@ -274,10 +286,10 @@ impl SyncOutcome {
                 if json {
                     push_line(
                         &mut out,
-                        &envelope_pretty("sync", &[
-                            ("committed", json!(true)),
-                            ("message", json!(message)),
-                        ]),
+                        &envelope_pretty(
+                            "sync",
+                            &[("committed", json!(true)), ("message", json!(message))],
+                        ),
                     );
                 } else {
                     push_line(&mut out, &format!("✓ Committed: {message}"));
@@ -292,11 +304,11 @@ impl SyncOutcome {
 #[derive(Clone, Debug, Default)]
 pub struct SyncInput {
     /// `--status` (preview, never commits).
-    pub status:  bool,
+    pub status: bool,
     /// `--dry-run`.
     pub dry_run: bool,
     /// JSON envelope output.
-    pub json:    bool,
+    pub json: bool,
 }
 
 /// `sync` — stages and commits `.seeds/` changes in the enclosing git
@@ -313,13 +325,10 @@ pub fn sync(ctx: &CommandContext, input: &SyncInput) -> CommandOutcome {
             return Ok(SyncOutcome::NoChanges);
         };
         let seeds_path = seeds_dir.to_string_lossy().into_owned();
-        let changes = git(&repo, &[
-            "status",
-            "--porcelain",
-            "-uall",
-            "--",
-            &seeds_path,
-        ])
+        let changes = git(
+            &repo,
+            &["status", "--porcelain", "-uall", "--", &seeds_path],
+        )
         .map_err(&message_of)?;
         let changes = changes
             .lines()
@@ -350,13 +359,10 @@ pub fn sync(ctx: &CommandContext, input: &SyncInput) -> CommandOutcome {
         }
         git(&repo, &["add", "-A", "--", &seeds_path]).map_err(&message_of)?;
         // The shortstat body line makes sync history greppable by size.
-        let shortstat = git(&repo, &[
-            "diff",
-            "--cached",
-            "--shortstat",
-            "--",
-            &seeds_path,
-        ])
+        let shortstat = git(
+            &repo,
+            &["diff", "--cached", "--shortstat", "--", &seeds_path],
+        )
         .map_err(&message_of)?;
         let shortstat = shortstat.trim();
         let mut commit_args = vec!["commit", "-m", message.as_str()];

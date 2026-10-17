@@ -55,10 +55,10 @@ impl VcsManager {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Config {
     /// The project name; also the prefix of every seed id.
-    pub project:        String,
+    pub project: String,
     /// The store format version (sd writes the string `"1"`).
     #[serde(default = "default_version")]
-    pub version:        String,
+    pub version: String,
     /// The maximum plan nesting depth.
     #[serde(default = "default_max_plan_depth")]
     pub max_plan_depth: u32,
@@ -68,10 +68,10 @@ pub struct Config {
         default = "default_vcs_manager",
         skip_serializing_if = "is_default_vcs_manager"
     )]
-    pub vcs_manager:    VcsManager,
+    pub vcs_manager: VcsManager,
     /// Every config key this crate does not model, preserved verbatim.
     #[serde(flatten)]
-    pub extra:          Fields,
+    pub extra: Fields,
 }
 
 impl Config {

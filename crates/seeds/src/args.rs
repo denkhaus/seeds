@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 /// One recognized option: long name and whether it consumes a value.
 pub(crate) struct OptSpec {
     /// The canonical long name (without `--`).
-    pub long:  &'static str,
+    pub long: &'static str,
     /// Whether the option takes a value (`--flag value` / `--flag=value`).
     pub value: bool,
 }
@@ -223,9 +223,9 @@ pub(crate) struct Parsed {
     /// Positional arguments in order.
     pub positionals: Vec<String>,
     /// Value options by canonical long name (last occurrence wins).
-    pub options:     HashMap<String, String>,
+    pub options: HashMap<String, String>,
     /// Boolean flags by long name.
-    pub flags:       HashSet<String>,
+    pub flags: HashSet<String>,
 }
 
 /// Parses `args` against `spec`.

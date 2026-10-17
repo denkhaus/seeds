@@ -323,21 +323,21 @@ pub(crate) fn pad_field(text: &str, width: usize) -> String {
 /// the reference groups by first appearance, not alphabetically).
 pub(crate) struct Stats {
     /// Total issue count.
-    pub total:       usize,
+    pub total: usize,
     /// `open` issues.
-    pub open:        usize,
+    pub open: usize,
     /// `in_progress` issues.
     pub in_progress: usize,
     /// `closed` issues.
-    pub closed:      usize,
+    pub closed: usize,
     /// Non-closed issues with unresolved blockers.
-    pub blocked:     usize,
+    pub blocked: usize,
     /// Type name → count, first-seen order.
-    pub by_type:     Vec<(String, usize)>,
+    pub by_type: Vec<(String, usize)>,
     /// Priority level → count, first-seen order.
     pub by_priority: Vec<(u8, usize)>,
     /// Label → count, first-seen order.
-    pub by_label:    Vec<(String, usize)>,
+    pub by_label: Vec<(String, usize)>,
 }
 
 fn bump(map: &mut Vec<(String, usize)>, key: &str) {
@@ -353,14 +353,14 @@ impl Stats {
     /// `blockedBy` ids against the store the records came from.
     pub(crate) fn collect(records: &[SeedRecord], is_unresolved: &dyn Fn(&str) -> bool) -> Self {
         let mut stats = Stats {
-            total:       records.len(),
-            open:        0,
+            total: records.len(),
+            open: 0,
             in_progress: 0,
-            closed:      0,
-            blocked:     0,
-            by_type:     Vec::new(),
+            closed: 0,
+            blocked: 0,
+            by_type: Vec::new(),
             by_priority: Vec::new(),
-            by_label:    Vec::new(),
+            by_label: Vec::new(),
         };
         for record in records {
             match record.status() {

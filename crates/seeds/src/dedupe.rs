@@ -21,20 +21,20 @@ pub(crate) const TRACKER_FILES: [&str; 3] = ["issues.jsonl", "plans.jsonl", "tem
 /// values in line order.
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct Duplicate {
-    pub id:                  String,
-    pub count:               usize,
-    pub kept_updated_at:     Option<String>,
+    pub id: String,
+    pub count: usize,
+    pub kept_updated_at: Option<String>,
     pub dropped_updated_ats: Vec<Option<String>>,
 }
 
 /// Per-id accumulator while scanning one file's lines.
 struct Group<'a> {
-    id:              &'a str,
-    first:           usize,
-    count:           usize,
-    best_index:      usize,
+    id: &'a str,
+    first: usize,
+    count: usize,
+    best_index: usize,
     best_updated_at: Option<&'a str>,
-    dropped:         Vec<Option<&'a str>>,
+    dropped: Vec<Option<&'a str>>,
 }
 
 impl<'a> Group<'a> {
@@ -119,9 +119,9 @@ pub(crate) fn heal_lines(lines: &[&str]) -> (Vec<String>, Vec<Duplicate>) {
         .into_iter()
         .filter(|group| group.count > 1)
         .map(|group| Duplicate {
-            id:                  group.id.to_owned(),
-            count:               group.count,
-            kept_updated_at:     group.best_updated_at.map(str::to_owned),
+            id: group.id.to_owned(),
+            count: group.count,
+            kept_updated_at: group.best_updated_at.map(str::to_owned),
             dropped_updated_ats: group
                 .dropped
                 .iter()
@@ -169,19 +169,25 @@ mod tests {
             line("a-1", Some("2026-01-04T00:00:00.000Z"), "a-mid"),
         ];
         let (healed, duplicates) = heal_lines(&borrowed(&input));
-        assert_eq!(healed, vec![
-            line("a-1", Some("2026-01-05T00:00:00.000Z"), "a-new"),
-            line("b-1", Some("2026-01-03T00:00:00.000Z"), "b"),
-        ]);
-        assert_eq!(duplicates, vec![Duplicate {
-            id:                  "a-1".to_owned(),
-            count:               3,
-            kept_updated_at:     Some("2026-01-05T00:00:00.000Z".to_owned()),
-            dropped_updated_ats: vec![
-                Some("2026-01-02T00:00:00.000Z".to_owned()),
-                Some("2026-01-04T00:00:00.000Z".to_owned()),
-            ],
-        }]);
+        assert_eq!(
+            healed,
+            vec![
+                line("a-1", Some("2026-01-05T00:00:00.000Z"), "a-new"),
+                line("b-1", Some("2026-01-03T00:00:00.000Z"), "b"),
+            ]
+        );
+        assert_eq!(
+            duplicates,
+            vec![Duplicate {
+                id: "a-1".to_owned(),
+                count: 3,
+                kept_updated_at: Some("2026-01-05T00:00:00.000Z".to_owned()),
+                dropped_updated_ats: vec![
+                    Some("2026-01-02T00:00:00.000Z".to_owned()),
+                    Some("2026-01-04T00:00:00.000Z".to_owned()),
+                ],
+            }]
+        );
     }
 
     #[test]
@@ -193,12 +199,15 @@ mod tests {
         ];
         let (healed, duplicates) = heal_lines(&borrowed(&input));
         assert_eq!(healed, vec![line("a-1", Some(stamp), "later")]);
-        assert_eq!(duplicates, vec![Duplicate {
-            id:                  "a-1".to_owned(),
-            count:               2,
-            kept_updated_at:     Some(stamp.to_owned()),
-            dropped_updated_ats: vec![Some(stamp.to_owned())],
-        }]);
+        assert_eq!(
+            duplicates,
+            vec![Duplicate {
+                id: "a-1".to_owned(),
+                count: 2,
+                kept_updated_at: Some(stamp.to_owned()),
+                dropped_updated_ats: vec![Some(stamp.to_owned())],
+            }]
+        );
     }
 
     #[test]

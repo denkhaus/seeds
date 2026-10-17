@@ -104,7 +104,7 @@ impl Priority {
             Ok(Self(value))
         } else {
             Err(RecordError::Field {
-                field:   "priority",
+                field: "priority",
                 message: format!("expected 0-4, got {value}"),
             })
         }
@@ -127,7 +127,8 @@ fn str_array_field<'a>(fields: &'a Fields, name: &str) -> Vec<&'a str> {
     fields
         .get(name)
         .and_then(Value::as_array)
-        .map_or_default(|entries| entries.iter().filter_map(Value::as_str).collect())
+        .map(|entries| entries.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default()
 }
 
 /// A seed issue record from `issues.jsonl`.
@@ -136,7 +137,7 @@ fn str_array_field<'a>(fields: &'a Fields, name: &str) -> Vec<&'a str> {
 /// fields and their original ordering.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SeedRecord {
-    id:     SeedId,
+    id: SeedId,
     fields: Fields,
 }
 
@@ -151,19 +152,19 @@ impl SeedRecord {
     /// value of the wrong shape.
     pub fn try_from_fields(fields: Fields) -> Result<Self, RecordError> {
         let id_text = str_field(&fields, "id").ok_or(RecordError::Field {
-            field:   "id",
+            field: "id",
             message: "missing or not a string".to_owned(),
         })?;
         // Read-path parity with sd 0.5.15: any non-empty id loads (the
         // reference validates nothing on read); strictness lives on the
         // generation side only.
         let id = SeedId::read(id_text).ok_or_else(|| RecordError::Field {
-            field:   "id",
+            field: "id",
             message: "empty".to_owned(),
         })?;
 
         str_field(&fields, "title").ok_or_else(|| RecordError::Field {
-            field:   "title",
+            field: "title",
             message: "missing or not a string".to_owned(),
         })?;
 
@@ -176,7 +177,7 @@ impl SeedRecord {
             && Status::parse(status).is_none()
         {
             return Err(RecordError::Field {
-                field:   "status",
+                field: "status",
                 message: format!("unknown status `{status}`"),
             });
         }
@@ -184,18 +185,18 @@ impl SeedRecord {
             && SeedType::parse(kind).is_none()
         {
             return Err(RecordError::Field {
-                field:   "type",
+                field: "type",
                 message: format!("unknown type `{kind}`"),
             });
         }
         if let Some(priority) = fields.get("priority") {
             let number = priority.as_u64().ok_or_else(|| RecordError::Field {
-                field:   "priority",
+                field: "priority",
                 message: format!("not a number: {priority}"),
             })?;
             u8::try_from(number)
                 .map_err(|_| RecordError::Field {
-                    field:   "priority",
+                    field: "priority",
                     message: format!("out of range: {number}"),
                 })
                 .and_then(Priority::try_new)?;

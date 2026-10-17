@@ -9,11 +9,11 @@ use crate::{render, timeutil};
 #[derive(Clone, Debug, Default)]
 pub struct LabelAddInput {
     /// The target id (`None` reproduces the usage error).
-    pub id:     Option<String>,
+    pub id: Option<String>,
     /// The labels to add (empty reproduces the usage error).
     pub labels: Vec<String>,
     /// JSON envelope output.
-    pub json:   bool,
+    pub json: bool,
 }
 
 /// `label add` — adds labels to one record.
@@ -70,10 +70,13 @@ pub fn label_add(ctx: &CommandContext, input: &LabelAddInput) -> CommandOutcome 
                 let labels_value: Vec<Value> = labels.iter().map(|l| json!(l)).collect();
                 push_line(
                     &mut out,
-                    &envelope_pretty("label add", &[
-                        ("issueId", json!(id)),
-                        ("labels", Value::Array(labels_value)),
-                    ]),
+                    &envelope_pretty(
+                        "label add",
+                        &[
+                            ("issueId", json!(id)),
+                            ("labels", Value::Array(labels_value)),
+                        ],
+                    ),
                 );
             } else {
                 push_line(
@@ -91,11 +94,11 @@ pub fn label_add(ctx: &CommandContext, input: &LabelAddInput) -> CommandOutcome 
 #[derive(Clone, Debug, Default)]
 pub struct LabelRemoveInput {
     /// The target id (`None` reproduces the usage error).
-    pub id:     Option<String>,
+    pub id: Option<String>,
     /// The labels to remove (empty reproduces the usage error).
     pub labels: Vec<String>,
     /// JSON envelope output.
-    pub json:   bool,
+    pub json: bool,
 }
 
 /// `label remove` — removes labels from one record.
@@ -155,10 +158,13 @@ pub fn label_remove(ctx: &CommandContext, input: &LabelRemoveInput) -> CommandOu
                 let labels_value: Vec<Value> = labels.iter().map(|l| json!(l)).collect();
                 push_line(
                     &mut out,
-                    &envelope_pretty("label remove", &[
-                        ("issueId", json!(id)),
-                        ("labels", Value::Array(labels_value)),
-                    ]),
+                    &envelope_pretty(
+                        "label remove",
+                        &[
+                            ("issueId", json!(id)),
+                            ("labels", Value::Array(labels_value)),
+                        ],
+                    ),
                 );
             } else {
                 push_line(&mut out, &format!("✓ Removed label(s) from {id}"));
@@ -173,7 +179,7 @@ pub fn label_remove(ctx: &CommandContext, input: &LabelRemoveInput) -> CommandOu
 #[derive(Clone, Debug, Default)]
 pub struct LabelListInput {
     /// The target id (`None` reproduces the usage error).
-    pub id:   Option<String>,
+    pub id: Option<String>,
     /// JSON envelope output.
     pub json: bool,
 }
@@ -208,10 +214,13 @@ pub fn label_list(ctx: &CommandContext, input: &LabelListInput) -> CommandOutcom
                     .collect();
                 push_line(
                     &mut out,
-                    &envelope_pretty("label list", &[
-                        ("issueId", json!(record.id().as_str())),
-                        ("labels", Value::Array(labels)),
-                    ]),
+                    &envelope_pretty(
+                        "label list",
+                        &[
+                            ("issueId", json!(record.id().as_str())),
+                            ("labels", Value::Array(labels)),
+                        ],
+                    ),
                 );
             } else {
                 let text = render::label_list_text(&record);
@@ -264,10 +273,13 @@ pub fn label_list_all(ctx: &CommandContext, input: &LabelListAllInput) -> Comman
                 }
                 push_line(
                     &mut out,
-                    &envelope_pretty("label list-all", &[
-                        ("labels", Value::Array(labels)),
-                        ("counts", Value::Object(counts_map)),
-                    ]),
+                    &envelope_pretty(
+                        "label list-all",
+                        &[
+                            ("labels", Value::Array(labels)),
+                            ("counts", Value::Object(counts_map)),
+                        ],
+                    ),
                 );
             } else {
                 let text = render::label_list_all_text(&counts);

@@ -144,7 +144,7 @@ pub struct PrimeInput {
     /// `--compact` (the compact template and section set).
     pub compact: bool,
     /// JSON envelope output.
-    pub json:    bool,
+    pub json: bool,
 }
 
 /// The full template's context-recovery line — the anchor where the

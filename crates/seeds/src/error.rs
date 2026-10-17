@@ -9,7 +9,7 @@ pub enum Error {
     #[error("I/O error on `{path}`: {source}")]
     Io {
         /// The store file being read or written.
-        path:   PathBuf,
+        path: PathBuf,
         /// The underlying I/O failure.
         #[source]
         source: std::io::Error,
@@ -18,9 +18,9 @@ pub enum Error {
     #[error("invalid JSON in `{file}` line {line}: {source}")]
     JsonLine {
         /// The JSONL file being parsed.
-        file:   PathBuf,
+        file: PathBuf,
         /// The 1-based line number.
-        line:   usize,
+        line: usize,
         /// The underlying JSON failure.
         #[source]
         source: serde_json::Error,
@@ -29,9 +29,9 @@ pub enum Error {
     #[error("invalid record in `{file}` line {line}: {message}")]
     Record {
         /// The JSONL file being parsed.
-        file:    PathBuf,
+        file: PathBuf,
         /// The 1-based line number.
-        line:    usize,
+        line: usize,
         /// What is wrong with the record.
         message: String,
     },
@@ -39,7 +39,7 @@ pub enum Error {
     #[error("invalid config `{path}`: {source}")]
     Config {
         /// The config file.
-        path:   PathBuf,
+        path: PathBuf,
         /// The underlying YAML failure.
         #[source]
         source: serde_yaml::Error,
@@ -63,7 +63,7 @@ pub enum RecordError {
     #[error("field `{field}`: {message}")]
     Field {
         /// The offending field name.
-        field:   &'static str,
+        field: &'static str,
         /// What is wrong with the value.
         message: String,
     },

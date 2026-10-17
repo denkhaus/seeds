@@ -13,19 +13,19 @@ use crate::{Fields, SeedRecord, render, timeutil};
 pub struct CreateInput {
     /// The title (required; `None` reproduces the reference's stderr
     /// usage error).
-    pub title:       Option<String>,
+    pub title: Option<String>,
     /// `--type` raw text (validated library-side).
-    pub kind:        Option<String>,
+    pub kind: Option<String>,
     /// `--priority` raw text (validated library-side).
-    pub priority:    Option<String>,
+    pub priority: Option<String>,
     /// `--description`/`--desc`/`--body` (aliases folded by the caller).
     pub description: Option<String>,
     /// `--labels` raw comma list.
-    pub labels:      Option<String>,
+    pub labels: Option<String>,
     /// `--assignee`.
-    pub assignee:    Option<String>,
+    pub assignee: Option<String>,
     /// JSON envelope output.
-    pub json:        bool,
+    pub json: bool,
 }
 
 /// `create` — appends a record to the store.
@@ -101,11 +101,11 @@ pub fn create(ctx: &CommandContext, input: &CreateInput) -> CommandOutcome {
 #[derive(Clone, Debug, Default)]
 pub struct ShowInput {
     /// The ids to show.
-    pub ids:       Vec<String>,
+    pub ids: Vec<String>,
     /// `--format` raw text.
-    pub format:    Option<String>,
+    pub format: Option<String>,
     /// JSON envelope output (`--json` or `--format json`).
-    pub json:      bool,
+    pub json: bool,
     /// Whether `--json` (not just `--format json`) was passed — the
     /// reference's single-missing-id quirk distinguishes them.
     pub json_flag: bool,
@@ -117,8 +117,8 @@ pub fn show(ctx: &CommandContext, input: &ShowInput) -> CommandOutcome {
         // sd: a usage error on stderr, no envelope — in every mode.
         return CommandOutcome {
             success: false,
-            stdout:  String::new(),
-            stderr:  "error: missing required argument 'id'\n".to_owned(),
+            stdout: String::new(),
+            stderr: "error: missing required argument 'id'\n".to_owned(),
         };
     }
     let json = input.json;
@@ -135,8 +135,8 @@ pub fn show(ctx: &CommandContext, input: &ShowInput) -> CommandOutcome {
             }
             return CommandOutcome {
                 success: false,
-                stdout:  String::new(),
-                stderr:  format!("Error: {message}\n"),
+                stdout: String::new(),
+                stderr: format!("Error: {message}\n"),
             };
         }
     };
@@ -165,10 +165,10 @@ pub fn show(ctx: &CommandContext, input: &ShowInput) -> CommandOutcome {
             } else {
                 push_line(
                     &mut out,
-                    &envelope_pretty("show", &[
-                        ("issues", json!(issues)),
-                        ("results", json!(results)),
-                    ]),
+                    &envelope_pretty(
+                        "show",
+                        &[("issues", json!(issues)), ("results", json!(results))],
+                    ),
                 );
             }
             return CommandOutcome::ok(out);
@@ -180,8 +180,8 @@ pub fn show(ctx: &CommandContext, input: &ShowInput) -> CommandOutcome {
             }
             return CommandOutcome {
                 success: false,
-                stdout:  String::new(),
-                stderr:  format!("Error: {}\n", not_found(&missing[0])),
+                stdout: String::new(),
+                stderr: format!("Error: {}\n", not_found(&missing[0])),
             };
         }
         // Multi-show with missing ids: a partial failure envelope with
@@ -212,8 +212,8 @@ pub fn show(ctx: &CommandContext, input: &ShowInput) -> CommandOutcome {
     if found.is_empty() && missing.len() == 1 {
         return CommandOutcome {
             success: false,
-            stdout:  String::new(),
-            stderr:  format!("Error: {}\n", not_found(&missing[0])),
+            stdout: String::new(),
+            stderr: format!("Error: {}\n", not_found(&missing[0])),
         };
     }
     // Partial multi-show: the found records, then a per-missing ✗ line.
@@ -224,7 +224,7 @@ pub fn show(ctx: &CommandContext, input: &ShowInput) -> CommandOutcome {
     }
     CommandOutcome {
         success: false,
-        stdout:  out,
-        stderr:  err,
+        stdout: out,
+        stderr: err,
     }
 }

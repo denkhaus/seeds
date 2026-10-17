@@ -32,13 +32,13 @@ pub enum TplSub {
     /// `tpl step add <id> --title <text> [--type] [--priority]`.
     StepAdd {
         /// The template id.
-        id:    String,
+        id: String,
         /// The step title.
         title: String,
         /// Step type (task|bug|feature|epic), default task.
-        kind:  Option<String>,
+        kind: Option<String>,
         /// Step priority 0-4, default 2.
-        pri:   Option<String>,
+        pri: Option<String>,
     },
     /// `tpl list` - every template with its step count.
     List,
@@ -50,7 +50,7 @@ pub enum TplSub {
     /// `tpl pour <id> --prefix <text>` - instantiate the convoy.
     Pour {
         /// The template id.
-        id:     String,
+        id: String,
         /// Replaces `{prefix}` placeholders in step titles.
         prefix: String,
     },
@@ -65,7 +65,7 @@ pub enum TplSub {
 #[derive(Clone, Debug)]
 pub struct TplInput {
     /// The parsed subcommand.
-    pub sub:  TplSub,
+    pub sub: TplSub,
     /// Whether success output is the JSON envelope.
     pub json: bool,
 }
@@ -144,10 +144,10 @@ pub fn tpl(ctx: &CommandContext, input: &TplInput) -> CommandOutcome {
                     .save()
                     .map_err(|error| CommandError::new("tpl", error.to_string(), json))?;
                 Ok(if json {
-                    envelope_pretty("tpl step add", &[
-                        ("id", json!(id)),
-                        ("stepCount", json!(step_count)),
-                    ])
+                    envelope_pretty(
+                        "tpl step add",
+                        &[("id", json!(id)), ("stepCount", json!(step_count))],
+                    )
                 } else {
                     format!("✓ Added step {step_count} to {id}: \"{title}\"\n")
                 })
@@ -157,10 +157,10 @@ pub fn tpl(ctx: &CommandContext, input: &TplInput) -> CommandOutcome {
                     let templates: Vec<Value> =
                         store.templates.iter().map(template_value).collect();
                     let count = templates.len();
-                    return Ok(envelope_pretty("tpl list", &[
-                        ("templates", json!(templates)),
-                        ("count", json!(count)),
-                    ]));
+                    return Ok(envelope_pretty(
+                        "tpl list",
+                        &[("templates", json!(templates)), ("count", json!(count))],
+                    ));
                 }
                 if store.templates.is_empty() {
                     return Ok("No templates.\n".to_owned());
@@ -184,10 +184,10 @@ pub fn tpl(ctx: &CommandContext, input: &TplInput) -> CommandOutcome {
                         CommandError::new("tpl", format!("Template not found: {id}"), json)
                     })?;
                 if json {
-                    return Ok(envelope_pretty("tpl show", &[(
-                        "template",
-                        template_value(record),
-                    )]));
+                    return Ok(envelope_pretty(
+                        "tpl show",
+                        &[("template", template_value(record))],
+                    ));
                 }
                 let mut text = String::new();
                 push_line(&mut text, &format!("{}  {}", record.id(), name_of(record)));
@@ -299,11 +299,14 @@ pub fn tpl(ctx: &CommandContext, input: &TplInput) -> CommandOutcome {
                     .collect();
                 if convoy.is_empty() {
                     return Ok(if json {
-                        envelope_pretty("tpl status", &[
-                            ("templateId", json!(id)),
-                            ("total", json!(0)),
-                            ("issues", json!([])),
-                        ])
+                        envelope_pretty(
+                            "tpl status",
+                            &[
+                                ("templateId", json!(id)),
+                                ("total", json!(0)),
+                                ("issues", json!([])),
+                            ],
+                        )
                     } else {
                         format!("No issues found for convoy {id}\n")
                     });
@@ -327,17 +330,20 @@ pub fn tpl(ctx: &CommandContext, input: &TplInput) -> CommandOutcome {
                 let issue_ids: Vec<&str> =
                     convoy.iter().map(|record| record.id().as_str()).collect();
                 if json {
-                    return Ok(envelope_pretty("tpl status", &[(
-                        "status",
-                        json!({
-                            "templateId": id,
-                            "total":      convoy.len(),
-                            "completed":  completed,
-                            "inProgress": in_progress,
-                            "blocked":    blocked,
-                            "issues":     issue_ids,
-                        }),
-                    )]));
+                    return Ok(envelope_pretty(
+                        "tpl status",
+                        &[(
+                            "status",
+                            json!({
+                                "templateId": id,
+                                "total":      convoy.len(),
+                                "completed":  completed,
+                                "inProgress": in_progress,
+                                "blocked":    blocked,
+                                "issues":     issue_ids,
+                            }),
+                        )],
+                    ));
                 }
                 let mut text = String::new();
                 push_line(&mut text, &format!("Convoy: {id}"));

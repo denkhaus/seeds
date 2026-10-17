@@ -27,7 +27,8 @@ fn child_summary(plan: &PlanRecord, store: &Store) -> Vec<Value> {
     let adopted: Vec<&str> = plan
         .field("adoptedChildren")
         .and_then(Value::as_array)
-        .map_or_default(|items| items.iter().filter_map(Value::as_str).collect());
+        .map(|items| items.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
     plan.children()
         .into_iter()
         .map(|id| {
@@ -119,11 +120,11 @@ pub(super) fn run_show(store: &Store, id_arg: &str, json: bool) -> CommandOutcom
         envelope.insert("children_plans".to_owned(), node["children_plans"].clone());
         return CommandOutcome {
             success: true,
-            stdout:  format!(
+            stdout: format!(
                 "{}\n",
                 serde_json::to_string_pretty(&Value::Object(envelope)).expect("serializes")
             ),
-            stderr:  String::new(),
+            stderr: String::new(),
         };
     }
     let mut out = String::new();
@@ -170,7 +171,8 @@ pub(super) fn run_show(store: &Store, id_arg: &str, json: bool) -> CommandOutcom
             .get("outcomeNote")
             .and_then(Value::as_str)
             .filter(|note| !note.is_empty())
-            .map_or_default(|note| format!(" — {note}"));
+            .map(|note| format!(" — {note}"))
+            .unwrap_or_default();
         push!(out, &format!("Outcome:  {outcome}{note}"));
     }
     let status = plan["status"].as_str().unwrap_or_default();
@@ -214,8 +216,8 @@ pub(super) fn run_show(store: &Store, id_arg: &str, json: bool) -> CommandOutcom
     }
     CommandOutcome {
         success: true,
-        stdout:  out,
-        stderr:  String::new(),
+        stdout: out,
+        stderr: String::new(),
     }
 }
 
@@ -385,7 +387,8 @@ fn render_nested(out: &mut String, entry: &Value, indent: &str) {
     let name = plan
         .get("name")
         .and_then(Value::as_str)
-        .map_or_default(|name| format!("  {name}"));
+        .map(|name| format!("  {name}"))
+        .unwrap_or_default();
     push!(
         out,
         &format!(
@@ -476,7 +479,7 @@ pub(super) fn run_validate(store: &Store, id_arg: &str, json: bool) -> CommandOu
         Ok(()) => ValidateResult::Valid(plan_id),
         Err(errors) => {
             let diff = schema::PartialStateDiff {
-                errors:  &errors,
+                errors: &errors,
                 current: &subject,
             };
             ValidateResult::Diff(serde_json::to_string_pretty(&diff).expect("serializes"))
@@ -493,26 +496,26 @@ pub(super) fn run_validate(store: &Store, id_arg: &str, json: bool) -> CommandOu
                 });
                 CommandOutcome {
                     success: true,
-                    stdout:  format!(
+                    stdout: format!(
                         "{}\n",
                         serde_json::to_string_pretty(&envelope).expect("serializes")
                     ),
-                    stderr:  String::new(),
+                    stderr: String::new(),
                 }
             } else {
                 let mut out = String::new();
                 success_line(&mut out, &format!("plan {plan_id} valid"));
                 CommandOutcome {
                     success: true,
-                    stdout:  out,
-                    stderr:  String::new(),
+                    stdout: out,
+                    stderr: String::new(),
                 }
             }
         }
         ValidateResult::Diff(diff) => CommandOutcome {
             success: false,
-            stdout:  String::new(),
-            stderr:  format!("{diff}\n"),
+            stdout: String::new(),
+            stderr: format!("{diff}\n"),
         },
     }
 }

@@ -196,23 +196,25 @@ fn inverse_sd_writes_we_round_trip_byte_identically() {
     let dir = init_repo(&reference, "inv");
     let seeds_dir = dir.join(".seeds");
 
-    let created = json_of(&run(&dir, &reference, &[
-        "create", "--title", "From sd", "--json",
-    ]));
+    let created = json_of(&run(
+        &dir,
+        &reference,
+        &["create", "--title", "From sd", "--json"],
+    ));
     let id = created["id"]
         .as_str()
         .expect("create returns id")
         .to_owned();
-    run(&dir, &reference, &[
-        "update",
-        &id,
-        "--description",
-        "described",
-        "-q",
-    ]);
-    let other = json_of(&run(&dir, &reference, &[
-        "create", "--title", "Other", "--json",
-    ]));
+    run(
+        &dir,
+        &reference,
+        &["update", &id, "--description", "described", "-q"],
+    );
+    let other = json_of(&run(
+        &dir,
+        &reference,
+        &["create", "--title", "Other", "--json"],
+    ));
     let other_id = other["id"].as_str().expect("create returns id").to_owned();
     run(&dir, &reference, &["dep", "add", &id, &other_id, "--json"]);
 
@@ -250,17 +252,23 @@ fn forward_config_and_dependencies_agree_with_sd() {
     // contract); our model must expose exactly what the reference wrote.
     let dir = init_repo(&reference, "deps");
     let seeds_dir = dir.join(".seeds");
-    let first = json_of(&run(&dir, &reference, &[
-        "create", "--title", "A", "--json",
-    ]));
-    let second = json_of(&run(&dir, &reference, &[
-        "create", "--title", "B", "--json",
-    ]));
+    let first = json_of(&run(
+        &dir,
+        &reference,
+        &["create", "--title", "A", "--json"],
+    ));
+    let second = json_of(&run(
+        &dir,
+        &reference,
+        &["create", "--title", "B", "--json"],
+    ));
     let first_id = first["id"].as_str().expect("id").to_owned();
     let second_id = second["id"].as_str().expect("id").to_owned();
-    run(&dir, &reference, &[
-        "dep", "add", &first_id, &second_id, "--json",
-    ]);
+    run(
+        &dir,
+        &reference,
+        &["dep", "add", &first_id, &second_id, "--json"],
+    );
 
     let store = Store::open(&seeds_dir).expect("load store");
     let record = store.issue(&first_id).expect("record by id");

@@ -30,11 +30,11 @@ const SCHEMA_VERSION: u8 = 7;
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct OnboardInput {
     /// Whether to only verify presence/status without writing.
-    pub check:       bool,
+    pub check: bool,
     /// Whether to print the section to stdout instead of touching files.
     pub stdout_only: bool,
     /// Whether success output is the JSON envelope.
-    pub json:        bool,
+    pub json: bool,
 }
 
 /// Runs `onboard` against the project at or above the current
@@ -99,16 +99,19 @@ fn check_outcome(target: Option<&Path>, json: bool) -> CommandOutcome {
         _ => ("missing", None),
     };
     if json {
-        let stdout = envelope_pretty("onboard", &[
-            ("status", json!(status)),
-            ("file", file.unwrap_or(Value::Null)),
-        ]);
+        let stdout = envelope_pretty(
+            "onboard",
+            &[
+                ("status", json!(status)),
+                ("file", file.unwrap_or(Value::Null)),
+            ],
+        );
         let mut text = String::new();
         push_line(&mut text, &stdout);
         return CommandOutcome {
             success: true,
-            stdout:  text,
-            stderr:  String::new(),
+            stdout: text,
+            stderr: String::new(),
         };
     }
     let mut stdout = String::new();
@@ -200,16 +203,16 @@ fn write_outcome(target: Option<&Path>, root: &Path, section: &str, json: bool) 
 /// One outcome line + envelope in the mode's shape.
 fn finish(action: &str, path: &Path, message: &str, json: bool) -> CommandOutcome {
     if json {
-        let stdout = envelope_pretty("onboard", &[
-            ("action", json!(action)),
-            ("file", path_value(path)),
-        ]);
+        let stdout = envelope_pretty(
+            "onboard",
+            &[("action", json!(action)), ("file", path_value(path))],
+        );
         let mut text = String::new();
         push_line(&mut text, &stdout);
         return CommandOutcome {
             success: true,
-            stdout:  text,
-            stderr:  String::new(),
+            stdout: text,
+            stderr: String::new(),
         };
     }
     let filled = message.replace("{}", &path.display().to_string());

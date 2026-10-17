@@ -86,11 +86,11 @@ pub fn stats(ctx: &CommandContext, input: &StatsInput) -> CommandOutcome {
 #[derive(Clone, Debug, Default)]
 pub struct DoctorInput {
     /// `--fix` (apply repairs).
-    pub fix:           bool,
+    pub fix: bool,
     /// `--repair-report` (append the repair plan in text mode).
     pub repair_report: bool,
     /// JSON envelope output.
-    pub json:          bool,
+    pub json: bool,
 }
 
 /// `doctor` — store integrity checks; unsuccessful when any check
@@ -140,8 +140,8 @@ pub fn doctor(ctx: &CommandContext, input: &DoctorInput) -> CommandOutcome {
             }
             CommandOutcome {
                 success: !report.has_failures(),
-                stdout:  out,
-                stderr:  String::new(),
+                stdout: out,
+                stderr: String::new(),
             }
         }
         Err(error) => error.into_outcome(),

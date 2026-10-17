@@ -17,14 +17,14 @@ pub(crate) struct ErrorEntry {
     /// `min`.
     pub code: String,
     /// The human-facing fix suggestion.
-    pub fix:  String,
+    pub fix: String,
 }
 
 /// The partial-state diff submit/validate print on stderr.
 #[derive(Serialize)]
 pub(crate) struct PartialStateDiff<'a> {
     /// Every collected error, in AJV's `allErrors` order.
-    pub errors:  &'a [ErrorEntry],
+    pub errors: &'a [ErrorEntry],
     /// The submitted document, verbatim.
     pub current: &'a Value,
 }
@@ -38,7 +38,7 @@ pub(crate) fn validate_plan(template: &PlanTemplate, data: &Value) -> Result<(),
         errors.push(ErrorEntry {
             path: String::new(),
             code: "type".to_owned(),
-            fix:  "'value' must be an object".to_owned(),
+            fix: "'value' must be an object".to_owned(),
         });
         return Err(errors);
     };
@@ -49,7 +49,7 @@ pub(crate) fn validate_plan(template: &PlanTemplate, data: &Value) -> Result<(),
             errors.push(ErrorEntry {
                 path: key.to_owned(),
                 code: "required".to_owned(),
-                fix:  format!("add a '{key}' field"),
+                fix: format!("add a '{key}' field"),
             });
         }
     }
@@ -60,7 +60,7 @@ pub(crate) fn validate_plan(template: &PlanTemplate, data: &Value) -> Result<(),
         errors.push(ErrorEntry {
             path: "template".to_owned(),
             code: "const".to_owned(),
-            fix:  format!("'template': const ({allowed})"),
+            fix: format!("'template': const ({allowed})"),
         });
     }
     if let Some(sections) = map.get("sections") {
@@ -84,7 +84,7 @@ fn validate_sections(template: &PlanTemplate, sections: &Value, errors: &mut Vec
         errors.push(ErrorEntry {
             path: "sections".to_owned(),
             code: "type".to_owned(),
-            fix:  "'sections' must be an object".to_owned(),
+            fix: "'sections' must be an object".to_owned(),
         });
         return;
     };
@@ -93,7 +93,7 @@ fn validate_sections(template: &PlanTemplate, sections: &Value, errors: &mut Vec
             errors.push(ErrorEntry {
                 path: format!("sections.{name}"),
                 code: "required".to_owned(),
-                fix:  format!("add a '{name}' field"),
+                fix: format!("add a '{name}' field"),
             });
         }
     }
@@ -116,7 +116,7 @@ fn validate_section(spec: &SectionSpec, path: &str, value: &Value, errors: &mut 
                 errors.push(ErrorEntry {
                     path: path.to_owned(),
                     code: "minLength".to_owned(),
-                    fix:  format!("expand '{path}' to at least {limit} characters"),
+                    fix: format!("expand '{path}' to at least {limit} characters"),
                 });
             }
         }
@@ -136,7 +136,7 @@ fn validate_section(spec: &SectionSpec, path: &str, value: &Value, errors: &mut 
                 errors.push(ErrorEntry {
                     path: path.to_owned(),
                     code: "min".to_owned(),
-                    fix:  format!("add at least {need} more {noun}"),
+                    fix: format!("add at least {need} more {noun}"),
                 });
             }
             for (index, item) in items.iter().enumerate() {
@@ -166,7 +166,7 @@ fn validate_section(spec: &SectionSpec, path: &str, value: &Value, errors: &mut 
                     errors.push(ErrorEntry {
                         path: format!("{path}.{name}"),
                         code: "required".to_owned(),
-                        fix:  format!("add a '{name}' field"),
+                        fix: format!("add a '{name}' field"),
                     });
                 }
             }
@@ -201,7 +201,7 @@ fn validate_object_entry(
             errors.push(ErrorEntry {
                 path: format!("{path}.{name}"),
                 code: "required".to_owned(),
-                fix:  format!("add a '{name}' field"),
+                fix: format!("add a '{name}' field"),
             });
         }
     }
@@ -225,7 +225,7 @@ fn validate_step(step: &Value, path: &str, errors: &mut Vec<ErrorEntry>) {
         errors.push(ErrorEntry {
             path: format!("{path}.title"),
             code: "minLength".to_owned(),
-            fix:  format!("expand '{path}.title' to at least 1 characters"),
+            fix: format!("expand '{path}.title' to at least 1 characters"),
         });
     }
     if let Some(kind) = map.get("type")
@@ -234,7 +234,7 @@ fn validate_step(step: &Value, path: &str, errors: &mut Vec<ErrorEntry>) {
         errors.push(ErrorEntry {
             path: format!("{path}.type"),
             code: "enum".to_owned(),
-            fix:  format!("'{path}.type': enum (allowedValues=task,bug,feature,epic)"),
+            fix: format!("'{path}.type': enum (allowedValues=task,bug,feature,epic)"),
         });
     }
     if let Some(priority) = map.get("priority") {
@@ -244,7 +244,7 @@ fn validate_step(step: &Value, path: &str, errors: &mut Vec<ErrorEntry>) {
             errors.push(ErrorEntry {
                 path: format!("{path}.priority"),
                 code: "type".to_owned(),
-                fix:  format!("'{path}.priority' must be an integer"),
+                fix: format!("'{path}.priority' must be an integer"),
             });
         }
     }
@@ -256,7 +256,7 @@ fn validate_step(step: &Value, path: &str, errors: &mut Vec<ErrorEntry>) {
         errors.push(ErrorEntry {
             path: format!("{path}.blocks"),
             code: "type".to_owned(),
-            fix:  format!("'{path}.blocks' must be an array of integer"),
+            fix: format!("'{path}.blocks' must be an array of integer"),
         });
     }
     if let Some(existing) = map.get("existing_seed")
@@ -265,7 +265,7 @@ fn validate_step(step: &Value, path: &str, errors: &mut Vec<ErrorEntry>) {
         errors.push(ErrorEntry {
             path: format!("{path}.existing_seed"),
             code: "minLength".to_owned(),
-            fix:  format!("expand '{path}.existing_seed' to at least 1 characters"),
+            fix: format!("expand '{path}.existing_seed' to at least 1 characters"),
         });
     }
     if let Some(labels) = map.get("labels") {
@@ -278,7 +278,7 @@ fn validate_step(step: &Value, path: &str, errors: &mut Vec<ErrorEntry>) {
             errors.push(ErrorEntry {
                 path: format!("{path}.labels"),
                 code: "pattern".to_owned(),
-                fix:  format!("'{path}.labels': pattern (pattern=\\\\S)"),
+                fix: format!("'{path}.labels': pattern (pattern=\\\\S)"),
             });
         }
     }
@@ -296,7 +296,7 @@ fn validate_title_or_adopt(steps: &[Value], section_key: &str, errors: &mut Vec<
             errors.push(ErrorEntry {
                 path: format!("sections.{section_key}.{index}"),
                 code: "missing-title".to_owned(),
-                fix:  format!(
+                fix: format!(
                     "step {} must declare either 'title' (fresh spawn) or 'existing_seed' \
                      (adoption)",
                     index + 1
@@ -328,7 +328,7 @@ fn validate_step_blocks(steps: &[Value], section_key: &str, errors: &mut Vec<Err
                 errors.push(ErrorEntry {
                     path: format!("sections.{section_key}.{index}.blocks"),
                     code: "self-reference".to_owned(),
-                    fix:  format!(
+                    fix: format!(
                         "step {step_label} cannot block itself; remove {value} from blocks"
                     ),
                 });
@@ -337,7 +337,7 @@ fn validate_step_blocks(steps: &[Value], section_key: &str, errors: &mut Vec<Err
                 errors.push(ErrorEntry {
                     path: format!("sections.{section_key}.{index}.blocks"),
                     code: "out-of-range".to_owned(),
-                    fix:  format!(
+                    fix: format!(
                         "step index {value} is out of range (step indices are 1-based; valid \
                          range 1..{})",
                         steps.len()
@@ -352,6 +352,6 @@ fn type_error(path: &str, expected: &str, _value: &Value) -> ErrorEntry {
     ErrorEntry {
         path: path.to_owned(),
         code: "type".to_owned(),
-        fix:  format!("'{path}' must be a {expected}"),
+        fix: format!("'{path}' must be a {expected}"),
     }
 }

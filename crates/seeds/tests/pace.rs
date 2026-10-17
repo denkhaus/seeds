@@ -81,10 +81,13 @@ fn write_fixture(dir: &Path) {
 
 fn pace_stats(dir: &Path, options: PaceOptions) -> String {
     let ctx = CommandContext::at(dir.join(".seeds"));
-    let outcome = commands::stats(&ctx, &StatsInput {
-        json: true,
-        pace: Some(options),
-    });
+    let outcome = commands::stats(
+        &ctx,
+        &StatsInput {
+            json: true,
+            pace: Some(options),
+        },
+    );
     assert!(outcome.success, "stats failed: {}", outcome.stderr);
     outcome.stdout
 }
@@ -93,12 +96,15 @@ fn pace_stats(dir: &Path, options: PaceOptions) -> String {
 fn pace_json_is_the_pinned_golden() {
     let dir = temp_store("golden");
     write_fixture(&dir);
-    let stdout = pace_stats(&dir, PaceOptions {
-        now: Some(NOW.to_owned()),
-        min_closures: 5,
-        exclusion_labels: vec!["backlog".to_owned()],
-        ..PaceOptions::default()
-    });
+    let stdout = pace_stats(
+        &dir,
+        PaceOptions {
+            now: Some(NOW.to_owned()),
+            min_closures: 5,
+            exclusion_labels: vec!["backlog".to_owned()],
+            ..PaceOptions::default()
+        },
+    );
     let value: Value = serde_json::from_str(stdout.trim()).expect("one JSON object");
     let pace = &value["pace"];
     // The metric semantics, pinned: 3 windowed closures at 0.7/wk,
@@ -140,14 +146,17 @@ fn pace_text_section_carries_the_metrics_and_table() {
     let dir = temp_store("text");
     write_fixture(&dir);
     let ctx = CommandContext::at(dir.join(".seeds"));
-    let outcome = commands::stats(&ctx, &StatsInput {
-        json: false,
-        pace: Some(PaceOptions {
-            now: Some(NOW.to_owned()),
-            exclusion_labels: vec!["backlog".to_owned()],
-            ..PaceOptions::default()
-        }),
-    });
+    let outcome = commands::stats(
+        &ctx,
+        &StatsInput {
+            json: false,
+            pace: Some(PaceOptions {
+                now: Some(NOW.to_owned()),
+                exclusion_labels: vec!["backlog".to_owned()],
+                ..PaceOptions::default()
+            }),
+        },
+    );
     assert!(outcome.success, "stats failed: {}", outcome.stderr);
     let text = outcome.stdout;
     // Parity section first, pace section appended.
@@ -169,24 +178,30 @@ fn pace_flag_implies_section_and_window_garbage_is_named() {
     write_fixture(&dir);
     // Any pace option implies --pace.
     let ctx = CommandContext::at(dir.join(".seeds"));
-    let outcome = commands::stats(&ctx, &StatsInput {
-        json: false,
-        pace: Some(PaceOptions {
-            window_days: 7,
-            ..PaceOptions::default()
-        }),
-    });
+    let outcome = commands::stats(
+        &ctx,
+        &StatsInput {
+            json: false,
+            pace: Some(PaceOptions {
+                window_days: 7,
+                ..PaceOptions::default()
+            }),
+        },
+    );
     assert!(outcome.success);
     assert!(outcome.stdout.contains("Rate (7d):"));
 
     // Library-side semantic validation surfaces the offending flag.
-    let bad = commands::stats(&ctx, &StatsInput {
-        json: false,
-        pace: Some(PaceOptions {
-            window_days: 0,
-            ..PaceOptions::default()
-        }),
-    });
+    let bad = commands::stats(
+        &ctx,
+        &StatsInput {
+            json: false,
+            pace: Some(PaceOptions {
+                window_days: 0,
+                ..PaceOptions::default()
+            }),
+        },
+    );
     assert!(!bad.success);
     assert!(bad.stderr.contains("--window"), "stderr: {}", bad.stderr);
 }

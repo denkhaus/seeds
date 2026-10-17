@@ -166,11 +166,11 @@ fn push_unique(list: &mut Vec<String>, value: &str) {
 #[derive(Clone, Debug)]
 pub(crate) struct PriorArtEntry {
     /// The mulch record id.
-    pub id:        String,
+    pub id: String,
     /// The record type.
-    pub kind:      String,
+    pub kind: String,
     /// `name: description` (truncated).
-    pub summary:   String,
+    pub summary: String,
     /// Rank-synthesized relevance.
     pub relevance: f64,
 }

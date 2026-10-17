@@ -99,7 +99,8 @@ pub(super) fn run_outcome(
     let note_suffix = outcome_note
         .as_deref()
         .filter(|note| !note.is_empty())
-        .map_or_default(|note| format!(" — {note}"));
+        .map(|note| format!(" — {note}"))
+        .unwrap_or_default();
     let mut out = String::new();
     success_line(
         &mut out,
@@ -141,28 +142,28 @@ pub(super) fn run_review(store: &mut Store, id_arg: &str, by: &str, json: bool) 
         });
         return CommandOutcome {
             success: true,
-            stdout:  format!(
+            stdout: format!(
                 "{}\n",
                 serde_json::to_string_pretty(&envelope).expect("serializes")
             ),
-            stderr:  String::new(),
+            stderr: String::new(),
         };
     }
     let mut out = String::new();
     success_line(&mut out, &format!("plan {plan_id} reviewed by {by}"));
     CommandOutcome {
         success: true,
-        stdout:  out,
-        stderr:  String::new(),
+        stdout: out,
+        stderr: String::new(),
     }
 }
 
 /// One parsed step-metadata patch for `plan edit --step`.
 struct StepPatch {
-    index:    usize,
-    title:    Option<String>,
+    index: usize,
+    title: Option<String>,
     priority: Option<u8>,
-    kind:     Option<String>,
+    kind: Option<String>,
 }
 
 fn parse_step_patch(
@@ -408,7 +409,8 @@ pub(super) fn run_edit(
             let parent_id = store.plans[idx].seed().unwrap_or_default().to_owned();
             let parent_title = store
                 .issue(&parent_id)
-                .map_or_default(|record| record.title().to_owned());
+                .map(|record| record.title().to_owned())
+                .unwrap_or_default();
             let approach = next_sections.get("approach").cloned();
             for position in 0..store.issues.len() {
                 let child_id = store.issues[position].id().as_str().to_owned();
@@ -419,15 +421,15 @@ pub(super) fn run_edit(
                 if approach_changed {
                     let snapshot = store.issues[position].clone();
                     let args = backref::BackrefArgs {
-                        step_index:        snapshot
+                        step_index: snapshot
                             .field("plan_step_index")
                             .and_then(Value::as_u64)
                             .and_then(|index| usize::try_from(index).ok()),
-                        plan_id:           &plan_id,
-                        parent_seed_id:    &parent_id,
+                        plan_id: &plan_id,
+                        parent_seed_id: &parent_id,
                         parent_seed_title: &parent_title,
-                        template_name:     &plan_template_name,
-                        approach:          approach.as_ref(),
+                        template_name: &plan_template_name,
+                        approach: approach.as_ref(),
                     };
                     let updated = backref::apply_plan_backref(snapshot.description(), &args);
                     let record = &mut store.issues[position];
@@ -486,11 +488,11 @@ pub(super) fn run_edit(
         });
         return CommandOutcome {
             success: true,
-            stdout:  format!(
+            stdout: format!(
                 "{}\n",
                 serde_json::to_string_pretty(&envelope).expect("serializes")
             ),
-            stderr:  String::new(),
+            stderr: String::new(),
         };
     }
     let mut out = String::new();
@@ -522,7 +524,7 @@ pub(super) fn run_edit(
     }
     CommandOutcome {
         success: true,
-        stdout:  out,
-        stderr:  String::new(),
+        stdout: out,
+        stderr: String::new(),
     }
 }

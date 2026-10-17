@@ -18,28 +18,29 @@ use crate::{Status, Store, timeutil};
 
 /// One step of the submitted plan.
 struct Step<'a> {
-    title:         Option<&'a str>,
-    kind:          Option<&'a str>,
-    priority:      Option<u64>,
-    blocks:        Vec<i64>,
+    title: Option<&'a str>,
+    kind: Option<&'a str>,
+    priority: Option<u64>,
+    blocks: Vec<i64>,
     plan_template: Option<&'a str>,
     existing_seed: Option<&'a str>,
-    labels:        Option<Vec<String>>,
+    labels: Option<Vec<String>>,
 }
 
 fn step_of(value: &Value) -> Step<'_> {
     let str_field = |key: &str| value.get(key).and_then(Value::as_str);
     Step {
-        title:         str_field("title").filter(|t| !t.is_empty()),
-        kind:          str_field("type"),
-        priority:      value.get("priority").and_then(Value::as_u64),
-        blocks:        value
+        title: str_field("title").filter(|t| !t.is_empty()),
+        kind: str_field("type"),
+        priority: value.get("priority").and_then(Value::as_u64),
+        blocks: value
             .get("blocks")
             .and_then(Value::as_array)
-            .map_or_default(|items| items.iter().filter_map(Value::as_i64).collect::<Vec<_>>()),
+            .map(|items| items.iter().filter_map(Value::as_i64).collect::<Vec<_>>())
+            .unwrap_or_default(),
         plan_template: str_field("plan_template"),
         existing_seed: str_field("existing_seed"),
-        labels:        value.get("labels").and_then(Value::as_array).map(|items| {
+        labels: value.get("labels").and_then(Value::as_array).map(|items| {
             items
                 .iter()
                 .filter_map(Value::as_str)
@@ -54,7 +55,7 @@ fn step_of(value: &Value) -> Step<'_> {
 #[derive(Clone)]
 struct Adoption {
     seed_idx: usize,
-    seed_id:  String,
+    seed_id: String,
 }
 
 struct Adoptions {
@@ -140,14 +141,14 @@ fn validate_adoptions(
 /// The per-run mutation result feeding submit's output paths.
 #[derive(Default)]
 struct SubmitOutcome {
-    aborted:     bool,
-    plan_id:     String,
-    children:    Vec<String>,
-    revision:    u64,
-    obsolete:    Vec<String>,
-    status:      String,
+    aborted: bool,
+    plan_id: String,
+    children: Vec<String>,
+    revision: u64,
+    obsolete: Vec<String>,
+    status: String,
     reviewed_by: Option<String>,
-    stderr:      String,
+    stderr: String,
 }
 
 pub(super) fn run(
@@ -194,13 +195,13 @@ pub(super) fn run(
     };
     if let Err(errors) = schema::validate_plan(template, &parsed) {
         let diff = schema::PartialStateDiff {
-            errors:  &errors,
+            errors: &errors,
             current: &parsed,
         };
         return CommandOutcome {
             success: false,
-            stdout:  String::new(),
-            stderr:  format!(
+            stdout: String::new(),
+            stderr: format!(
                 "{}\n",
                 serde_json::to_string_pretty(&diff).expect("serializes")
             ),
@@ -218,8 +219,8 @@ pub(super) fn run(
         {
             return CommandOutcome {
                 success: false,
-                stdout:  String::new(),
-                stderr:  format!(
+                stdout: String::new(),
+                stderr: format!(
                     "step {} ({}): plan_template '{reference}' is not defined. Available: \
                      {available}. Add it under plan_templates: in .seeds/config.yaml.\n",
                     index + 1,
@@ -294,15 +295,15 @@ pub(super) fn run(
     if outcome.aborted {
         return CommandOutcome {
             success: false,
-            stdout:  String::new(),
-            stderr:  outcome.stderr,
+            stdout: String::new(),
+            stderr: outcome.stderr,
         };
     }
     if outcome.aborted {
         return CommandOutcome {
             success: false,
-            stdout:  String::new(),
-            stderr:  outcome.stderr,
+            stdout: String::new(),
+            stderr: outcome.stderr,
         };
     }
 
@@ -325,7 +326,8 @@ pub(super) fn run(
             Some(domain) => {
                 let title = store
                     .issue(seed_id)
-                    .map_or_default(|record| record.title().to_owned());
+                    .map(|record| record.title().to_owned())
+                    .unwrap_or_default();
                 match mulch::record_decision(&domain, &outcome.plan_id, &title, &approach, &cwd) {
                     Ok(Some(id)) => recorded_mulch = Some(id),
                     Ok(None) => {}
@@ -364,11 +366,11 @@ pub(super) fn run(
         });
         return CommandOutcome {
             success: true,
-            stdout:  format!(
+            stdout: format!(
                 "{}\n",
                 serde_json::to_string_pretty(&envelope).expect("serializes")
             ),
-            stderr:  outcome.stderr,
+            stderr: outcome.stderr,
         };
     }
     let mut out = String::new();
@@ -429,8 +431,8 @@ pub(super) fn run(
     }
     CommandOutcome {
         success: true,
-        stdout:  out,
-        stderr:  outcome.stderr,
+        stdout: out,
+        stderr: outcome.stderr,
     }
 }
 
@@ -628,13 +630,14 @@ fn fresh_submit(
         let mut blocked_by: Vec<String> = parent
             .field("blockedBy")
             .and_then(Value::as_array)
-            .map_or_default(|items| {
+            .map(|items| {
                 items
                     .iter()
                     .filter_map(Value::as_str)
                     .map(String::from)
                     .collect()
-            });
+            })
+            .unwrap_or_default();
         for id in &final_child_ids {
             if !blocked_by.contains(id) {
                 blocked_by.push(id.clone());
@@ -868,7 +871,7 @@ fn apply_overwrite(
         let external: Vec<String> = parent
             .field("blockedBy")
             .and_then(Value::as_array)
-            .map_or_default(|items| {
+            .map(|items| {
                 items
                     .iter()
                     .filter_map(Value::as_str)
@@ -878,7 +881,8 @@ fn apply_overwrite(
                     })
                     .map(String::from)
                     .collect()
-            });
+            })
+            .unwrap_or_default();
         let mut blocked_by = external;
         blocked_by.extend(final_child_ids.iter().cloned());
         let fields = parent.fields_mut();
@@ -891,14 +895,15 @@ fn apply_overwrite(
     let surviving: Vec<String> = store.plans[plan_idx]
         .field("adoptedChildren")
         .and_then(Value::as_array)
-        .map_or_default(|items| {
+        .map(|items| {
             items
                 .iter()
                 .filter_map(Value::as_str)
                 .filter(|id| final_child_ids.iter().any(|c| c == id))
                 .map(String::from)
                 .collect()
-        });
+        })
+        .unwrap_or_default();
     let mut merged_adopted = surviving;
     for id in &adopted_external {
         if !merged_adopted.contains(id) {

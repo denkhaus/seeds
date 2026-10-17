@@ -13,35 +13,35 @@ use crate::{SeedRecord, Status, timeutil};
 #[derive(Clone, Debug, Default)]
 pub struct UpdateInput {
     /// The target id (`None` reproduces the usage error).
-    pub id:                     Option<String>,
+    pub id: Option<String>,
     /// `--status` raw text.
-    pub status:                 Option<String>,
+    pub status: Option<String>,
     /// `--title`.
-    pub title:                  Option<String>,
+    pub title: Option<String>,
     /// `--assignee` (empty string clears).
-    pub assignee:               Option<String>,
+    pub assignee: Option<String>,
     /// `--set-description` (replaces wholesale).
-    pub description:            Option<String>,
+    pub description: Option<String>,
     /// `--append-description` (appended after one blank line).
-    pub append_description:     Option<String>,
+    pub append_description: Option<String>,
     /// `--replace-in-description` (raw JSON `{"find", "replace"}` payload).
     pub replace_in_description: Option<String>,
     /// `--type` raw text.
-    pub kind:                   Option<String>,
+    pub kind: Option<String>,
     /// `--priority` raw text.
-    pub priority:               Option<String>,
+    pub priority: Option<String>,
     /// `--add-label` raw comma list.
-    pub add_label:              Option<String>,
+    pub add_label: Option<String>,
     /// `--remove-label` raw comma list.
-    pub remove_label:           Option<String>,
+    pub remove_label: Option<String>,
     /// `--set-labels` raw comma list.
-    pub set_labels:             Option<String>,
+    pub set_labels: Option<String>,
     /// `--extensions` raw JSON object text.
-    pub extensions:             Option<String>,
+    pub extensions: Option<String>,
     /// `--clear-extensions`.
-    pub clear_extensions:       bool,
+    pub clear_extensions: bool,
     /// JSON envelope output.
-    pub json:                   bool,
+    pub json: bool,
 }
 
 /// The change-shape note for a description write: which verb ran and
@@ -74,7 +74,7 @@ impl DescriptionShape {
 /// to replace once (`find`, non-empty) and its replacement (possibly
 /// empty — span deletion).
 struct ReplaceIn {
-    find:    String,
+    find: String,
     replace: String,
 }
 
@@ -101,7 +101,7 @@ impl ReplaceIn {
             return Err("--replace-in-description: find must not be empty".to_owned());
         }
         Ok(Self {
-            find:    find.to_owned(),
+            find: find.to_owned(),
             replace: replace.to_owned(),
         })
     }
@@ -313,11 +313,11 @@ pub fn update(ctx: &CommandContext, input: &UpdateInput) -> CommandOutcome {
 #[derive(Clone, Debug, Default)]
 pub struct CloseInput {
     /// The ids to close (empty reproduces the usage error).
-    pub ids:    Vec<String>,
+    pub ids: Vec<String>,
     /// `--reason` (written as `closeReason`).
     pub reason: Option<String>,
     /// JSON envelope output.
-    pub json:   bool,
+    pub json: bool,
 }
 
 /// `close` — closes one or more records with `closedAt`/`closeReason`.

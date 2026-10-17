@@ -27,9 +27,9 @@ use crate::{Fields, Store, timeutil};
 impl Default for PlanSub {
     fn default() -> Self {
         Self::List {
-            seed:     None,
-            status:   None,
-            outcome:  None,
+            seed: None,
+            status: None,
+            outcome: None,
             template: None,
         }
     }
@@ -39,7 +39,7 @@ impl Default for PlanSub {
 #[derive(Clone, Debug, Default)]
 pub struct PlanInput {
     /// The subcommand and its arguments.
-    pub sub:  PlanSub,
+    pub sub: PlanSub,
     /// JSON envelope output (`--json` anywhere in argv, sd's rule).
     pub json: bool,
 }
@@ -52,28 +52,28 @@ pub enum PlanSub {
     /// `plan prompt <seed-id>`
     Prompt {
         /// The parent seed id.
-        seed_id:  String,
+        seed_id: String,
         /// `--template` override.
         template: Option<String>,
         /// `--domain` override for prior-art enrichment.
-        domain:   Option<String>,
+        domain: Option<String>,
     },
     /// `plan submit <seed-id>`
     Submit {
         /// The parent seed id.
-        seed_id:         String,
+        seed_id: String,
         /// `--plan <file>` (`-` for stdin).
-        plan_file:       String,
+        plan_file: String,
         /// stdin contents when `--plan -` was given (read by the binary).
-        plan_stdin:      Option<String>,
+        plan_stdin: Option<String>,
         /// `--overwrite`.
-        overwrite:       bool,
+        overwrite: bool,
         /// `--record-decision`.
         record_decision: bool,
         /// `--domain` for the decision record.
-        domain:          Option<String>,
+        domain: Option<String>,
         /// `--name` override.
-        name:            Option<String>,
+        name: Option<String>,
     },
     /// `plan show <id>` (plan id or seed id).
     Show {
@@ -88,11 +88,11 @@ pub enum PlanSub {
     /// `plan outcome <id>`
     Outcome {
         /// The plan id or seed id.
-        id:     String,
+        id: String,
         /// `--result` (success|partial|failure).
         result: String,
         /// `--note`.
-        note:   Option<String>,
+        note: Option<String>,
     },
     /// `plan review <id>`
     Review {
@@ -104,66 +104,66 @@ pub enum PlanSub {
     /// `plan edit <id>`
     Edit {
         /// The plan id or seed id.
-        id:       String,
+        id: String,
         /// `--name`.
-        name:     Option<String>,
+        name: Option<String>,
         /// `--section <name> <text>`.
-        section:  Option<(String, String)>,
+        section: Option<(String, String)>,
         /// `--step <i>` (1-based raw text).
-        step:     Option<String>,
+        step: Option<String>,
         /// `--title` (with `--step`).
-        title:    Option<String>,
+        title: Option<String>,
         /// `--priority` (with `--step`).
         priority: Option<String>,
         /// `--type` (with `--step`).
-        kind:     Option<String>,
+        kind: Option<String>,
     },
     /// `plan create <seed-id>`
     Create {
         /// The parent seed id.
-        seed_id:  String,
+        seed_id: String,
         /// `--name`.
-        name:     Option<String>,
+        name: Option<String>,
         /// `--template`.
         template: Option<String>,
     },
     /// `plan adopt <plan-id> <seed-ids...>`
     Adopt {
         /// The plan id (or parent seed id).
-        plan_id:  String,
+        plan_id: String,
         /// The seeds to adopt.
         seed_ids: Vec<String>,
         /// `--step <i>`.
-        step:     Option<String>,
+        step: Option<String>,
         /// `--at <i>`.
-        at:       Option<String>,
+        at: Option<String>,
         /// `--before <seed>`.
-        before:   Option<String>,
+        before: Option<String>,
         /// `--after <seed>`.
-        after:    Option<String>,
+        after: Option<String>,
     },
     /// `plan reorder <plan-id> <seed-ids...>`
     Reorder {
         /// The plan id.
-        plan_id:  String,
+        plan_id: String,
         /// The full children order.
         seed_ids: Vec<String>,
     },
     /// `plan release <plan-id> <seed-ids...>`
     Release {
         /// The plan id.
-        plan_id:  String,
+        plan_id: String,
         /// The seeds to release.
         seed_ids: Vec<String>,
     },
     /// `plan list`
     List {
         /// `--seed` filter.
-        seed:     Option<String>,
+        seed: Option<String>,
         /// `--status` filter.
-        status:   Option<String>,
+        status: Option<String>,
         /// `--outcome` filter.
-        outcome:  Option<String>,
+        outcome: Option<String>,
         /// `--template` filter.
         template: Option<String>,
     },
@@ -391,13 +391,16 @@ pub(crate) fn merge_adopted_labels(
     if normalized.is_empty() {
         return None;
     }
-    let current: Vec<String> = existing.and_then(Value::as_array).map_or_default(|items| {
-        items
-            .iter()
-            .filter_map(Value::as_str)
-            .map(String::from)
-            .collect()
-    });
+    let current: Vec<String> = existing
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default();
     let mut merged = current.clone();
     for label in normalized {
         if !merged.contains(&label) {
@@ -472,13 +475,14 @@ pub(crate) fn append_unique_field(record_fields: &mut Fields, key: &str, id: &st
     let current: Vec<String> = record_fields
         .get(key)
         .and_then(Value::as_array)
-        .map_or_default(|items| {
+        .map(|items| {
             items
                 .iter()
                 .filter_map(Value::as_str)
                 .map(String::from)
                 .collect()
-        });
+        })
+        .unwrap_or_default();
     if current.iter().any(|entry| entry == id) {
         return false;
     }

@@ -10,17 +10,17 @@ use crate::Store;
 #[derive(Clone, Debug)]
 pub(crate) struct SectionSpec {
     /// Whether `sd plan submit` requires the section.
-    pub required:     bool,
+    pub required: bool,
     /// The section kind: text, list, steps, or a nested object.
-    pub kind:         SectionKind,
+    pub kind: SectionKind,
     /// The author-facing prompt text (`sd plan prompt`).
-    pub prompt:       String,
+    pub prompt: String,
     /// Minimum string length for text sections.
-    pub min_length:   Option<u64>,
+    pub min_length: Option<u64>,
     /// Minimum entry count for list/steps sections.
-    pub min:          Option<u64>,
+    pub min: Option<u64>,
     /// The per-entry shape for list sections.
-    pub item:         Option<ItemSpec>,
+    pub item: Option<ItemSpec>,
     /// The mulch record type used for prior-art enrichment.
     pub mulch_source: Option<String>,
 }
@@ -51,11 +51,11 @@ pub(crate) enum ItemSpec {
 #[derive(Clone, Debug)]
 pub(crate) struct PlanTemplate {
     /// The template name.
-    pub name:        String,
+    pub name: String,
     /// The one-line description (`sd plan templates`).
     pub description: Option<String>,
     /// The section specs in declaration order.
-    pub sections:    Vec<(String, SectionSpec)>,
+    pub sections: Vec<(String, SectionSpec)>,
 }
 
 impl PlanTemplate {
@@ -107,11 +107,11 @@ fn feature_template() -> PlanTemplate {
         ("rejected_because".to_owned(), text(true, None, "")),
     ]);
     PlanTemplate {
-        name:        "feature".to_owned(),
+        name: "feature".to_owned(),
         description: Some(
             "New capability or significant change. Default for type: feature.".to_owned(),
         ),
-        sections:    vec![
+        sections: vec![
             (
                 "context".to_owned(),
                 text(
@@ -137,28 +137,34 @@ fn feature_template() -> PlanTemplate {
                     "What other approaches were considered and rejected?",
                 ),
             ),
-            ("steps".to_owned(), SectionSpec {
-                required:     true,
-                kind:         SectionKind::Steps,
-                prompt:       "Decompose into ordered, independent implementation steps. Each \
+            (
+                "steps".to_owned(),
+                SectionSpec {
+                    required: true,
+                    kind: SectionKind::Steps,
+                    prompt: "Decompose into ordered, independent implementation steps. Each \
                              becomes a child seed."
-                    .to_owned(),
-                min_length:   None,
-                min:          Some(2),
-                item:         None,
-                mulch_source: None,
-            }),
-            ("risks".to_owned(), SectionSpec {
-                required:     false,
-                kind:         SectionKind::List,
-                prompt:       "What could go wrong? Known failure modes from prior work are \
+                        .to_owned(),
+                    min_length: None,
+                    min: Some(2),
+                    item: None,
+                    mulch_source: None,
+                },
+            ),
+            (
+                "risks".to_owned(),
+                SectionSpec {
+                    required: false,
+                    kind: SectionKind::List,
+                    prompt: "What could go wrong? Known failure modes from prior work are \
                              pre-filled when mulch is available."
-                    .to_owned(),
-                min_length:   None,
-                min:          None,
-                item:         Some(ItemSpec::Text),
-                mulch_source: Some("failure".to_owned()),
-            }),
+                        .to_owned(),
+                    min_length: None,
+                    min: None,
+                    item: Some(ItemSpec::Text),
+                    mulch_source: Some("failure".to_owned()),
+                },
+            ),
             (
                 "acceptance".to_owned(),
                 list(
@@ -175,12 +181,12 @@ fn feature_template() -> PlanTemplate {
 /// The built-in `bug` template (sd 0.5.15 `BUILTIN_BUG_TEMPLATE`).
 fn bug_template() -> PlanTemplate {
     PlanTemplate {
-        name:        "bug".to_owned(),
+        name: "bug".to_owned(),
         description: Some(
             "Defect fix. Adds reproduction and root_cause sections. Default for type: bug."
                 .to_owned(),
         ),
-        sections:    vec![
+        sections: vec![
             (
                 "context".to_owned(),
                 text(
@@ -214,15 +220,18 @@ fn bug_template() -> PlanTemplate {
                     "Chosen fix and the rationale for it over alternatives.",
                 ),
             ),
-            ("steps".to_owned(), SectionSpec {
-                required:     true,
-                kind:         SectionKind::Steps,
-                prompt:       "Ordered fix steps. Each becomes a child seed.".to_owned(),
-                min_length:   None,
-                min:          Some(1),
-                item:         None,
-                mulch_source: None,
-            }),
+            (
+                "steps".to_owned(),
+                SectionSpec {
+                    required: true,
+                    kind: SectionKind::Steps,
+                    prompt: "Ordered fix steps. Each becomes a child seed.".to_owned(),
+                    min_length: None,
+                    min: Some(1),
+                    item: None,
+                    mulch_source: None,
+                },
+            ),
             (
                 "acceptance".to_owned(),
                 list(
@@ -240,13 +249,13 @@ fn bug_template() -> PlanTemplate {
 /// `BUILTIN_REFACTOR_TEMPLATE`).
 fn refactor_template() -> PlanTemplate {
     PlanTemplate {
-        name:        "refactor".to_owned(),
+        name: "refactor".to_owned(),
         description: Some(
             "Internal restructuring. Adds behavior_invariant (must stay equal). Opt-in via \
              --template refactor."
                 .to_owned(),
         ),
-        sections:    vec![
+        sections: vec![
             (
                 "context".to_owned(),
                 text(true, None, "Why this refactor? What pain does it relieve?"),
@@ -264,15 +273,18 @@ fn refactor_template() -> PlanTemplate {
                 "approach".to_owned(),
                 text(true, None, "Chosen restructuring strategy."),
             ),
-            ("steps".to_owned(), SectionSpec {
-                required:     true,
-                kind:         SectionKind::Steps,
-                prompt:       "Ordered restructuring steps. Each becomes a child seed.".to_owned(),
-                min_length:   None,
-                min:          Some(1),
-                item:         None,
-                mulch_source: None,
-            }),
+            (
+                "steps".to_owned(),
+                SectionSpec {
+                    required: true,
+                    kind: SectionKind::Steps,
+                    prompt: "Ordered restructuring steps. Each becomes a child seed.".to_owned(),
+                    min_length: None,
+                    min: Some(1),
+                    item: None,
+                    mulch_source: None,
+                },
+            ),
             (
                 "acceptance".to_owned(),
                 list(

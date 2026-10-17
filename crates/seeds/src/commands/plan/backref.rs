@@ -12,17 +12,17 @@ const APPROACH_EXCERPT_MAX: usize = 240;
 #[derive(Clone, Debug)]
 pub(crate) struct BackrefArgs<'a> {
     /// 0-based step index; `None` for loose adoptions.
-    pub step_index:        Option<usize>,
+    pub step_index: Option<usize>,
     /// The plan id.
-    pub plan_id:           &'a str,
+    pub plan_id: &'a str,
     /// The parent seed id.
-    pub parent_seed_id:    &'a str,
+    pub parent_seed_id: &'a str,
     /// The parent seed title.
     pub parent_seed_title: &'a str,
     /// The plan's template name.
-    pub template_name:     &'a str,
+    pub template_name: &'a str,
     /// The plan's approach section (excerpted).
-    pub approach:          Option<&'a Value>,
+    pub approach: Option<&'a Value>,
 }
 
 use serde_json::Value;

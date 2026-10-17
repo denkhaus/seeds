@@ -157,15 +157,18 @@ fn show_single_json_uses_issue_with_reference_key_order() {
         .keys()
         .map(String::as_str)
         .collect();
-    assert_eq!(keys[..7], [
-        "id",
-        "title",
-        "status",
-        "type",
-        "priority",
-        "createdAt",
-        "updatedAt"
-    ]);
+    assert_eq!(
+        keys[..7],
+        [
+            "id",
+            "title",
+            "status",
+            "type",
+            "priority",
+            "createdAt",
+            "updatedAt"
+        ]
+    );
 }
 
 #[test]
@@ -207,18 +210,20 @@ fn list_json_envelope_and_default_scope() {
     assert_eq!(value["success"], json!(true));
     assert_eq!(value["command"], json!("list"));
     // Default scope excludes closed; sorted by priority asc.
-    assert_eq!(ids_of(&value), vec![
-        "tst-0001", "tst-0006", "tst-0002", "tst-0003", "tst-0005"
-    ]);
+    assert_eq!(
+        ids_of(&value),
+        vec!["tst-0001", "tst-0006", "tst-0002", "tst-0003", "tst-0005"]
+    );
 }
 
 #[test]
 fn list_all_includes_closed() {
     let dir = temp_store("list-all");
     write_records(&dir, &standard());
-    let value = stdout_json(&run(&dir, &[
-        "list", "--all", "--format", "json", "--sort", "id",
-    ]));
+    let value = stdout_json(&run(
+        &dir,
+        &["list", "--all", "--format", "json", "--sort", "id"],
+    ));
     assert_eq!(ids_of(&value).len(), 6);
 }
 
@@ -226,15 +231,18 @@ fn list_all_includes_closed() {
 fn list_assignee_filter() {
     let dir = temp_store("list-assignee");
     write_records(&dir, &standard());
-    let value = stdout_json(&run(&dir, &[
-        "list",
-        "--format",
-        "json",
-        "--assignee",
-        "alice",
-        "--sort",
-        "id",
-    ]));
+    let value = stdout_json(&run(
+        &dir,
+        &[
+            "list",
+            "--format",
+            "json",
+            "--assignee",
+            "alice",
+            "--sort",
+            "id",
+        ],
+    ));
     assert_eq!(ids_of(&value), vec!["tst-0001"]);
 }
 
@@ -268,13 +276,10 @@ fn ready_lists_open_unblocked_only() {
 fn ready_respects_assignee_and_limit() {
     let dir = temp_store("ready-assignee");
     write_records(&dir, &standard());
-    let value = stdout_json(&run(&dir, &[
-        "ready",
-        "--assignee",
-        "bob",
-        "--format",
-        "json",
-    ]));
+    let value = stdout_json(&run(
+        &dir,
+        &["ready", "--assignee", "bob", "--format", "json"],
+    ));
     // tst-0003 is in_progress, not open: no ready work for bob.
     assert_eq!(ids_of(&value), Vec::<String>::new());
 }
@@ -416,22 +421,25 @@ fn ids_and_compact_formats_match_reference_shapes() {
 fn create_json_and_written_record() {
     let dir = temp_store("create");
     write_records(&dir, &standard());
-    let output = run(&dir, &[
-        "create",
-        "--title",
-        "New thing",
-        "--type",
-        "bug",
-        "--priority",
-        "P1",
-        "--labels",
-        "x, y",
-        "--assignee",
-        "alice",
-        "--description",
-        "body",
-        "--json",
-    ]);
+    let output = run(
+        &dir,
+        &[
+            "create",
+            "--title",
+            "New thing",
+            "--type",
+            "bug",
+            "--priority",
+            "P1",
+            "--labels",
+            "x, y",
+            "--assignee",
+            "alice",
+            "--description",
+            "body",
+            "--json",
+        ],
+    );
     assert_eq!(output.status.code(), Some(0));
     let value = stdout_json(&output);
     assert_eq!(value["success"], json!(true));
@@ -488,19 +496,22 @@ fn create_rejects_bad_priority_and_type() {
 fn update_applies_fields_and_json_shape() {
     let dir = temp_store("update");
     write_records(&dir, &standard());
-    let output = run(&dir, &[
-        "update",
-        "tst-0002",
-        "--status",
-        "in_progress",
-        "--title",
-        "Renamed",
-        "--set-description",
-        "via alias",
-        "--add-label",
-        "a,b",
-        "--json",
-    ]);
+    let output = run(
+        &dir,
+        &[
+            "update",
+            "tst-0002",
+            "--status",
+            "in_progress",
+            "--title",
+            "Renamed",
+            "--set-description",
+            "via alias",
+            "--add-label",
+            "a,b",
+            "--json",
+        ],
+    );
     assert_eq!(output.status.code(), Some(0));
     let value = stdout_json(&output);
     assert_eq!(value["command"], json!("update"));
@@ -511,14 +522,17 @@ fn update_applies_fields_and_json_shape() {
     assert_eq!(value["issue"]["labels"], json!(["a", "b"]));
 
     // Label algebra on top.
-    run(&dir, &[
-        "update",
-        "tst-0002",
-        "--add-label",
-        "a",
-        "--remove-label",
-        "b",
-    ]);
+    run(
+        &dir,
+        &[
+            "update",
+            "tst-0002",
+            "--add-label",
+            "a",
+            "--remove-label",
+            "b",
+        ],
+    );
     let value = stdout_json(&run(&dir, &["show", "tst-0002", "--format", "json"]));
     assert_eq!(value["issue"]["labels"], json!(["a"]));
 
@@ -534,18 +548,19 @@ fn update_applies_fields_and_json_shape() {
 fn update_extensions_merge_and_clear() {
     let dir = temp_store("update-ext");
     write_records(&dir, &standard());
-    run(&dir, &[
-        "update",
-        "tst-0002",
-        "--extensions",
-        "{\"queued\":true,\"note\":\"a\"}",
-    ]);
-    run(&dir, &[
-        "update",
-        "tst-0002",
-        "--extensions",
-        "{\"note\":\"b\"}",
-    ]);
+    run(
+        &dir,
+        &[
+            "update",
+            "tst-0002",
+            "--extensions",
+            "{\"queued\":true,\"note\":\"a\"}",
+        ],
+    );
+    run(
+        &dir,
+        &["update", "tst-0002", "--extensions", "{\"note\":\"b\"}"],
+    );
     let stored = read_records(&dir)
         .into_iter()
         .find(|record| record["id"] == json!("tst-0002"))
@@ -571,12 +586,15 @@ fn update_description_verbs_append_and_change_shape() {
 
     // Set names its change shape: old -> new chars (tst-0002 starts
     // with the 27-char "Mention parity in the guide").
-    let output = run(&dir, &[
-        "update",
-        "tst-0002",
-        "--set-description",
-        "Original body.\n\n",
-    ]);
+    let output = run(
+        &dir,
+        &[
+            "update",
+            "tst-0002",
+            "--set-description",
+            "Original body.\n\n",
+        ],
+    );
     assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
     let lines: Vec<&str> = stdout.lines().collect();
@@ -585,12 +603,15 @@ fn update_description_verbs_append_and_change_shape() {
 
     // Append joins with exactly one blank line: trailing whitespace on
     // the existing text is trimmed, the appended text both sides.
-    let output = run(&dir, &[
-        "update",
-        "tst-0002",
-        "--append-description",
-        " Evidence block. ",
-    ]);
+    let output = run(
+        &dir,
+        &[
+            "update",
+            "tst-0002",
+            "--append-description",
+            " Evidence block. ",
+        ],
+    );
     assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
     let lines: Vec<&str> = stdout.lines().collect();
@@ -606,12 +627,10 @@ fn update_description_verbs_append_and_change_shape() {
 
     // Append onto a record without a description: first content, no
     // leading blank line, shape line still reports the total.
-    let output = run(&dir, &[
-        "update",
-        "tst-0003",
-        "--append-description",
-        "First note",
-    ]);
+    let output = run(
+        &dir,
+        &["update", "tst-0003", "--append-description", "First note"],
+    );
     assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
     let lines: Vec<&str> = stdout.lines().collect();
@@ -628,14 +647,17 @@ fn update_description_verbs_reject_bad_input() {
     let dir = temp_store("update-desc-verbs-errors");
     write_records(&dir, &standard());
 
-    let output = run(&dir, &[
-        "update",
-        "tst-0002",
-        "--set-description",
-        "a",
-        "--append-description",
-        "b",
-    ]);
+    let output = run(
+        &dir,
+        &[
+            "update",
+            "tst-0002",
+            "--set-description",
+            "a",
+            "--append-description",
+            "b",
+        ],
+    );
     assert_eq!(output.status.code(), Some(1));
     let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
     assert!(stderr.contains("mutually exclusive"), "stderr: {stderr}");
@@ -679,21 +701,27 @@ fn update_description_set_aliases_are_gone() {
 fn update_replace_in_description_span_surgery() {
     let dir = temp_store("update-replace-in");
     write_records(&dir, &standard());
-    run(&dir, &[
-        "update",
-        "tst-0002",
-        "--set-description",
-        "Demand line.\nBasis: hash-aaaa\nDesign: keep",
-    ]);
+    run(
+        &dir,
+        &[
+            "update",
+            "tst-0002",
+            "--set-description",
+            "Demand line.\nBasis: hash-aaaa\nDesign: keep",
+        ],
+    );
 
     // Exactly one occurrence: replaced, shape line names the sizes
     // (42 chars -> 42 chars, same-length hash swap).
-    let output = run(&dir, &[
-        "update",
-        "tst-0002",
-        "--replace-in-description",
-        r#"{"find": "hash-aaaa", "replace": "hash-bbbb"}"#,
-    ]);
+    let output = run(
+        &dir,
+        &[
+            "update",
+            "tst-0002",
+            "--replace-in-description",
+            r#"{"find": "hash-aaaa", "replace": "hash-bbbb"}"#,
+        ],
+    );
     assert_eq!(output.status.code(), Some(0));
     let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
     let lines: Vec<&str> = stdout.lines().collect();
@@ -710,12 +738,15 @@ fn update_replace_in_description_span_surgery() {
 
     // Empty replace deletes the span (span semantics: the trailing
     // newline stays, 42 -> 30 chars).
-    let output = run(&dir, &[
-        "update",
-        "tst-0002",
-        "--replace-in-description",
-        r#"{"find": "\nDesign: keep", "replace": ""}"#,
-    ]);
+    let output = run(
+        &dir,
+        &[
+            "update",
+            "tst-0002",
+            "--replace-in-description",
+            r#"{"find": "\nDesign: keep", "replace": ""}"#,
+        ],
+    );
     assert_eq!(output.status.code(), Some(0));
     let stored = read_records(&dir)
         .into_iter()
@@ -731,12 +762,15 @@ fn update_replace_in_description_span_surgery() {
 fn update_replace_in_description_fails_loud() {
     let dir = temp_store("update-replace-in-errors");
     write_records(&dir, &standard());
-    run(&dir, &[
-        "update",
-        "tst-0002",
-        "--set-description",
-        "one tag and tag again",
-    ]);
+    run(
+        &dir,
+        &[
+            "update",
+            "tst-0002",
+            "--set-description",
+            "one tag and tag again",
+        ],
+    );
 
     let cases: Vec<(&[&str], &str)> = vec![
         (
@@ -822,14 +856,17 @@ fn update_takes_no_format_flag_and_reports_missing_issue() {
 fn close_json_reason_and_written_fields() {
     let dir = temp_store("close");
     write_records(&dir, &standard());
-    let output = run(&dir, &[
-        "close",
-        "tst-0001",
-        "tst-0002",
-        "--reason",
-        "done here",
-        "--json",
-    ]);
+    let output = run(
+        &dir,
+        &[
+            "close",
+            "tst-0001",
+            "tst-0002",
+            "--reason",
+            "done here",
+            "--json",
+        ],
+    );
     assert_eq!(output.status.code(), Some(0));
     let value = stdout_json(&output);
     assert_eq!(value["command"], json!("close"));
@@ -1164,20 +1201,23 @@ fn doctor_json_is_machine_readable_and_repair_report_names_the_fix() {
         .iter()
         .map(|check| check["name"].as_str().expect("name"))
         .collect();
-    assert_eq!(names, vec![
-        "config",
-        "jsonl-integrity",
-        "schema-validation",
-        "duplicate-ids",
-        "referential-integrity",
-        "bidirectional-consistency",
-        "circular-dependencies",
-        "label-schema",
-        "extensions-schema",
-        "closed-fields-consistency",
-        "stale-locks",
-        "gitattributes",
-    ]);
+    assert_eq!(
+        names,
+        vec![
+            "config",
+            "jsonl-integrity",
+            "schema-validation",
+            "duplicate-ids",
+            "referential-integrity",
+            "bidirectional-consistency",
+            "circular-dependencies",
+            "label-schema",
+            "extensions-schema",
+            "closed-fields-consistency",
+            "stale-locks",
+            "gitattributes",
+        ]
+    );
     // Pure --json: no repair keys (parity surface).
     assert!(checks.iter().all(|check| check.get("repair").is_none()));
 

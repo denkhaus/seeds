@@ -21,15 +21,15 @@ use crate::model::{Fields, PlanRecord, SeedRecord, TemplateRecord};
 /// releases when the store drops.
 #[derive(Debug)]
 pub struct Store {
-    root:          PathBuf,
+    root: PathBuf,
     /// The writer lock held by `open_exclusive` sessions.
-    lock:          Option<WriterLock>,
+    lock: Option<WriterLock>,
     /// The parsed `config.yaml`.
-    pub config:    Config,
+    pub config: Config,
     /// The `issues.jsonl` records.
-    pub issues:    Vec<SeedRecord>,
+    pub issues: Vec<SeedRecord>,
     /// The `plans.jsonl` records.
-    pub plans:     Vec<PlanRecord>,
+    pub plans: Vec<PlanRecord>,
     /// The `templates.jsonl` records.
     pub templates: Vec<TemplateRecord>,
 }
@@ -185,8 +185,8 @@ where
             source,
         })?;
         let record = build(fields).map_err(|error| Error::Record {
-            file:    path.clone(),
-            line:    index + 1,
+            file: path.clone(),
+            line: index + 1,
             message: error.to_string(),
         })?;
         records.push(record);

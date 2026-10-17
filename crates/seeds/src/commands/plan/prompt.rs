@@ -92,7 +92,7 @@ fn build_plan_request(
                 .iter()
                 .find(|(slot, _)| slot == name)
                 .map(|(_, entries)| entries)
-                .map_or_default(|entries| {
+                .map(|entries| {
                     entries
                         .iter()
                         .map(|entry| {
@@ -104,7 +104,8 @@ fn build_plan_request(
                             })
                         })
                         .collect::<Vec<_>>()
-                });
+                })
+                .unwrap_or_default();
             section.insert("prior_art".to_owned(), Value::Array(entries));
             if let Some(min_length) = spec.min_length {
                 section.insert("min_length".to_owned(), json!(min_length));
@@ -224,17 +225,18 @@ pub(super) fn run(
         envelope.insert("plan_request".to_owned(), plan_request);
         return crate::commands::CommandOutcome {
             success: true,
-            stdout:  format!(
+            stdout: format!(
                 "{}\n",
                 serde_json::to_string_pretty(&Value::Object(envelope)).expect("serializes")
             ),
-            stderr:  String::new(),
+            stderr: String::new(),
         };
     }
     let seed_title = plan_request["seed"]
         .as_str()
         .and_then(|id| store.issue(id))
-        .map_or_default(|record| record.title().to_owned());
+        .map(|record| record.title().to_owned())
+        .unwrap_or_default();
     let mut out = String::new();
     let mut push = |line: &str| {
         out.push_str(line);
@@ -283,8 +285,8 @@ pub(super) fn run(
     ));
     crate::commands::CommandOutcome {
         success: true,
-        stdout:  out,
-        stderr:  String::new(),
+        stdout: out,
+        stderr: String::new(),
     }
 }
 

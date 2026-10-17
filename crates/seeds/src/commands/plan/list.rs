@@ -38,11 +38,11 @@ pub(super) fn templates(store: &Store, json: bool) -> CommandOutcome {
         });
         return CommandOutcome {
             success: true,
-            stdout:  format!(
+            stdout: format!(
                 "{}\n",
                 serde_json::to_string_pretty(&envelope).expect("serializes")
             ),
-            stderr:  String::new(),
+            stderr: String::new(),
         };
     }
     let mut out = String::from("Available templates:\n");
@@ -57,8 +57,8 @@ pub(super) fn templates(store: &Store, json: bool) -> CommandOutcome {
     }
     CommandOutcome {
         success: true,
-        stdout:  out,
-        stderr:  String::new(),
+        stdout: out,
+        stderr: String::new(),
     }
 }
 
@@ -130,18 +130,18 @@ pub(super) fn run_list(
         });
         return CommandOutcome {
             success: true,
-            stdout:  format!(
+            stdout: format!(
                 "{}\n",
                 serde_json::to_string_pretty(&envelope).expect("serializes")
             ),
-            stderr:  String::new(),
+            stderr: String::new(),
         };
     }
     if filtered.is_empty() {
         return CommandOutcome {
             success: true,
-            stdout:  "No plans match.\n".to_owned(),
-            stderr:  String::new(),
+            stdout: "No plans match.\n".to_owned(),
+            stderr: String::new(),
         };
     }
     let mut out = String::new();
@@ -153,7 +153,8 @@ pub(super) fn run_list(
         let outcome_part = record
             .field("outcome")
             .and_then(Value::as_str)
-            .map_or_default(|outcome| format!(" ({outcome})"));
+            .map(|outcome| format!(" ({outcome})"))
+            .unwrap_or_default();
         out.push_str(&format!(
             "{}  {}  rev {}{}  {}  seed={}  children={}{}  {}\n",
             record.id(),
@@ -175,8 +176,8 @@ pub(super) fn run_list(
     }
     CommandOutcome {
         success: true,
-        stdout:  out,
-        stderr:  String::new(),
+        stdout: out,
+        stderr: String::new(),
     }
 }
 

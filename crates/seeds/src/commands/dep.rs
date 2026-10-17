@@ -16,14 +16,15 @@ fn remove_dep_field(record: &mut SeedRecord, name: &str, dep: &str) {
         .fields()
         .get(name)
         .and_then(Value::as_array)
-        .map_or_default(|items| {
+        .map(|items| {
             items
                 .iter()
                 .filter_map(Value::as_str)
                 .filter(|id| *id != dep)
                 .map(str::to_owned)
                 .collect()
-        });
+        })
+        .unwrap_or_default();
     if remaining.is_empty() {
         record.remove_field(name);
     } else {
@@ -37,7 +38,7 @@ fn remove_dep_field(record: &mut SeedRecord, name: &str, dep: &str) {
 pub struct DepAddInput {
     /// `<issue> <depends-on>` positionals (wrong count reproduces the
     /// usage error).
-    pub ids:  Vec<String>,
+    pub ids: Vec<String>,
     /// JSON envelope output.
     pub json: bool,
 }
@@ -97,10 +98,13 @@ pub fn dep_add(ctx: &CommandContext, input: &DepAddInput) -> CommandOutcome {
             if json {
                 push_line(
                     &mut out,
-                    &envelope_pretty("dep add", &[
-                        ("issueId", json!(issue_id)),
-                        ("dependsOnId", json!(depends_on_id)),
-                    ]),
+                    &envelope_pretty(
+                        "dep add",
+                        &[
+                            ("issueId", json!(issue_id)),
+                            ("dependsOnId", json!(depends_on_id)),
+                        ],
+                    ),
                 );
             } else {
                 push_line(
@@ -119,7 +123,7 @@ pub fn dep_add(ctx: &CommandContext, input: &DepAddInput) -> CommandOutcome {
 pub struct DepRemoveInput {
     /// `<issue> <depends-on>` positionals (wrong count reproduces the
     /// usage error).
-    pub ids:  Vec<String>,
+    pub ids: Vec<String>,
     /// JSON envelope output.
     pub json: bool,
 }
@@ -173,10 +177,13 @@ pub fn dep_remove(ctx: &CommandContext, input: &DepRemoveInput) -> CommandOutcom
             if json {
                 push_line(
                     &mut out,
-                    &envelope_pretty("dep remove", &[
-                        ("issueId", json!(issue_id)),
-                        ("dependsOnId", json!(depends_on_id)),
-                    ]),
+                    &envelope_pretty(
+                        "dep remove",
+                        &[
+                            ("issueId", json!(issue_id)),
+                            ("dependsOnId", json!(depends_on_id)),
+                        ],
+                    ),
                 );
             } else {
                 push_line(
@@ -194,7 +201,7 @@ pub fn dep_remove(ctx: &CommandContext, input: &DepRemoveInput) -> CommandOutcom
 #[derive(Clone, Debug, Default)]
 pub struct DepListInput {
     /// The issue id (`None` reproduces the usage error).
-    pub id:   Option<String>,
+    pub id: Option<String>,
     /// JSON envelope output.
     pub json: bool,
 }
@@ -227,11 +234,14 @@ pub fn dep_list(ctx: &CommandContext, input: &DepListInput) -> CommandOutcome {
                 let blocks: Vec<Value> = record.blocks().into_iter().map(|id| json!(id)).collect();
                 push_line(
                     &mut out,
-                    &envelope_pretty("dep list", &[
-                        ("issueId", json!(record.id().as_str())),
-                        ("blockedBy", Value::Array(blocked_by)),
-                        ("blocks", Value::Array(blocks)),
-                    ]),
+                    &envelope_pretty(
+                        "dep list",
+                        &[
+                            ("issueId", json!(record.id().as_str())),
+                            ("blockedBy", Value::Array(blocked_by)),
+                            ("blocks", Value::Array(blocks)),
+                        ],
+                    ),
                 );
             } else {
                 let unresolved = |dep: &str| -> bool {
@@ -254,7 +264,7 @@ pub struct BlockedInput {
     /// `--format` raw text.
     pub format: Option<String>,
     /// JSON envelope output.
-    pub json:   bool,
+    pub json: bool,
 }
 
 /// `blocked` — non-closed records with at least one unresolved blocker.
@@ -283,10 +293,10 @@ pub fn blocked(ctx: &CommandContext, input: &BlockedInput) -> CommandOutcome {
                 let issues: Vec<Value> = records.iter().map(issue_value).collect();
                 push_line(
                     &mut out,
-                    &envelope_pretty("blocked", &[
-                        ("issues", json!(issues)),
-                        ("count", json!(issues.len())),
-                    ]),
+                    &envelope_pretty(
+                        "blocked",
+                        &[("issues", json!(issues)), ("count", json!(issues.len()))],
+                    ),
                 );
             } else {
                 let mode = render::render_mode(input.format.as_deref());
@@ -322,9 +332,9 @@ pub fn blocked(ctx: &CommandContext, input: &BlockedInput) -> CommandOutcome {
 #[derive(Clone, Debug, Default)]
 pub struct BlockInput {
     /// The target id (`None` reproduces the usage error).
-    pub id:   Option<String>,
+    pub id: Option<String>,
     /// `--by <blocker-id>` (`None` reproduces the usage error).
-    pub by:   Option<String>,
+    pub by: Option<String>,
     /// JSON envelope output.
     pub json: bool,
 }
@@ -384,10 +394,10 @@ pub fn block(ctx: &CommandContext, input: &BlockInput) -> CommandOutcome {
             if json {
                 push_line(
                     &mut out,
-                    &envelope_pretty("block", &[
-                        ("issueId", json!(id)),
-                        ("blockerId", json!(blocker_id)),
-                    ]),
+                    &envelope_pretty(
+                        "block",
+                        &[("issueId", json!(id)), ("blockerId", json!(blocker_id))],
+                    ),
                 );
             } else {
                 push_line(&mut out, &format!("{id} is now blocked by {blocker_id}"));
@@ -402,11 +412,11 @@ pub fn block(ctx: &CommandContext, input: &BlockInput) -> CommandOutcome {
 #[derive(Clone, Debug, Default)]
 pub struct UnblockInput {
     /// The target id (`None` reproduces the usage error).
-    pub id:   Option<String>,
+    pub id: Option<String>,
     /// `--from <blocker-id>`.
     pub from: Option<String>,
     /// `--all` (only closed blockers).
-    pub all:  bool,
+    pub all: bool,
     /// JSON envelope output.
     pub json: bool,
 }
@@ -496,10 +506,13 @@ pub fn unblock(ctx: &CommandContext, input: &UnblockInput) -> CommandOutcome {
                 let removed_value: Vec<Value> = removed.iter().map(|r| json!(r)).collect();
                 push_line(
                     &mut out,
-                    &envelope_pretty("unblock", &[
-                        ("issueId", json!(id)),
-                        ("removed", Value::Array(removed_value)),
-                    ]),
+                    &envelope_pretty(
+                        "unblock",
+                        &[
+                            ("issueId", json!(id)),
+                            ("removed", Value::Array(removed_value)),
+                        ],
+                    ),
                 );
             } else if removed.is_empty() {
                 push_line(

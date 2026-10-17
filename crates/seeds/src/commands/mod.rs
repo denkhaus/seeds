@@ -67,9 +67,9 @@ pub struct CommandOutcome {
     /// The success meaning of the command (exit 0 when true).
     pub success: bool,
     /// The exact bytes the CLI prints on stdout (newlines included).
-    pub stdout:  String,
+    pub stdout: String,
     /// The exact bytes the CLI prints on stderr (newlines included).
-    pub stderr:  String,
+    pub stderr: String,
 }
 
 impl CommandOutcome {
@@ -152,9 +152,9 @@ fn find_seeds_dir() -> Result<PathBuf, String> {
 /// `Error: …` stderr line, always unsuccessful — the reference's
 /// observed behavior.
 struct CommandError {
-    command:    String,
-    message:    String,
-    json:       bool,
+    command: String,
+    message: String,
+    json: bool,
     raw_stderr: bool,
 }
 
@@ -173,9 +173,9 @@ impl CommandError {
     /// behavior.
     fn stderr_only(message: &str) -> Self {
         Self {
-            command:    String::new(),
-            message:    message.to_owned(),
-            json:       false,
+            command: String::new(),
+            message: message.to_owned(),
+            json: false,
             raw_stderr: true,
         }
     }
@@ -185,8 +185,8 @@ impl CommandError {
         if self.raw_stderr {
             return CommandOutcome {
                 success: false,
-                stdout:  String::new(),
-                stderr:  format!("{}\n", self.message),
+                stdout: String::new(),
+                stderr: format!("{}\n", self.message),
             };
         }
         if self.json {
@@ -205,8 +205,8 @@ impl CommandError {
         } else {
             CommandOutcome {
                 success: false,
-                stdout:  String::new(),
-                stderr:  format!("Error: {}\n", self.message),
+                stdout: String::new(),
+                stderr: format!("Error: {}\n", self.message),
             }
         }
     }

@@ -226,7 +226,7 @@ fn skip_note() {
 /// worktree; identical environments rule out environment skew).
 struct Pair {
     reference_dir: PathBuf,
-    ours_dir:      PathBuf,
+    ours_dir: PathBuf,
 }
 
 fn materialize(tag: &str, side: &str) -> PathBuf {
@@ -259,7 +259,7 @@ fn materialize(tag: &str, side: &str) -> PathBuf {
 fn fixture_pair(tag: &str) -> Pair {
     Pair {
         reference_dir: materialize(tag, "sd"),
-        ours_dir:      materialize(tag, "ours"),
+        ours_dir: materialize(tag, "ours"),
     }
 }
 
@@ -388,9 +388,9 @@ fn assert_command_parity(reference: &Path, case: &str, args: &[&str]) {
 /// One generated comparison case: `command` drives the coverage guard,
 /// `args` runs identically through both binaries.
 struct Case {
-    name:    &'static str,
+    name: &'static str,
     command: &'static str,
-    args:    &'static [&'static str],
+    args: &'static [&'static str],
 }
 
 /// The differential matrix. Deliberate divergences do NOT belong here
@@ -400,14 +400,14 @@ fn matrix() -> Vec<Case> {
     vec![
         // list: filters, limits, format variants
         Case {
-            name:    "list_default",
+            name: "list_default",
             command: "list",
-            args:    &["list", "--format", "json"],
+            args: &["list", "--format", "json"],
         },
         Case {
-            name:    "list_assignee",
+            name: "list_assignee",
             command: "list",
-            args:    &[
+            args: &[
                 "list",
                 "--format",
                 "json",
@@ -418,9 +418,9 @@ fn matrix() -> Vec<Case> {
             ],
         },
         Case {
-            name:    "list_status",
+            name: "list_status",
             command: "list",
-            args:    &[
+            args: &[
                 "list",
                 "--format",
                 "json",
@@ -431,35 +431,35 @@ fn matrix() -> Vec<Case> {
             ],
         },
         Case {
-            name:    "list_limit",
+            name: "list_limit",
             command: "list",
-            args:    &["list", "--format", "json", "--limit", "2"],
+            args: &["list", "--format", "json", "--limit", "2"],
         },
         Case {
-            name:    "list_ids_format",
+            name: "list_ids_format",
             command: "list",
-            args:    &["list", "--format", "ids", "--sort", "id"],
+            args: &["list", "--format", "ids", "--sort", "id"],
         },
         Case {
-            name:    "list_compact_format",
+            name: "list_compact_format",
             command: "list",
-            args:    &["list", "--format", "compact", "--sort", "id"],
+            args: &["list", "--format", "compact", "--sort", "id"],
         },
         Case {
-            name:    "list_all_includes_closed",
+            name: "list_all_includes_closed",
             command: "list",
-            args:    &["list", "--all", "--format", "json", "--sort", "id"],
+            args: &["list", "--all", "--format", "json", "--sort", "id"],
         },
         // ready
         Case {
-            name:    "ready_default",
+            name: "ready_default",
             command: "ready",
-            args:    &["ready", "--format", "json"],
+            args: &["ready", "--format", "json"],
         },
         Case {
-            name:    "ready_assignee_and_limit",
+            name: "ready_assignee_and_limit",
             command: "ready",
-            args:    &[
+            args: &[
                 "ready",
                 "--assignee",
                 "alice",
@@ -471,103 +471,103 @@ fn matrix() -> Vec<Case> {
         },
         // show: single, multi, error path
         Case {
-            name:    "show_single_json",
+            name: "show_single_json",
             command: "show",
-            args:    &["show", "tst-0001", "--format", "json"],
+            args: &["show", "tst-0001", "--format", "json"],
         },
         Case {
-            name:    "show_multi_json",
+            name: "show_multi_json",
             command: "show",
-            args:    &["show", "tst-0001", "tst-0002", "--json"],
+            args: &["show", "tst-0001", "tst-0002", "--json"],
         },
         Case {
-            name:    "show_multi_partial_json_flag",
+            name: "show_multi_partial_json_flag",
             command: "show",
-            args:    &["show", "tst-0001", "tst-zzzz", "--json"],
+            args: &["show", "tst-0001", "tst-zzzz", "--json"],
         },
         Case {
-            name:    "show_multi_partial_format_json",
+            name: "show_multi_partial_format_json",
             command: "show",
-            args:    &["show", "tst-0001", "tst-zzzz", "--format", "json"],
+            args: &["show", "tst-0001", "tst-zzzz", "--format", "json"],
         },
         Case {
-            name:    "show_missing_id_error",
+            name: "show_missing_id_error",
             command: "show",
-            args:    &["show", "tst-zzzz", "--format", "json"],
+            args: &["show", "tst-zzzz", "--format", "json"],
         },
         Case {
-            name:    "show_missing_id_json_flag",
+            name: "show_missing_id_json_flag",
             command: "show",
-            args:    &["show", "tst-zzzz", "--json"],
+            args: &["show", "tst-zzzz", "--json"],
         },
         Case {
-            name:    "show_no_args_error",
+            name: "show_no_args_error",
             command: "show",
-            args:    &["show", "--json"],
+            args: &["show", "--json"],
         },
         // search: hit, miss, missing-argument error
         Case {
-            name:    "search_hit",
+            name: "search_hit",
             command: "search",
-            args:    &["search", "parity", "--format", "json"],
+            args: &["search", "parity", "--format", "json"],
         },
         Case {
-            name:    "search_no_hit",
+            name: "search_no_hit",
             command: "search",
-            args:    &["search", "zzz-nothing", "--format", "json"],
+            args: &["search", "zzz-nothing", "--format", "json"],
         },
         Case {
-            name:    "search_missing_query_error",
+            name: "search_missing_query_error",
             command: "search",
-            args:    &["search", "--format", "json"],
+            args: &["search", "--format", "json"],
         },
         // update: status, assignee, add-label, error path
         Case {
-            name:    "update_status",
+            name: "update_status",
             command: "update",
-            args:    &["update", "tst-0002", "--status", "in_progress", "--json"],
+            args: &["update", "tst-0002", "--status", "in_progress", "--json"],
         },
         Case {
-            name:    "update_assignee",
+            name: "update_assignee",
             command: "update",
-            args:    &["update", "tst-0002", "--assignee", "carol", "--json"],
+            args: &["update", "tst-0002", "--assignee", "carol", "--json"],
         },
         Case {
-            name:    "update_add_label",
+            name: "update_add_label",
             command: "update",
-            args:    &["update", "tst-0003", "--add-label", "x,y", "--json"],
+            args: &["update", "tst-0003", "--add-label", "x,y", "--json"],
         },
         Case {
-            name:    "update_missing_id_error",
+            name: "update_missing_id_error",
             command: "update",
-            args:    &["update", "tst-zzzz", "--title", "x", "--json"],
+            args: &["update", "tst-zzzz", "--title", "x", "--json"],
         },
         // close: with reason, closing a blocker, error path
         Case {
-            name:    "close_with_reason",
+            name: "close_with_reason",
             command: "close",
-            args:    &["close", "tst-0002", "--reason", "done here", "--json"],
+            args: &["close", "tst-0002", "--reason", "done here", "--json"],
         },
         Case {
-            name:    "close_blocker",
+            name: "close_blocker",
             command: "close",
-            args:    &["close", "tst-0001", "--json"],
+            args: &["close", "tst-0001", "--json"],
         },
         Case {
-            name:    "close_missing_id_error",
+            name: "close_missing_id_error",
             command: "close",
-            args:    &["close", "tst-zzzz", "--json"],
+            args: &["close", "tst-zzzz", "--json"],
         },
         // dep add: happy path, error path
         Case {
-            name:    "dep_add",
+            name: "dep_add",
             command: "dep",
-            args:    &["dep", "add", "tst-0002", "tst-0003", "--json"],
+            args: &["dep", "add", "tst-0002", "tst-0003", "--json"],
         },
         Case {
-            name:    "dep_add_missing_id_error",
+            name: "dep_add_missing_id_error",
             command: "dep",
-            args:    &["dep", "add", "tst-zzzz", "tst-0001", "--json"],
+            args: &["dep", "add", "tst-zzzz", "tst-0001", "--json"],
         },
         // prime: covered by the tailored test (documented deviation —
         // the examples name the live `seeds` CLI, README DEVIATIONS).
@@ -575,168 +575,168 @@ fn matrix() -> Vec<Case> {
         // tst-0006 blocked by open tst-0001; tst-0005's closed
         // blocker resolves and stays out).
         Case {
-            name:    "blocked_default",
+            name: "blocked_default",
             command: "blocked",
-            args:    &["blocked"],
+            args: &["blocked"],
         },
         Case {
-            name:    "blocked_compact",
+            name: "blocked_compact",
             command: "blocked",
-            args:    &["blocked", "--format", "compact"],
+            args: &["blocked", "--format", "compact"],
         },
         Case {
-            name:    "blocked_ids",
+            name: "blocked_ids",
             command: "blocked",
-            args:    &["blocked", "--format", "ids"],
+            args: &["blocked", "--format", "ids"],
         },
         Case {
-            name:    "blocked_json",
+            name: "blocked_json",
             command: "blocked",
-            args:    &["blocked", "--json"],
+            args: &["blocked", "--json"],
         },
         // block / unblock: happy paths, idempotence, error paths
         Case {
-            name:    "block_adds_blocker",
+            name: "block_adds_blocker",
             command: "block",
-            args:    &["block", "tst-0002", "--by", "tst-0004"],
+            args: &["block", "tst-0002", "--by", "tst-0004"],
         },
         Case {
-            name:    "block_json",
+            name: "block_json",
             command: "block",
-            args:    &["block", "tst-0002", "--by", "tst-0004", "--json"],
+            args: &["block", "tst-0002", "--by", "tst-0004", "--json"],
         },
         Case {
-            name:    "block_missing_id_error",
+            name: "block_missing_id_error",
             command: "block",
-            args:    &["block", "tst-zzzz", "--by", "tst-0001", "--json"],
+            args: &["block", "tst-zzzz", "--by", "tst-0001", "--json"],
         },
         Case {
-            name:    "unblock_from",
+            name: "unblock_from",
             command: "unblock",
-            args:    &["unblock", "tst-0006", "--from", "tst-0001"],
+            args: &["unblock", "tst-0006", "--from", "tst-0001"],
         },
         Case {
-            name:    "unblock_from_json",
+            name: "unblock_from_json",
             command: "unblock",
-            args:    &["unblock", "tst-0006", "--from", "tst-0001", "--json"],
+            args: &["unblock", "tst-0006", "--from", "tst-0001", "--json"],
         },
         Case {
-            name:    "unblock_not_blocked_error",
+            name: "unblock_not_blocked_error",
             command: "unblock",
-            args:    &["unblock", "tst-0006", "--from", "tst-0004", "--json"],
+            args: &["unblock", "tst-0006", "--from", "tst-0004", "--json"],
         },
         Case {
-            name:    "unblock_all_no_closed",
+            name: "unblock_all_no_closed",
             command: "unblock",
-            args:    &["unblock", "tst-0006", "--all"],
+            args: &["unblock", "tst-0006", "--all"],
         },
         // label: add/remove/list/list-all, error paths
         Case {
-            name:    "label_add",
+            name: "label_add",
             command: "label",
-            args:    &["label", "add", "tst-0002", "alpha", "beta"],
+            args: &["label", "add", "tst-0002", "alpha", "beta"],
         },
         Case {
-            name:    "label_add_json",
+            name: "label_add_json",
             command: "label",
-            args:    &["label", "add", "tst-0002", "alpha", "--json"],
+            args: &["label", "add", "tst-0002", "alpha", "--json"],
         },
         Case {
-            name:    "label_add_missing_error",
+            name: "label_add_missing_error",
             command: "label",
-            args:    &["label", "add", "tst-zzzz", "x", "--json"],
+            args: &["label", "add", "tst-zzzz", "x", "--json"],
         },
         Case {
-            name:    "label_remove",
+            name: "label_remove",
             command: "label",
-            args:    &["label", "remove", "tst-0001", "bug"],
+            args: &["label", "remove", "tst-0001", "bug"],
         },
         Case {
-            name:    "label_remove_all",
+            name: "label_remove_all",
             command: "label",
-            args:    &["label", "remove", "tst-0001", "bug", "ui"],
+            args: &["label", "remove", "tst-0001", "bug", "ui"],
         },
         Case {
-            name:    "label_remove_json",
+            name: "label_remove_json",
             command: "label",
-            args:    &["label", "remove", "tst-0001", "bug", "--json"],
+            args: &["label", "remove", "tst-0001", "bug", "--json"],
         },
         Case {
-            name:    "label_list",
+            name: "label_list",
             command: "label",
-            args:    &["label", "list", "tst-0001"],
+            args: &["label", "list", "tst-0001"],
         },
         Case {
-            name:    "label_list_empty",
+            name: "label_list_empty",
             command: "label",
-            args:    &["label", "list", "tst-0002"],
+            args: &["label", "list", "tst-0002"],
         },
         Case {
-            name:    "label_list_json",
+            name: "label_list_json",
             command: "label",
-            args:    &["label", "list", "tst-0001", "--json"],
+            args: &["label", "list", "tst-0001", "--json"],
         },
         Case {
-            name:    "label_list_all",
+            name: "label_list_all",
             command: "label",
-            args:    &["label", "list-all"],
+            args: &["label", "list-all"],
         },
         Case {
-            name:    "label_list_all_json",
+            name: "label_list_all_json",
             command: "label",
-            args:    &["label", "list-all", "--json"],
+            args: &["label", "list-all", "--json"],
         },
         // dep remove / dep list (dep add is covered above)
         Case {
-            name:    "dep_remove",
+            name: "dep_remove",
             command: "dep",
-            args:    &["dep", "remove", "tst-0006", "tst-0001"],
+            args: &["dep", "remove", "tst-0006", "tst-0001"],
         },
         Case {
-            name:    "dep_remove_json",
+            name: "dep_remove_json",
             command: "dep",
-            args:    &["dep", "remove", "tst-0006", "tst-0001", "--json"],
+            args: &["dep", "remove", "tst-0006", "tst-0001", "--json"],
         },
         Case {
-            name:    "dep_remove_missing_error",
+            name: "dep_remove_missing_error",
             command: "dep",
-            args:    &["dep", "remove", "tst-zzzz", "tst-0001", "--json"],
+            args: &["dep", "remove", "tst-zzzz", "tst-0001", "--json"],
         },
         Case {
-            name:    "dep_list",
+            name: "dep_list",
             command: "dep",
-            args:    &["dep", "list", "tst-0006"],
+            args: &["dep", "list", "tst-0006"],
         },
         Case {
-            name:    "dep_list_no_deps",
+            name: "dep_list_no_deps",
             command: "dep",
-            args:    &["dep", "list", "tst-0002"],
+            args: &["dep", "list", "tst-0002"],
         },
         Case {
-            name:    "dep_list_json",
+            name: "dep_list_json",
             command: "dep",
-            args:    &["dep", "list", "tst-0006", "--json"],
+            args: &["dep", "list", "tst-0006", "--json"],
         },
         Case {
-            name:    "dep_list_missing_error",
+            name: "dep_list_missing_error",
             command: "dep",
-            args:    &["dep", "list", "tst-zzzz", "--json"],
+            args: &["dep", "list", "tst-zzzz", "--json"],
         },
         // stats: text and JSON (stable keys, encounter-order groups)
         Case {
-            name:    "stats_default",
+            name: "stats_default",
             command: "stats",
-            args:    &["stats"],
+            args: &["stats"],
         },
         Case {
-            name:    "stats_json",
+            name: "stats_json",
             command: "stats",
-            args:    &["stats", "--json"],
+            args: &["stats", "--json"],
         },
         Case {
-            name:    "stats_format_json",
+            name: "stats_format_json",
             command: "stats",
-            args:    &["stats", "--format", "json"],
+            args: &["stats", "--format", "json"],
         },
         // doctor: one documented deviation (the config pass message
         // carries our additive vcs_manager annotation, seeds-5b36) —
@@ -745,177 +745,177 @@ fn matrix() -> Vec<Case> {
         // plan: read-only surface on the empty-plan fixture (the
         // mutating subcommands live in the tailored plan test)
         Case {
-            name:    "plan_templates",
+            name: "plan_templates",
             command: "plan",
-            args:    &["plan", "templates"],
+            args: &["plan", "templates"],
         },
         Case {
-            name:    "plan_templates_json",
+            name: "plan_templates_json",
             command: "plan",
-            args:    &["plan", "templates", "--json"],
+            args: &["plan", "templates", "--json"],
         },
         Case {
-            name:    "plan_list_empty",
+            name: "plan_list_empty",
             command: "plan",
-            args:    &["plan", "list"],
+            args: &["plan", "list"],
         },
         Case {
-            name:    "plan_list_empty_json",
+            name: "plan_list_empty_json",
             command: "plan",
-            args:    &["plan", "list", "--json"],
+            args: &["plan", "list", "--json"],
         },
         Case {
-            name:    "plan_list_bad_status",
+            name: "plan_list_bad_status",
             command: "plan",
-            args:    &["plan", "list", "--status", "nope"],
+            args: &["plan", "list", "--status", "nope"],
         },
         Case {
-            name:    "plan_prompt_bug_json",
+            name: "plan_prompt_bug_json",
             command: "plan",
-            args:    &["plan", "prompt", "tst-0001", "--json"],
+            args: &["plan", "prompt", "tst-0001", "--json"],
         },
         Case {
-            name:    "plan_prompt_human",
+            name: "plan_prompt_human",
             command: "plan",
-            args:    &["plan", "prompt", "tst-0001"],
+            args: &["plan", "prompt", "tst-0001"],
         },
         Case {
-            name:    "plan_show_seed_without_plan",
+            name: "plan_show_seed_without_plan",
             command: "plan",
-            args:    &["plan", "show", "tst-0002"],
+            args: &["plan", "show", "tst-0002"],
         },
         Case {
-            name:    "plan_validate_missing_plan",
+            name: "plan_validate_missing_plan",
             command: "plan",
-            args:    &["plan", "validate", "pl-zzzz"],
+            args: &["plan", "validate", "pl-zzzz"],
         },
         // config group: schema emit, show/read, set/unset writes
         Case {
-            name:    "config_schema",
+            name: "config_schema",
             command: "config",
-            args:    &["config", "schema"],
+            args: &["config", "schema"],
         },
         Case {
-            name:    "config_schema_compact",
+            name: "config_schema_compact",
             command: "config",
-            args:    &["config", "schema", "--json"],
+            args: &["config", "schema", "--json"],
         },
         Case {
-            name:    "config_show",
+            name: "config_show",
             command: "config",
-            args:    &["config", "show"],
+            args: &["config", "show"],
         },
         Case {
-            name:    "config_show_json",
+            name: "config_show_json",
             command: "config",
-            args:    &["config", "show", "--json"],
+            args: &["config", "show", "--json"],
         },
         Case {
-            name:    "config_show_path_scalar",
+            name: "config_show_path_scalar",
             command: "config",
-            args:    &["config", "show", "--path", "project"],
+            args: &["config", "show", "--path", "project"],
         },
         Case {
-            name:    "config_show_path_missing",
+            name: "config_show_path_missing",
             command: "config",
-            args:    &["config", "show", "--path", "nope"],
+            args: &["config", "show", "--path", "nope"],
         },
         Case {
-            name:    "config_show_path_missing_json",
+            name: "config_show_path_missing_json",
             command: "config",
-            args:    &["config", "show", "--path", "nope", "--json"],
+            args: &["config", "show", "--path", "nope", "--json"],
         },
         Case {
-            name:    "config_set",
+            name: "config_set",
             command: "config",
-            args:    &["config", "set", "max_plan_depth", "5"],
+            args: &["config", "set", "max_plan_depth", "5"],
         },
         Case {
-            name:    "config_set_json",
+            name: "config_set_json",
             command: "config",
-            args:    &["config", "set", "--json", "project", "demo"],
+            args: &["config", "set", "--json", "project", "demo"],
         },
         Case {
-            name:    "config_set_type_error",
+            name: "config_set_type_error",
             command: "config",
-            args:    &["config", "set", "max_plan_depth", "notanint"],
+            args: &["config", "set", "max_plan_depth", "notanint"],
         },
         Case {
-            name:    "config_set_unknown_key",
+            name: "config_set_unknown_key",
             command: "config",
-            args:    &["config", "set", "ghost", "1"],
+            args: &["config", "set", "ghost", "1"],
         },
         Case {
-            name:    "config_unset",
+            name: "config_unset",
             command: "config",
-            args:    &["config", "unset", "max_plan_depth"],
+            args: &["config", "unset", "max_plan_depth"],
         },
         Case {
-            name:    "config_unset_missing",
+            name: "config_unset_missing",
             command: "config",
-            args:    &["config", "unset", "ghost"],
+            args: &["config", "unset", "ghost"],
         },
         Case {
-            name:    "config_unset_missing_json",
+            name: "config_unset_missing_json",
             command: "config",
-            args:    &["config", "unset", "--json", "plan_templates"],
+            args: &["config", "unset", "--json", "plan_templates"],
         },
         // onboard: the generic check surface coincides byte-for-byte;
         // the section CONTENT is a documented deviation (README
         // DEVIATIONS) and is covered by cli.rs instead.
         Case {
-            name:    "onboard_check_missing",
+            name: "onboard_check_missing",
             command: "onboard",
-            args:    &["onboard", "--check"],
+            args: &["onboard", "--check"],
         },
         Case {
-            name:    "onboard_check_missing_json",
+            name: "onboard_check_missing_json",
             command: "onboard",
-            args:    &["onboard", "--check", "--json"],
+            args: &["onboard", "--check", "--json"],
         },
         // completions: error surface coincides; the scripts enumerate
         // the implemented surface (deviation), covered by cli.rs.
         Case {
-            name:    "completions_unknown_shell",
+            name: "completions_unknown_shell",
             command: "completions",
-            args:    &["completions", "tcsh"],
+            args: &["completions", "tcsh"],
         },
         Case {
-            name:    "completions_missing_shell",
+            name: "completions_missing_shell",
             command: "completions",
-            args:    &["completions"],
+            args: &["completions"],
         },
         // tpl: the static + error surface is byte-comparable; the
         // random-id lifecycle has its tailored test above (seeds-fb5f).
         Case {
-            name:    "tpl_list_empty",
+            name: "tpl_list_empty",
             command: "tpl",
-            args:    &["tpl", "list"],
+            args: &["tpl", "list"],
         },
         Case {
-            name:    "tpl_list_empty_json",
+            name: "tpl_list_empty_json",
             command: "tpl",
-            args:    &["tpl", "list", "--json"],
+            args: &["tpl", "list", "--json"],
         },
         Case {
-            name:    "tpl_show_missing",
+            name: "tpl_show_missing",
             command: "tpl",
-            args:    &["tpl", "show", "tpl-none", "--json"],
+            args: &["tpl", "show", "tpl-none", "--json"],
         },
         Case {
-            name:    "tpl_status_empty",
+            name: "tpl_status_empty",
             command: "tpl",
-            args:    &["tpl", "status", "tpl-none"],
+            args: &["tpl", "status", "tpl-none"],
         },
         Case {
-            name:    "tpl_status_empty_json",
+            name: "tpl_status_empty_json",
             command: "tpl",
-            args:    &["tpl", "status", "tpl-none", "--json"],
+            args: &["tpl", "status", "tpl-none", "--json"],
         },
         Case {
-            name:    "tpl_pour_missing_prefix",
+            name: "tpl_pour_missing_prefix",
             command: "tpl",
-            args:    &["tpl", "pour", "tpl-none"],
+            args: &["tpl", "pour", "tpl-none"],
         },
     ]
 }
@@ -1725,20 +1725,18 @@ fn differential_tpl_matches_sd() {
 /// One binary's tpl lifecycle: the collected normalized envelopes plus
 /// the ids needed for store normalization.
 struct TplSide {
-    tpl_id:  String,
-    poured:  Vec<String>,
+    tpl_id: String,
+    poured: Vec<String>,
     outputs: Vec<Value>,
 }
 
 impl TplSide {
     fn run(dir: &Path, program: &Path, run_json: &dyn Fn(&Path, &Path, &[&str]) -> Value) -> Self {
-        let created = run_json(dir, program, &[
-            "tpl",
-            "create",
-            "--name",
-            "release-flow",
-            "--json",
-        ]);
+        let created = run_json(
+            dir,
+            program,
+            &["tpl", "create", "--name", "release-flow", "--json"],
+        );
         let tpl_id = created["id"].as_str().expect("tpl create id").to_owned();
 
         let mut outputs = vec![normalize_tpl_value(created, &tpl_id, &[])];

@@ -34,29 +34,29 @@ const MILLIS_PER_WEEK: i64 = 604_800_000;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PaceOptions {
     /// Observation window for the windowed rate, in days (`--window`).
-    pub window_days:      u32,
+    pub window_days: u32,
     /// Minimum closures inside the window for a trusted ETA
     /// (`--min-closures`).
-    pub min_closures:     u32,
+    pub min_closures: u32,
     /// Open seeds carrying any of these labels leave the target
     /// (`--exclude-label`, comma-separated).
     pub exclusion_labels: Vec<String>,
     /// First week of the week table, `YYYY-MM-DD` (`--since`); the
     /// full history when `None`.
-    pub since:            Option<String>,
+    pub since: Option<String>,
     /// Injected clock (`YYYY-MM-DDTHH:MM:SS.mmmZ`); the system clock
     /// when `None`. Not a CLI flag — a library/test seam.
-    pub now:              Option<String>,
+    pub now: Option<String>,
 }
 
 impl Default for PaceOptions {
     fn default() -> Self {
         Self {
-            window_days:      DEFAULT_WINDOW_DAYS,
-            min_closures:     DEFAULT_MIN_CLOSURES,
+            window_days: DEFAULT_WINDOW_DAYS,
+            min_closures: DEFAULT_MIN_CLOSURES,
             exclusion_labels: Vec::new(),
-            since:            None,
-            now:              None,
+            since: None,
+            now: None,
         }
     }
 }
@@ -65,16 +65,16 @@ impl Default for PaceOptions {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WeekBucket {
     /// The ISO week label (`2026-W38`, UTC).
-    pub iso:     String,
+    pub iso: String,
     /// Seeds created during the week.
     pub created: usize,
     /// Seeds closed during the week.
-    pub closed:  usize,
+    pub closed: usize,
     /// `closed - created` (negative while the backlog grows).
-    pub net:     i64,
+    pub net: i64,
     /// Open seeds after the week: a running total over the raw series,
     /// independent of any exclusion list.
-    pub open:    usize,
+    pub open: usize,
 }
 
 /// The pace aggregate: windowed and all-time closure rates, median
@@ -82,36 +82,36 @@ pub struct WeekBucket {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pace {
     /// The observation window the windowed rate was taken over.
-    pub window_days:            u32,
+    pub window_days: u32,
     /// Minimum closures for a trusted ETA (echoed for diagnostics).
-    pub min_closures:           u32,
+    pub min_closures: u32,
     /// Closures per week inside the window.
-    pub rate_window:            f64,
+    pub rate_window: f64,
     /// Closures inside the window.
-    pub closures_in_window:     usize,
+    pub closures_in_window: usize,
     /// Closures per week over the full history (`None` without
     /// timestamped history).
-    pub rate_all_time:          Option<f64>,
+    pub rate_all_time: Option<f64>,
     /// Closures over the full history.
-    pub closures_total:         usize,
+    pub closures_total: usize,
     /// The history span in weeks (context for the all-time rate).
-    pub history_weeks:          Option<f64>,
+    pub history_weeks: Option<f64>,
     /// Median `createdAt → closedAt` in hours across closed seeds.
     pub lead_time_median_hours: Option<f64>,
     /// Open seeds that still count toward Production Readiness.
-    pub open_to_target:         usize,
+    pub open_to_target: usize,
     /// Open seeds parked by the exclusion list.
-    pub excluded_open:          usize,
+    pub excluded_open: usize,
     /// The active exclusion labels (lowercased).
-    pub exclusion_labels:       Vec<String>,
+    pub exclusion_labels: Vec<String>,
     /// Projected date of Production Readiness, `YYYY-MM-DD`
     /// (`None` when the window carries too little data).
-    pub eta:                    Option<String>,
+    pub eta: Option<String>,
     /// Why no ETA is offered: `zero_closures_in_window` or
     /// `insufficient_closures_in_window`.
-    pub eta_reason:             Option<String>,
+    pub eta_reason: Option<String>,
     /// The weekly series, oldest first.
-    pub weeks:                  Vec<WeekBucket>,
+    pub weeks: Vec<WeekBucket>,
 }
 
 impl Pace {
@@ -570,11 +570,14 @@ mod tests {
         parked.retain(|record| {
             record.status() == Some(Status::Closed) || record.labels().contains(&"backlog")
         });
-        let pace = Pace::collect(&parked, &PaceOptions {
-            now: Some(NOW.to_owned()),
-            exclusion_labels: vec!["backlog".to_owned()],
-            ..PaceOptions::default()
-        })
+        let pace = Pace::collect(
+            &parked,
+            &PaceOptions {
+                now: Some(NOW.to_owned()),
+                exclusion_labels: vec!["backlog".to_owned()],
+                ..PaceOptions::default()
+            },
+        )
         .expect("options valid");
         assert_eq!(pace.open_to_target, 0);
         assert_eq!(pace.eta.as_deref(), Some("2026-02-01"));
@@ -583,22 +586,28 @@ mod tests {
 
     #[test]
     fn zero_window_is_rejected() {
-        let error = Pace::collect(&fixture(), &PaceOptions {
-            window_days: 0,
-            now: Some(NOW.to_owned()),
-            ..PaceOptions::default()
-        })
+        let error = Pace::collect(
+            &fixture(),
+            &PaceOptions {
+                window_days: 0,
+                now: Some(NOW.to_owned()),
+                ..PaceOptions::default()
+            },
+        )
         .expect_err("window must be at least one day");
         assert!(error.contains("--window"), "names the flag: {error}");
     }
 
     #[test]
     fn malformed_since_is_rejected() {
-        let error = Pace::collect(&fixture(), &PaceOptions {
-            now: Some(NOW.to_owned()),
-            since: Some("someday".to_owned()),
-            ..PaceOptions::default()
-        })
+        let error = Pace::collect(
+            &fixture(),
+            &PaceOptions {
+                now: Some(NOW.to_owned()),
+                since: Some("someday".to_owned()),
+                ..PaceOptions::default()
+            },
+        )
         .expect_err("since must parse");
         assert!(error.contains("--since"), "names the flag: {error}");
     }

@@ -145,15 +145,23 @@ fn write_heals_in_place_to_union_newest_bytes() {
     let dir = temp_store("write");
     write_lines(&dir, "issues.jsonl", &duplicated_issues());
     // plans and templates heal under the same record-id rule.
-    write_lines(&dir, "plans.jsonl", &[
-        record("plan-01", "2026-01-01T00:00:00.000Z", "old"),
-        record("plan-01", "2026-01-02T00:00:00.000Z", "new"),
-    ]);
-    write_lines(&dir, "templates.jsonl", &[
-        record("tpl-01", "2026-01-01T00:00:00.000Z", "old"),
-        record("tpl-01", "2026-01-02T00:00:00.000Z", "new"),
-        record("tpl-02", "2026-01-01T00:00:00.000Z", "only"),
-    ]);
+    write_lines(
+        &dir,
+        "plans.jsonl",
+        &[
+            record("plan-01", "2026-01-01T00:00:00.000Z", "old"),
+            record("plan-01", "2026-01-02T00:00:00.000Z", "new"),
+        ],
+    );
+    write_lines(
+        &dir,
+        "templates.jsonl",
+        &[
+            record("tpl-01", "2026-01-01T00:00:00.000Z", "old"),
+            record("tpl-01", "2026-01-02T00:00:00.000Z", "new"),
+            record("tpl-02", "2026-01-01T00:00:00.000Z", "only"),
+        ],
+    );
 
     let output = run(&dir, &["dedupe", "--write"]);
     assert_eq!(output.status.code(), Some(0), "--write always exits 0");
@@ -219,10 +227,14 @@ fn write_is_idempotent_and_leaves_a_clean_file_untouched() {
 #[test]
 fn clean_store_exits_zero_in_both_modes() {
     let dir = temp_store("clean");
-    write_lines(&dir, "issues.jsonl", &[
-        record("tst-0001", "2026-01-01T00:00:00.000Z", "one"),
-        record("tst-0002", "2026-01-02T00:00:00.000Z", "two"),
-    ]);
+    write_lines(
+        &dir,
+        "issues.jsonl",
+        &[
+            record("tst-0001", "2026-01-01T00:00:00.000Z", "one"),
+            record("tst-0002", "2026-01-02T00:00:00.000Z", "two"),
+        ],
+    );
 
     let report = run(&dir, &["dedupe"]);
     assert_eq!(report.status.code(), Some(0));

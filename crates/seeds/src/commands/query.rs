@@ -13,17 +13,17 @@ use crate::{SeedRecord, SeedType, Status, Store, render, timeutil};
 
 /// The shared filter/sort/limit surface of list, ready, and search.
 struct Filters {
-    status:       Option<Status>,
-    kind:         Option<SeedType>,
-    assignee:     Option<String>,
-    all:          bool,
-    label:        Vec<String>,
-    label_any:    Vec<String>,
-    unlabeled:    bool,
-    priority:     Option<HashSet<u8>>,
+    status: Option<Status>,
+    kind: Option<SeedType>,
+    assignee: Option<String>,
+    all: bool,
+    label: Vec<String>,
+    label_any: Vec<String>,
+    unlabeled: bool,
+    priority: Option<HashSet<u8>>,
     priority_max: Option<u8>,
-    limit:        usize,
-    sort:         String,
+    limit: usize,
+    sort: String,
 }
 
 impl Filters {
@@ -70,8 +70,12 @@ impl Filters {
             kind,
             assignee: input.assignee.clone(),
             all: input.all,
-            label: input.label.as_deref().map_or_default(comma_list),
-            label_any: input.label_any.as_deref().map_or_default(comma_list),
+            label: input.label.as_deref().map(comma_list).unwrap_or_default(),
+            label_any: input
+                .label_any
+                .as_deref()
+                .map(comma_list)
+                .unwrap_or_default(),
             unlabeled: input.unlabeled,
             priority,
             priority_max,
@@ -210,35 +214,35 @@ impl QueryCommand {
 #[derive(Clone, Debug, Default)]
 pub struct QueryInput {
     /// Which query command is running.
-    pub command:          Option<QueryCommand>,
+    pub command: Option<QueryCommand>,
     /// The search needle (`search` positional).
-    pub query:            Option<String>,
+    pub query: Option<String>,
     /// `--status` raw text.
-    pub status:           Option<String>,
+    pub status: Option<String>,
     /// `--type` raw text.
-    pub kind:             Option<String>,
+    pub kind: Option<String>,
     /// `--assignee`.
-    pub assignee:         Option<String>,
+    pub assignee: Option<String>,
     /// `--all`.
-    pub all:              bool,
+    pub all: bool,
     /// `--label` raw comma list.
-    pub label:            Option<String>,
+    pub label: Option<String>,
     /// `--label-any` raw comma list.
-    pub label_any:        Option<String>,
+    pub label_any: Option<String>,
     /// `--unlabeled`.
-    pub unlabeled:        bool,
+    pub unlabeled: bool,
     /// `--priority` raw comma list.
-    pub priority:         Option<String>,
+    pub priority: Option<String>,
     /// `--priority-max` raw text.
-    pub priority_max:     Option<String>,
+    pub priority_max: Option<String>,
     /// `--limit` raw text.
-    pub limit:            Option<String>,
+    pub limit: Option<String>,
     /// `--sort`.
-    pub sort:             Option<String>,
+    pub sort: Option<String>,
     /// `--format` raw text.
-    pub format:           Option<String>,
+    pub format: Option<String>,
     /// JSON envelope output.
-    pub json:             bool,
+    pub json: bool,
     /// `--respect-schedule` (ready only).
     pub respect_schedule: bool,
 }

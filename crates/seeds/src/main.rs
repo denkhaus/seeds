@@ -166,13 +166,13 @@ fn cmd_create(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = CreateInput {
-        title:       parsed.options.get("title").cloned(),
-        kind:        parsed.options.get("type").cloned(),
-        priority:    parsed.options.get("priority").cloned(),
+        title: parsed.options.get("title").cloned(),
+        kind: parsed.options.get("type").cloned(),
+        priority: parsed.options.get("priority").cloned(),
         description: parsed.options.get("description").cloned(),
-        labels:      parsed.options.get("labels").cloned(),
-        assignee:    parsed.options.get("assignee").cloned(),
-        json:        json_mode(&parsed),
+        labels: parsed.options.get("labels").cloned(),
+        assignee: parsed.options.get("assignee").cloned(),
+        json: json_mode(&parsed),
     };
     report(&commands::create(&ctx(), &input))
 }
@@ -182,9 +182,9 @@ fn cmd_show(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = commands::ShowInput {
-        ids:       parsed.positionals.clone(),
-        format:    parsed.options.get("format").cloned(),
-        json:      json_mode(&parsed),
+        ids: parsed.positionals.clone(),
+        format: parsed.options.get("format").cloned(),
+        json: json_mode(&parsed),
         json_flag: parsed.flags.contains("json"),
     };
     report(&commands::show(&ctx(), &input))
@@ -248,21 +248,21 @@ fn cmd_update(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = UpdateInput {
-        id:                     parsed.positionals.first().cloned(),
-        status:                 parsed.options.get("status").cloned(),
-        title:                  parsed.options.get("title").cloned(),
-        assignee:               parsed.options.get("assignee").cloned(),
-        description:            parsed.options.get("set-description").cloned(),
-        append_description:     parsed.options.get("append-description").cloned(),
+        id: parsed.positionals.first().cloned(),
+        status: parsed.options.get("status").cloned(),
+        title: parsed.options.get("title").cloned(),
+        assignee: parsed.options.get("assignee").cloned(),
+        description: parsed.options.get("set-description").cloned(),
+        append_description: parsed.options.get("append-description").cloned(),
         replace_in_description: parsed.options.get("replace-in-description").cloned(),
-        kind:                   parsed.options.get("type").cloned(),
-        priority:               parsed.options.get("priority").cloned(),
-        add_label:              parsed.options.get("add-label").cloned(),
-        remove_label:           parsed.options.get("remove-label").cloned(),
-        set_labels:             parsed.options.get("set-labels").cloned(),
-        extensions:             parsed.options.get("extensions").cloned(),
-        clear_extensions:       parsed.flags.contains("clear-extensions"),
-        json:                   json_mode(&parsed),
+        kind: parsed.options.get("type").cloned(),
+        priority: parsed.options.get("priority").cloned(),
+        add_label: parsed.options.get("add-label").cloned(),
+        remove_label: parsed.options.get("remove-label").cloned(),
+        set_labels: parsed.options.get("set-labels").cloned(),
+        extensions: parsed.options.get("extensions").cloned(),
+        clear_extensions: parsed.flags.contains("clear-extensions"),
+        json: json_mode(&parsed),
     };
     report(&commands::update(&ctx(), &input))
 }
@@ -272,9 +272,9 @@ fn cmd_close(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = CloseInput {
-        ids:    parsed.positionals.clone(),
+        ids: parsed.positionals.clone(),
         reason: parsed.options.get("reason").cloned(),
-        json:   json_mode(&parsed),
+        json: json_mode(&parsed),
     };
     report(&commands::close(&ctx(), &input))
 }
@@ -303,7 +303,7 @@ fn cmd_dep_add(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = DepAddInput {
-        ids:  parsed.positionals.clone(),
+        ids: parsed.positionals.clone(),
         json: json_mode(&parsed),
     };
     report(&commands::dep_add(&ctx(), &input))
@@ -314,7 +314,7 @@ fn cmd_dep_remove(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = DepRemoveInput {
-        ids:  parsed.positionals.clone(),
+        ids: parsed.positionals.clone(),
         json: json_mode(&parsed),
     };
     report(&commands::dep_remove(&ctx(), &input))
@@ -325,7 +325,7 @@ fn cmd_dep_list(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = DepListInput {
-        id:   parsed.positionals.first().cloned(),
+        id: parsed.positionals.first().cloned(),
         json: json_mode(&parsed),
     };
     report(&commands::dep_list(&ctx(), &input))
@@ -337,7 +337,7 @@ fn cmd_blocked(args: &[String]) -> ExitCode {
     };
     let input = BlockedInput {
         format: parsed.options.get("format").cloned(),
-        json:   json_mode(&parsed),
+        json: json_mode(&parsed),
     };
     report(&commands::blocked(&ctx(), &input))
 }
@@ -347,8 +347,8 @@ fn cmd_block(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = BlockInput {
-        id:   parsed.positionals.first().cloned(),
-        by:   parsed.options.get("by").cloned(),
+        id: parsed.positionals.first().cloned(),
+        by: parsed.options.get("by").cloned(),
         json: json_mode(&parsed),
     };
     report(&commands::block(&ctx(), &input))
@@ -359,9 +359,9 @@ fn cmd_unblock(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = UnblockInput {
-        id:   parsed.positionals.first().cloned(),
+        id: parsed.positionals.first().cloned(),
         from: parsed.options.get("from").cloned(),
-        all:  parsed.flags.contains("all"),
+        all: parsed.flags.contains("all"),
         json: json_mode(&parsed),
     };
     report(&commands::unblock(&ctx(), &input))
@@ -394,9 +394,9 @@ fn cmd_label_add(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = LabelAddInput {
-        id:     parsed.positionals.first().cloned(),
+        id: parsed.positionals.first().cloned(),
         labels: parsed.positionals[1..].to_vec(),
-        json:   json_mode(&parsed),
+        json: json_mode(&parsed),
     };
     report(&commands::label_add(&ctx(), &input))
 }
@@ -406,9 +406,9 @@ fn cmd_label_remove(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = LabelRemoveInput {
-        id:     parsed.positionals.first().cloned(),
+        id: parsed.positionals.first().cloned(),
         labels: parsed.positionals[1..].to_vec(),
-        json:   json_mode(&parsed),
+        json: json_mode(&parsed),
     };
     report(&commands::label_remove(&ctx(), &input))
 }
@@ -418,7 +418,7 @@ fn cmd_label_list(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = LabelListInput {
-        id:   parsed.positionals.first().cloned(),
+        id: parsed.positionals.first().cloned(),
         json: json_mode(&parsed),
     };
     report(&commands::label_list(&ctx(), &input))
@@ -493,9 +493,9 @@ fn cmd_doctor(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = DoctorInput {
-        fix:           parsed.flags.contains("fix"),
+        fix: parsed.flags.contains("fix"),
         repair_report: parsed.flags.contains("repair-report"),
-        json:          json_mode(&parsed),
+        json: json_mode(&parsed),
     };
     report(&commands::doctor(&ctx(), &input))
 }
@@ -506,7 +506,7 @@ fn cmd_prime(args: &[String]) -> ExitCode {
     };
     let input = PrimeInput {
         compact: parsed.flags.contains("compact"),
-        json:    json_mode(&parsed),
+        json: json_mode(&parsed),
     };
     report(&commands::prime(&ctx(), &input))
 }
@@ -517,7 +517,7 @@ fn cmd_dedupe(args: &[String]) -> ExitCode {
     };
     let input = DedupeInput {
         write: parsed.flags.contains("write"),
-        json:  json_mode(&parsed),
+        json: json_mode(&parsed),
     };
     report(&commands::dedupe(&ctx(), &input))
 }
@@ -527,9 +527,9 @@ fn cmd_sync(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = SyncInput {
-        status:  parsed.flags.contains("status"),
+        status: parsed.flags.contains("status"),
         dry_run: parsed.flags.contains("dry-run"),
-        json:    json_mode(&parsed),
+        json: json_mode(&parsed),
     };
     report(&commands::sync(&ctx(), &input))
 }
@@ -672,9 +672,9 @@ fn cmd_onboard(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = OnboardInput {
-        check:       parsed.flags.contains("check"),
+        check: parsed.flags.contains("check"),
         stdout_only: parsed.flags.contains("stdout"),
-        json:        json_mode(&parsed),
+        json: json_mode(&parsed),
     };
     report(&commands::onboard(&input))
 }
@@ -686,7 +686,7 @@ fn cmd_upgrade(args: &[String]) -> ExitCode {
     };
     let input = UpgradeInput {
         check: parsed.flags.contains("check"),
-        json:  json_mode(&parsed),
+        json: json_mode(&parsed),
     };
     report(&commands::upgrade(&input))
 }
@@ -764,7 +764,7 @@ fn cmd_config(args: &[String]) -> ExitCode {
             match (parsed.positionals.first(), parsed.positionals.get(1)) {
                 (Some(path), Some(value)) => (
                     ConfigSub::Set {
-                        path:  path.clone(),
+                        path: path.clone(),
                         value: value.clone(),
                     },
                     json_mode(&parsed),
@@ -1081,9 +1081,9 @@ fn cmd_plan(args: &[String]) -> ExitCode {
             };
             (
                 PlanSub::List {
-                    seed:     parsed.options.get("seed").cloned(),
-                    status:   parsed.options.get("status").cloned(),
-                    outcome:  parsed.options.get("outcome").cloned(),
+                    seed: parsed.options.get("seed").cloned(),
+                    status: parsed.options.get("status").cloned(),
+                    outcome: parsed.options.get("outcome").cloned(),
                     template: parsed.options.get("template").cloned(),
                 },
                 json_mode(&parsed),

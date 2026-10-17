@@ -51,7 +51,7 @@ pub struct UpgradeInput {
     /// Whether to only check for a newer release without installing.
     pub check: bool,
     /// Whether output is the JSON envelope.
-    pub json:  bool,
+    pub json: bool,
 }
 
 /// Runs `upgrade`: resolve the latest release, then check or perform.
@@ -299,16 +299,19 @@ fn guard_outcome(class: InstallClass, exe: &Path, json: bool) -> CommandOutcome 
         InstallClass::SelfManaged => unreachable!("self-managed installs self-update"),
     };
     if json {
-        let stdout = envelope_pretty("upgrade", &[
-            ("action", json!(action)),
-            ("file", Value::from(exe.display().to_string())),
-        ]);
+        let stdout = envelope_pretty(
+            "upgrade",
+            &[
+                ("action", json!(action)),
+                ("file", Value::from(exe.display().to_string())),
+            ],
+        );
         let mut text = String::new();
         push_line(&mut text, &stdout);
         return CommandOutcome {
             success: true,
-            stdout:  text,
-            stderr:  String::new(),
+            stdout: text,
+            stderr: String::new(),
         };
     }
     let mut stdout = String::new();
@@ -326,11 +329,14 @@ fn guard_outcome(class: InstallClass, exe: &Path, json: bool) -> CommandOutcome 
 
 fn check_outcome(current: &str, latest: &str, up_to_date: bool, json: bool) -> CommandOutcome {
     if json {
-        let stdout = envelope_pretty("upgrade", &[
-            ("current", json!(current)),
-            ("latest", json!(latest)),
-            ("upToDate", json!(up_to_date)),
-        ]);
+        let stdout = envelope_pretty(
+            "upgrade",
+            &[
+                ("current", json!(current)),
+                ("latest", json!(latest)),
+                ("upToDate", json!(up_to_date)),
+            ],
+        );
         let mut text = String::new();
         push_line(&mut text, &stdout);
         return CommandOutcome {
@@ -338,8 +344,8 @@ fn check_outcome(current: &str, latest: &str, up_to_date: bool, json: bool) -> C
             // code below is the machine signal (decided: --check exits
             // 1 when outdated).
             success: up_to_date,
-            stdout:  text,
-            stderr:  String::new(),
+            stdout: text,
+            stderr: String::new(),
         };
     }
     let mut stdout = String::new();
@@ -379,8 +385,8 @@ fn report_update(
         push_line(&mut text, &stdout);
         return CommandOutcome {
             success: true,
-            stdout:  text,
-            stderr:  String::new(),
+            stdout: text,
+            stderr: String::new(),
         };
     }
     let mut stdout = String::new();
@@ -404,8 +410,8 @@ fn report_update(
 fn transport_error(message: &str, _json: bool) -> CommandOutcome {
     CommandOutcome {
         success: false,
-        stdout:  String::new(),
-        stderr:  format!("Error: {message}\n"),
+        stdout: String::new(),
+        stderr: format!("Error: {message}\n"),
     }
 }
 
