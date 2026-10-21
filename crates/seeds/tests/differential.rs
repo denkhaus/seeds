@@ -1670,6 +1670,26 @@ fn slot_of(ids: &mut Vec<String>, id: &str) -> usize {
     })
 }
 
+/// Canonical comparison order for final stores (seeds-e29a): our
+/// writer emits records in canonical id order while the reference
+/// appends, so the LINE ORDER of a written store legitimately
+/// diverges — the ids and every field must not. The normalized labels
+/// carry their creation-order slot, so re-sorting both sides by that
+/// slot compares the same logical records; the label itself breaks
+/// ties, which keeps the key a pure function of the (normalized)
+/// record — identical on both sides.
+fn sort_by_label(records: &mut [Value]) {
+    records.sort_by_key(|record| {
+        let label = record["id"].as_str().unwrap_or_default();
+        let number = label
+            .rsplit('-')
+            .next()
+            .and_then(|tail| tail.parse::<usize>().ok())
+            .unwrap_or(usize::MAX);
+        (number, label.to_owned())
+    });
+}
+
 /// Normalizes one parsed JSON value: volatile fields + fresh ids.
 fn normalized_json(
     value: &Value,
@@ -1890,6 +1910,10 @@ fn differential_plan_matches_sd() {
         for record in &mut ours_records {
             normalize_ids(record, &mut ours_children, &mut ours_plans);
         }
+        // seeds-e29a: our line order is canonical, the reference's is
+        // append-driven — compare the record set in creation order.
+        sort_by_label(&mut sd_records);
+        sort_by_label(&mut ours_records);
         assert_eq!(
             sd_records, ours_records,
             "plan lifecycle: resulting {file} diverged"
@@ -2017,11 +2041,26 @@ impl TplSide {
             .map(|id| id.as_str().expect("id text").to_owned())
             .collect();
         outputs.push(normalize_tpl_value(poured_value, &tpl_id, &poured));
-        outputs.push(normalize_tpl_value(
+        let mut status_value = normalize_tpl_value(
             invoke(&["tpl", "status", "<id>", "--json"]),
             &tpl_id,
             &poured,
-        ));
+        );
+        // seeds-e29a: `status.issues` lists the poured records in
+        // store order — the reference appends, we write canonical id
+        // order, so only the SET is a parity surface here.
+        if let Some(issues) = status_value
+            .get_mut("status")
+            .and_then(|status| status.get_mut("issues"))
+            .and_then(Value::as_array_mut)
+        {
+            issues.sort_by(|left, right| {
+                left.as_str()
+                    .unwrap_or_default()
+                    .cmp(right.as_str().unwrap_or_default())
+            });
+        }
+        outputs.push(status_value);
 
         Self {
             tpl_id,
@@ -2067,21 +2106,183 @@ fn normalize_tpl_value(mut value: Value, tpl_id: &str, poured: &[String]) -> Val
 /// The normalized templates.jsonl records.
 fn normalized_templates(dir: &Path, tpl_id: &str) -> Vec<Value> {
     let text = fs::read_to_string(dir.join(".seeds/templates.jsonl")).expect("templates.jsonl");
-    text.lines()
+    let mut templates: Vec<Value> = text
+        .lines()
         .filter(|line| !line.is_empty())
         .map(|line| {
             let value: Value = serde_json::from_str(line).expect("valid template record");
             normalize_tpl_value(value, tpl_id, &[])
         })
-        .collect()
+        .collect();
+    sort_by_label(&mut templates);
+    templates
 }
 
 /// The pour-appended issue records, normalized (fixture records
-/// excluded, positional id markers, volatile stamps neutralized).
+/// excluded, positional id markers, volatile stamps neutralized,
+/// compared in creation order — our line order is canonical,
+/// seeds-e29a).
 fn normalized_poured(dir: &Path, side: &TplSide) -> Vec<Value> {
-    store_records(dir)
+    let mut poured: Vec<Value> = store_records(dir)
         .into_iter()
         .filter(|record| record["convoy"].as_str() == Some(side.tpl_id.as_str()))
         .map(|record| normalize_tpl_value(record, &side.tpl_id, &side.poured))
-        .collect()
+        .collect();
+    sort_by_label(&mut poured);
+    poured
+}
+
+// ---------------------------------------------------------------------------
+// seeds-e29a acceptance: git-merge safety of the canonical write mode
+// ---------------------------------------------------------------------------
+
+/// One store line in the canonical writer's shape (id, one record per
+/// line).
+fn raw_record(id: &str, title: &str) -> String {
+    format!(
+        "{{\"id\":\"{id}\",\"title\":\"{title}\",\"status\":\"open\",\"type\":\"task\",\
+         \"priority\":2,\"createdAt\":\"2026-01-01T00:00:00.000Z\",\
+         \"updatedAt\":\"2026-01-01T00:00:00.000Z\"}}"
+    )
+}
+
+#[allow(
+    clippy::print_stderr,
+    reason = "the skip-with-note contract requires a visible note on stderr"
+)]
+fn skip_git_note() {
+    eprintln!("skip: git unavailable — canonical merge acceptance skipped");
+}
+
+/// seeds-e29a acceptance: two branches each append a distinct record
+/// to the same base store, both files in canonical order — exactly
+/// what our writer emits. The git merge automerges (no conflict, no
+/// duplicated line, every record present), and the next save restores
+/// canonical order over whatever the merged file looks like.
+#[test]
+fn two_branch_appends_merge_cleanly_in_canonical_order() {
+    if !have("git") {
+        skip_git_note();
+        return;
+    }
+    let dir = materialize("merge-appends", "ours");
+    let seeds = dir.join(".seeds");
+    let git = |args: &[&str]| {
+        let output = Command::new("git")
+            .args([
+                "-c",
+                "user.email=tst@example.com",
+                "-c",
+                "user.name=Tst",
+                "-c",
+                "commit.gpgsign=false",
+            ])
+            .args(args)
+            .current_dir(&dir)
+            .output()
+            .expect("spawn git");
+        assert!(
+            output.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    let write_store = |lines: &[String]| {
+        fs::write(
+            seeds.join("issues.jsonl"),
+            format!("{}\n", lines.join("\n")),
+        )
+        .expect("issues.jsonl");
+    };
+    let ids_in_store = || -> Vec<String> {
+        fs::read_to_string(seeds.join("issues.jsonl"))
+            .expect("issues.jsonl")
+            .lines()
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                let value: Value = serde_json::from_str(line).expect("valid JSONL record");
+                value["id"].as_str().expect("id").to_owned()
+            })
+            .collect()
+    };
+    let canonical = vec![
+        "tst-0001".to_owned(),
+        "tst-0003".to_owned(),
+        "tst-0006".to_owned(),
+        "tst-000a".to_owned(),
+        "tst-ffff".to_owned(),
+    ];
+
+    // Base: three records, canonical order.
+    write_store(&[
+        raw_record("tst-0001", "One"),
+        raw_record("tst-0006", "Six"),
+        raw_record("tst-000a", "Ten"),
+    ]);
+    git(&["add", "-A"]);
+    git(&["commit", "-q", "-m", "base"]);
+    git(&["branch", "base"]);
+
+    // Branch A inserts one record mid-file, branch B appends another
+    // at the end — disjoint regions, so the two line diffs never
+    // touch.
+    git(&["checkout", "-q", "-b", "branch-a"]);
+    write_store(&[
+        raw_record("tst-0001", "One"),
+        raw_record("tst-0003", "Three"),
+        raw_record("tst-0006", "Six"),
+        raw_record("tst-000a", "Ten"),
+    ]);
+    git(&["commit", "-aq", "-m", "append three"]);
+    git(&["checkout", "-q", "-b", "branch-b", "base"]);
+    write_store(&[
+        raw_record("tst-0001", "One"),
+        raw_record("tst-0006", "Six"),
+        raw_record("tst-000a", "Ten"),
+        raw_record("tst-ffff", "Far"),
+    ]);
+    git(&["commit", "-aq", "-m", "append far"]);
+    git(&["checkout", "-q", "branch-a"]);
+
+    // The merge automerges: both appends survive, exactly once each —
+    // the interleaving/duplication class of the 2026-09-26 incident
+    // cannot occur with line-disjoint diffs.
+    git(&["merge", "-q", "-m", "merge branch-b", "branch-b"]);
+    assert_eq!(
+        ids_in_store(),
+        canonical,
+        "automerge kept every record exactly once, in canonical order"
+    );
+
+    // The next save restores canonical order over any interleaving:
+    // scramble the merged file, then let the real writer touch it.
+    let merged = fs::read_to_string(seeds.join("issues.jsonl")).expect("merged store");
+    let mut scrambled: Vec<String> = merged
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(str::to_owned)
+        .collect();
+    scrambled.reverse();
+    write_store(&scrambled);
+    assert_ne!(ids_in_store(), canonical, "the file really is scrambled");
+    let output = capture(&dir, &our_binary(), &[
+        "update",
+        "tst-0003",
+        "--title",
+        "Three renamed",
+    ]);
+    assert_eq!(output.status.code(), Some(0), "update writes");
+    assert_eq!(
+        ids_in_store(),
+        canonical,
+        "the next save restored canonical order"
+    );
+    assert!(
+        fs::read_to_string(seeds.join("issues.jsonl"))
+            .expect("issues.jsonl")
+            .contains("Three renamed"),
+        "the write landed"
+    );
+
+    fs::remove_dir_all(&dir).ok();
 }

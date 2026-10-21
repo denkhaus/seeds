@@ -208,9 +208,33 @@ carrying its own expectation, never a silent split:
 - **Exit codes:** no divergence observed on the covered surface — both
   binaries exit 1 on every error path (including show's partial
   multi-id failure envelope).
-- **Canonical write order:** no divergence observed — both writers emit
-  identical `issues.jsonl` bytes for every covered mutation (volatile
-  timestamps aside).
+- **Canonical write order (seeds-e29a, deliberate divergence):** every
+  save rewrites `issues.jsonl`/`plans.jsonl`/`templates.jsonl` with
+  one record per line in CANONICAL order — sorted by id, byte-wise —
+  whatever order the records were loaded or appended in, while each
+  single record line stays verbatim. The order is total and
+  timestamp-independent, so two writers that append different records
+  produce line-disjoint diffs a git merge combines cleanly — the
+  root-cause fix for the 2026-09-26 corruption incident, where
+  wholesale rewrites interleaved lines and duplicated every record
+  (fabro-4cfc pt. 4). The reference appends and never reorders, so
+  the LINE ORDER of a written store legitimately diverges: both
+  readers follow file order, so order-sensitive outputs agree on
+  identical files and may list the same record set in a different
+  order across writers. The differential battery therefore compares
+  final-store record SETS in creation order (`sort_by_label`) instead
+  of by line position, and `tpl status`'s `issues` array as a set;
+  the compat suite's inverse round-trip pins the load→save contract
+  as "every line verbatim, order canonical" instead of byte identity.
+  Residual semantics, deliberately NOT solved by ordering: the same
+  record edited on both sides still conflicts (git marks it; the
+  dedupe recipe from fabro-4cfc pt. 3 applies), and two branches
+  inserting beside the SAME line meet git's normal three-way
+  behavior — canonical order removes the interleaving/duplication
+  class, not edit conflicts. sd reads any line order (the round-trip
+  battery has the reference read our reordered store), so no config
+  flag was needed and the rollout is unconditional; the duplicate-id
+  gate battery of fabro-4cfc stays as defense in depth.
 - **doctor (hygiene batch, seeds-c228):** the check surface (12
   checks, names, pass messages, warn/fail exit semantics) and the
   `--json` envelope are sd-parity — differentially pinned. Three

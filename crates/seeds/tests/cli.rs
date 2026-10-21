@@ -1069,8 +1069,19 @@ fn priority_accepts_numbers_names_and_the_shown_form() {
     ] {
         let output = run(&dir, &["create", "--title", "probe", "--priority", value]);
         assert_eq!(output.status.code(), Some(0), "{value} is accepted");
-        let created =
-            read_records(&dir).pop().expect("create appends a record")["priority"].clone();
+        // Canonical store order (seeds-e29a): the new record sits at
+        // its id's position, so look it up by the reported id.
+        let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+        let id = stdout
+            .trim()
+            .strip_prefix("✓ Created ")
+            .unwrap_or_else(|| panic!("create reports the id: {stdout}"))
+            .to_owned();
+        let created = read_records(&dir)
+            .iter()
+            .find(|record| record["id"] == json!(id))
+            .expect("the created record is in the store")["priority"]
+            .clone();
         assert_eq!(created, json!(expected), "{value} means P{expected}");
     }
 }

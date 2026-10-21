@@ -81,7 +81,13 @@ impl Store {
         Ok(store)
     }
 
-    /// Writes all four store files back.
+    /// Writes all four store files back, the JSONL records in
+    /// CANONICAL order — sorted by id, byte-wise (seeds-e29a). The
+    /// order is total and timestamp-independent, so two writers that
+    /// append different records produce line-disjoint diffs a git
+    /// merge combines; the next save restores the order after any
+    /// merge. Readers (ours and sd's) follow file order, and sd reads
+    /// any JSONL line order, so the rewrite is reader-compatible.
     ///
     /// # Errors
     ///
@@ -95,18 +101,21 @@ impl Store {
             "issues.jsonl",
             &self.issues,
             SeedRecord::to_json_line,
+            |record| record.id().as_str(),
         )?;
         save_jsonl(
             &self.root,
             "plans.jsonl",
             &self.plans,
             PlanRecord::to_json_line,
+            |record| record.id().as_str(),
         )?;
         save_jsonl(
             &self.root,
             "templates.jsonl",
             &self.templates,
             TemplateRecord::to_json_line,
+            |record| record.id().as_str(),
         )?;
         Ok(())
     }
@@ -196,18 +205,25 @@ where
 
 /// Writes records as compact JSONL with a trailing newline per line;
 /// an empty collection writes an empty file, matching sd.
+/// Emits one record per line in CANONICAL id order (seeds-e29a):
+/// byte-wise sorted by `id_of`, whatever order the records were
+/// loaded or appended in. The rendering of each single record is
+/// untouched — only the line order is normalized.
 fn save_jsonl<T>(
     root: &Path,
     name: &str,
     records: &[T],
     render: impl Fn(&T) -> String,
+    id_of: impl Fn(&T) -> &str,
 ) -> Result<(), Error> {
     let path = root.join(name);
     if records.is_empty() {
         return write_file(&path, String::new());
     }
+    let mut sorted: Vec<&T> = records.iter().collect();
+    sorted.sort_by(|left, right| id_of(left).cmp(id_of(right)));
     let mut text = String::new();
-    for record in records {
+    for record in sorted {
         text.push_str(&render(record));
         text.push('\n');
     }
@@ -280,6 +296,48 @@ mod tests {
         store.save().expect("second save");
         let issues = fs::read_to_string(root.join("issues.jsonl")).expect("issues.jsonl");
         assert_eq!(issues, "", "the rename replaced the file exactly");
+
+        fs::remove_dir_all(root.parent().expect("parent")).ok();
+    }
+
+    // seeds-e29a: every save rewrites the JSONL files in canonical id
+    // order (byte-wise), whatever order the records were loaded or
+    // appended in — while each record line itself stays verbatim.
+    #[test]
+    fn save_writes_records_in_canonical_id_order() {
+        let root = temp_store("canonical");
+        let lines = [
+            "{\"id\":\"tst-0009\",\"title\":\"nine\",\"status\":\"open\",\"type\":\"task\",\"priority\":2,\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"updatedAt\":\"2026-01-01T00:00:00.000Z\"}",
+            "{\"id\":\"tst-0001\",\"title\":\"one\",\"status\":\"open\",\"type\":\"task\",\"priority\":2,\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"updatedAt\":\"2026-01-01T00:00:00.000Z\"}",
+            "{\"id\":\"tst-0005\",\"title\":\"five\",\"status\":\"closed\",\"type\":\"bug\",\"priority\":1,\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"updatedAt\":\"2026-01-01T00:00:00.000Z\",\"closedAt\":\"2026-01-02T00:00:00.000Z\"}",
+        ];
+        fs::write(root.join("issues.jsonl"), format!("{}\n", lines.join("\n")))
+            .expect("scrambled store");
+        let store = Store::open(&root).expect("store opens");
+        assert_eq!(store.issues.len(), 3, "load follows file order");
+        store.save().expect("canonical save");
+
+        let saved = fs::read_to_string(root.join("issues.jsonl")).expect("issues.jsonl");
+        let written: Vec<&str> = saved.lines().collect();
+        let ids: Vec<String> = written
+            .iter()
+            .map(|line| {
+                let value: serde_json::Value = serde_json::from_str(line).expect("valid JSON line");
+                value["id"].as_str().expect("id").to_owned()
+            })
+            .collect();
+        assert_eq!(
+            ids,
+            vec!["tst-0001", "tst-0005", "tst-0009"],
+            "canonical id order"
+        );
+        let mut original: Vec<&str> = lines.to_vec();
+        for line in &written {
+            let position = original.iter().position(|kept| kept == line);
+            assert!(position.is_some(), "record line preserved verbatim: {line}");
+            original.swap_remove(position.expect("found"));
+        }
+        assert!(original.is_empty(), "no line invented or dropped");
 
         fs::remove_dir_all(root.parent().expect("parent")).ok();
     }

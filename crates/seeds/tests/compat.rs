@@ -3,8 +3,10 @@
 //!
 //! Forward: our writer writes → the reference reads + updates → our
 //! fields (and unknown additive fields) survive. Inverse: the reference
-//! writes → we load and save byte-identically → it still reads the
-//! store.
+//! writes → we load and save, keeping every line verbatim while
+//! rewriting the file in canonical id order (seeds-e29a) → it still
+//! reads the store. The record SET is the compatibility surface; the
+//! line order is a native property of our writer.
 //!
 //! The reference is NOT the PATH `sd`: this repo stopped installing the
 //! sd CLI at the self-hosting cutover (seeds-3791). It lives in this
@@ -186,8 +188,13 @@ fn forward_our_writer_sd_reads_and_updates() {
     fs::remove_dir_all(&dir).ok();
 }
 
+/// Inverse round-trip (seeds-e29a): our load→save keeps the
+/// reference's every line verbatim and rewrites them in canonical id
+/// order — the record set is preserved exactly, the order is our
+/// writer's documented property, and the reference still reads the
+/// result.
 #[test]
-fn inverse_sd_writes_we_round_trip_byte_identically() {
+fn inverse_sd_writes_we_round_trip_canonically() {
     let Some(reference) = reference() else {
         skip_note();
         return;
@@ -216,7 +223,9 @@ fn inverse_sd_writes_we_round_trip_byte_identically() {
     let other_id = other["id"].as_str().expect("create returns id").to_owned();
     run(&dir, &reference, &["dep", "add", &id, &other_id, "--json"]);
 
-    // Our turn: load and save with zero changes must be byte-identical.
+    // Our turn: load and save with zero changes must preserve every
+    // line verbatim (a set — one record per line, nothing invented or
+    // dropped) while sorting the file into canonical id order.
     let issues_path = seeds_dir.join("issues.jsonl");
     let before = fs::read_to_string(&issues_path).expect("read reference output");
     let store = Store::open(&seeds_dir).expect("we read the reference's store");
@@ -227,9 +236,41 @@ fn inverse_sd_writes_we_round_trip_byte_identically() {
     );
     store.save().expect("our writer saves");
     let after = fs::read_to_string(&issues_path).expect("read our output");
+
+    let mut before_lines: Vec<&str> = before.lines().collect();
+    let after_lines: Vec<&str> = after.lines().collect();
     assert_eq!(
-        before, after,
-        "load→save must be byte-identical for reference output"
+        after_lines.len(),
+        before_lines.len(),
+        "no record invented or lost"
+    );
+    for line in &after_lines {
+        let position = before_lines.iter().position(|kept| kept == line);
+        assert!(
+            position.is_some(),
+            "load→save kept the reference's line verbatim: {line}"
+        );
+        before_lines.swap_remove(position.expect("found"));
+    }
+    assert!(
+        before_lines.is_empty(),
+        "every reference line appears exactly once"
+    );
+    let ids_of = |lines: &[&str]| -> Vec<String> {
+        lines
+            .iter()
+            .map(|line| {
+                let value: Value = serde_json::from_str(line).expect("valid JSONL record");
+                value["id"].as_str().expect("id").to_owned()
+            })
+            .collect()
+    };
+    let mut sorted_ids = ids_of(&after_lines);
+    sorted_ids.sort();
+    assert_eq!(
+        ids_of(&after_lines),
+        sorted_ids,
+        "our save rewrote the store in canonical id order"
     );
 
     // The reference still reads the store we just wrote.
