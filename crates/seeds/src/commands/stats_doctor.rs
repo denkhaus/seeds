@@ -46,12 +46,14 @@ pub fn stats(ctx: &CommandContext, input: &StatsInput) -> CommandOutcome {
                     by_type.insert(kind.clone(), json!(count));
                 }
                 let mut by_priority = Map::new();
-                for (level, count) in &stats.by_priority {
-                    by_priority.insert(level.to_string(), json!(count));
+                for (level, counts) in &stats.by_priority {
+                    // The reference's all-status totals (seeds-4cf6
+                    // splits only the text display).
+                    by_priority.insert(level.to_string(), json!(counts.total()));
                 }
                 let mut by_label = Map::new();
-                for (label, count) in &stats.by_label {
-                    by_label.insert(label.clone(), json!(count));
+                for (label, counts) in &stats.by_label {
+                    by_label.insert(label.clone(), json!(counts.total()));
                 }
                 let mut stats_map = Map::new();
                 stats_map.insert("total".to_owned(), json!(stats.total));

@@ -1570,6 +1570,63 @@ fn stats_pace_options_imply_section_and_garbage_is_named() {
 }
 
 // ---------------------------------------------------------------------------
+// stats/list display deviations (seeds-4cf6)
+// ---------------------------------------------------------------------------
+
+/// stats text splits `By Priority`/`By Label` into `N open / M closed`
+/// (README DEVIATIONS) while JSON keeps the reference's all-status
+/// totals.
+#[test]
+fn stats_text_splits_open_and_closed() {
+    let dir = temp_store("stats-split");
+    write_records(&dir, &standard());
+    let output = run(&dir, &["stats"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8(output.stdout).expect("utf-8");
+    // P3 carries only the closed tst-0004; the bug label spans
+    // tst-0001 (open) + tst-0003 (in_progress), nothing closed.
+    assert!(text.contains("0 open / 1 closed"), "closed row: {text}");
+    assert!(text.contains("2 open / 0 closed"), "live rows: {text}");
+    assert!(
+        text.contains("1 open / 0 closed"),
+        "single live row: {text}"
+    );
+
+    let value = stdout_json(&run(&dir, &["stats", "--json"]));
+    assert_eq!(value["stats"]["byLabel"]["bug"], json!(2));
+    assert_eq!(value["stats"]["byPriority"]["3"], json!(1));
+}
+
+/// The query footers name the `--limit` cap (README DEVIATIONS):
+/// `shown of total` when the cap cut rows, the reference's plain
+/// count otherwise — shared by list/ready/search through the one
+/// pipeline.
+#[test]
+fn list_footer_names_the_limit_cap() {
+    let dir = temp_store("limit-cap");
+    write_records(&dir, &standard());
+    // Default list scope: five non-closed records; limit 2 truncates.
+    let output = run(&dir, &["list", "--limit", "2", "--sort", "id"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8(output.stdout).expect("utf-8");
+    assert!(text.contains("\n2 of 5 issue(s)"), "{text}");
+
+    // Without truncation the footer keeps the reference wording.
+    let output = run(&dir, &["list", "--sort", "id"]);
+    let text = String::from_utf8(output.stdout).expect("utf-8");
+    assert!(text.contains("\n5 issue(s)"), "{text}");
+    assert!(
+        !text.contains(" of "),
+        "plain count when untruncated: {text}"
+    );
+
+    // ready shares the pipeline and names its own cap.
+    let output = run(&dir, &["ready", "--limit", "1"]);
+    let text = String::from_utf8(output.stdout).expect("utf-8");
+    assert!(text.contains("\n1 of 3 ready issue(s)"), "{text}");
+}
+
+// ---------------------------------------------------------------------------
 // onboard (seeds-d9f8)
 // ---------------------------------------------------------------------------
 

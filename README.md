@@ -81,6 +81,23 @@ carrying its own expectation, never a silent split:
   command surface only (the help-honesty rule above), not the
   reference's full list; the error surface (`unknown shell`, missing
   argument) is differential-pinned.
+- **stats status split:** the text rows of `By Priority` and `By Label`
+  print `N open / M closed` (open = non-closed: `open` +
+  `in_progress` — the live stock) where the reference prints the
+  all-status total — the sections read like inventory while carrying
+  history (seeds-4cf6). The JSON surface keeps the reference's total
+  counts; `By Type` and the status header block stay on totals too.
+  The tailored `differential_stats_matches_sd` folds our split back to
+  its sum and compares the rest byte-for-byte.
+- **query limit honesty:** when `--limit` truncates (default 50), the
+  text footer of `list`/`ready`/`search` counts `shown of total`
+  (`50 of 88 issue(s)`) instead of letting the rendered count pass as
+  the whole stock (seeds-4cf6). Without truncation the footer is
+  byte-identical to the reference; JSON `count` stays the rendered
+  count (the reference's meaning); `ids`/`compact` (no footer) keep
+  the reference's silence. The limit also runs after every filter now
+  (the reference slices last) — `search` no longer matches only inside
+  the first `--limit` records.
 - **config additive-fields writes:** `seeds config set/unset` preserve
   unknown top-level keys already present in `config.yaml` (and keep
   file order) instead of failing the reference's

@@ -722,12 +722,9 @@ fn matrix() -> Vec<Case> {
             command: "dep",
             args:    &["dep", "list", "tst-zzzz", "--json"],
         },
-        // stats: text and JSON (stable keys, encounter-order groups)
-        Case {
-            name:    "stats_default",
-            command: "stats",
-            args:    &["stats"],
-        },
+        // stats: JSON only (stable keys, encounter-order groups) —
+        // the text surface carries our open/closed split (seeds-4cf6,
+        // README DEVIATIONS) and lives in the tailored test below
         Case {
             name:    "stats_json",
             command: "stats",
@@ -963,6 +960,14 @@ fn matrix_covers_every_implemented_command() {
             "differential_doctor_matches_sd",
         ),
         (
+            // stats' By Priority/By Label rows carry the open/closed
+            // split (seeds-4cf6, README DEVIATIONS) where the
+            // reference prints the all-status total — the tailored
+            // test folds our split back to its sum.
+            "stats",
+            "differential_stats_matches_sd",
+        ),
+        (
             // prime's template names the live `seeds` CLI instead of
             // the retired `sd` binary (README DEVIATIONS) — the
             // tailored test rewrites the reference's `sd ` command
@@ -1179,6 +1184,66 @@ fn differential_doctor_matches_sd() {
     }
 }
 
+/// seeds-4cf6: our `By Priority`/`By Label` rows print
+/// `N open / M closed` where the reference prints the all-status
+/// total — fold the split back to `N + M` (the label/name column is
+/// padded before the counts, so the folded line matches the
+/// reference's layout byte-for-byte).
+fn fold_status_splits(text: &str) -> String {
+    text.lines()
+        .map(|line| {
+            let Some((head, tail)) = line.split_once(" open / ") else {
+                return line.to_owned();
+            };
+            let Some((padded, open)) = head.rsplit_once(' ') else {
+                return line.to_owned();
+            };
+            let Some(closed) = tail.strip_suffix(" closed") else {
+                return line.to_owned();
+            };
+            match (open.parse::<usize>(), closed.parse::<usize>()) {
+                (Ok(open), Ok(closed)) => format!("{padded} {}", open + closed),
+                _ => line.to_owned(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// stats text: our open/closed split against the reference's
+/// all-status totals (README DEVIATIONS, seeds-4cf6) — everything
+/// else must stay byte-identical. The JSON surfaces stay in the
+/// generic matrix (totals unchanged).
+#[test]
+fn differential_stats_matches_sd() {
+    let Some(reference) = reference() else {
+        skip_note();
+        return;
+    };
+    let case = "stats_text";
+    let pair = fixture_pair(case);
+    let sd = capture(&pair.reference_dir, &reference, &["stats"]);
+    let ours = capture(&pair.ours_dir, &our_binary(), &["stats"]);
+    assert_eq!(
+        sd.status.code(),
+        ours.status.code(),
+        "{case}: exit code diverged"
+    );
+    assert_eq!(
+        sd.stderr.is_empty(),
+        ours.stderr.is_empty(),
+        "{case}: stderr emptiness diverged"
+    );
+    let sd_text = String::from_utf8_lossy(&sd.stdout);
+    let ours_text = fold_status_splits(&String::from_utf8_lossy(&ours.stdout));
+    assert_eq!(
+        sd_text.trim(),
+        ours_text.trim(),
+        "{case}: stdout diverged after folding the status split back to its total"
+    );
+    fs::remove_dir_all(&pair.reference_dir).ok();
+    fs::remove_dir_all(&pair.ours_dir).ok();
+}
 /// prime: full, compact, and JSON surfaces with two documented
 /// deviations (README DEVIATIONS) — (1) the template's examples name
 /// the live `seeds` CLI, not the retired `sd` binary (nothing

@@ -299,7 +299,7 @@ pub fn blocked(ctx: &CommandContext, input: &BlockedInput) -> CommandOutcome {
                             .is_none_or(|blocker| blocker.status() != Some(Status::Closed))
                     })
                 };
-                let text = render::list_text(&records, mode, &unresolved, "blocked");
+                let text = render::list_text(&records, mode, &unresolved, "blocked", records.len());
                 if records.is_empty()
                     && matches!(
                         mode,
