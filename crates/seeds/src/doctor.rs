@@ -810,23 +810,92 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
         git_check.details.clear();
     }
 
-    Ok(Report {
-        checks: vec![
-            config_check,
-            jsonl_check,
-            schema_check,
-            duplicate_check,
-            referential_check,
-            bidirectional_check,
-            circular_check,
-            label_check,
-            extensions_check,
-            closed_check,
-            locks_check,
-            git_check,
-        ],
-        fixes,
-    })
+    // write-safety (seeds-36cd, native addition — README DEVIATIONS):
+    // our writer is atomic (temp sibling, then rename) under the
+    // advisory writer lock (seeds-0d7b), so the two observable
+    // signatures of a lost or concurrent write are exactly these: a
+    // stray `.*.tmp` sibling means a writer died between writing and
+    // renaming (the store file still holds the last COMPLETE state),
+    // and a held `.lock` means a write may be mid-cycle right now.
+    // Both are absent on a healthy store, where the check is OMITTED —
+    // the reference's check list and pass counts stay byte-identical
+    // (pinned by differential_doctor_matches_sd).
+    let stray_temps: Vec<String> = std::fs::read_dir(root)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name();
+            let name = name.to_str()?;
+            let extension = std::path::Path::new(name).extension();
+            let is_temp = name.starts_with('.')
+                && extension.is_some_and(|ext| ext.eq_ignore_ascii_case("tmp"));
+            is_temp.then(|| name.to_owned())
+        })
+        .collect();
+    if fix && !stray_temps.is_empty() {
+        let mut deleted = 0;
+        for name in &stray_temps {
+            std::fs::remove_file(root.join(name))
+                .map_err(|error| format!("deleting {name}: {error}"))?;
+            deleted += 1;
+        }
+        fixes.push(format!("Deleted {deleted} interrupted-write temp file(s)"));
+    }
+    // In --fix mode the command layer holds the lock itself, so the
+    // probe would only ever find us.
+    let writer_active = !fix && crate::lock::WriterLock::is_held_elsewhere(root);
+    let pending_temps: &[String] = if fix { &[] } else { &stray_temps };
+    let write_check = if pending_temps.is_empty() && !writer_active {
+        None
+    } else {
+        let mut details: Vec<String> = pending_temps
+            .iter()
+            .map(|name| {
+                format!("{name} — interrupted write, the store file keeps the last complete state")
+            })
+            .collect();
+        if writer_active {
+            details
+                .push("a writer holds .lock — this report may read a mid-write state".to_owned());
+        }
+        let message = match (pending_temps.is_empty(), writer_active) {
+            (true, _) => "A writer holds the store lock".to_owned(),
+            (false, false) => format!("{} interrupted-write temp file(s)", pending_temps.len()),
+            (false, true) => format!(
+                "{} interrupted-write temp file(s); a writer holds the store lock",
+                pending_temps.len()
+            ),
+        };
+        Some(Check {
+            name: "write-safety",
+            status: CheckStatus::Warn,
+            message,
+            details,
+            fixable: !pending_temps.is_empty(),
+            repair: (!pending_temps.is_empty())
+                .then(|| "delete the interrupted-write temp file(s)".to_owned()),
+        })
+    };
+
+    let mut checks = vec![
+        config_check,
+        jsonl_check,
+        schema_check,
+        duplicate_check,
+        referential_check,
+        bidirectional_check,
+        circular_check,
+        label_check,
+        extensions_check,
+        closed_check,
+        locks_check,
+        git_check,
+    ];
+    if let Some(check) = write_check {
+        checks.push(check);
+    }
+    Ok(Report { checks, fixes })
 }
 
 /// One bidirectional dependency mismatch.

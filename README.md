@@ -224,6 +224,19 @@ carrying its own expectation, never a silent split:
   `.gitattributes` (same content as sd), leaving `updatedAt`
   untouched (sd's fix-time stamping is unspecified). The native
   `seeds dedupe` remains the duplicate-id heal.
+- **doctor `write-safety` (native addition, seeds-36cd):** a
+  thirteenth check that only EXISTS when it has something to report —
+  a healthy store prints the reference's fixed list and counts
+  byte-identically (pinned by `differential_doctor_matches_sd`). Our
+  writer is atomic (temp sibling, rename) under the advisory writer
+  lock, so the two observable signatures of a lost or concurrent
+  write are exactly these: a stray `.*.tmp` sibling in `.seeds/` (a
+  writer died between writing and renaming — the store file keeps the
+  last complete state; WARN, `--fix` deletes the leftover) and a held
+  `.lock` (a write may be mid-cycle right now; WARN, nothing to
+  repair — `--fix` holds the lock itself and therefore never probes).
+  The check NAME reaches humans only via `doctor --format ids`/JSON;
+  the text surface shows the message and its detail lines.
 - **stats (hygiene batch, seeds-c228):** `--json` keeps sd's envelope
   with the stable key set (`total`, `open`, `inProgress`, `closed`,
   `blocked`, `byType`, `byPriority`, `byLabel`) — observed sd 0.5.15

@@ -1820,6 +1820,81 @@ fn doctor_fails_on_malformed_jsonl() {
     assert!(stdout.contains("1 failure(s)"), "{stdout}");
 }
 
+/// write-safety (seeds-36cd, native addition): the writer is atomic
+/// (temp sibling, then rename) under the advisory writer lock, so the
+/// two observable signatures of a lost or concurrent write are a
+/// stray `.*.tmp` sibling and a held `.lock`. The check is OMITTED
+/// when neither is present — a healthy store keeps the reference's
+/// check list and pass counts — and `--fix` deletes the interrupted
+/// write's leftover.
+#[test]
+fn doctor_write_safety_reports_interrupted_writes() {
+    let dir = temp_store("doctor-write-safety");
+    write_records(&dir, &doctor_fixture());
+    // Heal the fixture first (bidirectional repair + .gitattributes):
+    // the baseline for this check is the fully healthy store.
+    let healed = run(&dir, &["doctor", "--fix"]);
+    assert_eq!(healed.status.code(), Some(0));
+
+    // Healthy: nothing to report, so the check does not exist — the
+    // reference's fixed list keeps its counts and its names.
+    let output = run(&dir, &["doctor"]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(
+        stdout.contains("12 passed, 0 warning(s), 0 failure(s)"),
+        "healthy store keeps the reference's counts: {stdout}"
+    );
+    let ids = run(&dir, &["doctor", "--format", "ids"]);
+    assert!(
+        String::from_utf8(ids.stdout)
+            .expect("utf-8")
+            .trim()
+            .is_empty(),
+        "no check names on a healthy store"
+    );
+
+    // A writer that died between writing the temp sibling and renaming
+    // it leaves exactly that sibling behind (seeds-36cd incident).
+    fs::write(dir.join(".seeds/.issues.jsonl.tmp"), "{}\n").expect("temp sibling");
+    let output = run(&dir, &["doctor"]);
+    assert_eq!(output.status.code(), Some(0), "a stray temp is a warning");
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(
+        stdout.contains("1 interrupted-write temp file(s)"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(".issues.jsonl.tmp — interrupted write"),
+        "{stdout}"
+    );
+
+    // The check NAME is a machine surface only.
+    let ids = run(&dir, &["doctor", "--format", "ids"]);
+    assert_eq!(
+        String::from_utf8(ids.stdout).expect("utf-8"),
+        "write-safety\n"
+    );
+
+    // --fix deletes the leftover; the store file itself is the last
+    // complete state and stays untouched.
+    let output = run(&dir, &["doctor", "--fix"]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(
+        stdout.contains("✓ Deleted 1 interrupted-write temp file(s)"),
+        "{stdout}"
+    );
+    assert!(!dir.join(".seeds/.issues.jsonl.tmp").exists());
+    assert_eq!(read_records(&dir).len(), 3, "the store is untouched");
+    let again = run(&dir, &["doctor"]);
+    let stdout = String::from_utf8(again.stdout).expect("utf-8");
+    assert!(
+        stdout.contains("12 passed, 0 warning(s), 0 failure(s)"),
+        "quiet again after the fix: {stdout}"
+    );
+}
+
 /// `stats --json` emits the stable key set (documented DEVIATIONS
 /// addition; the parity shape is differentially pinned).
 #[test]
