@@ -107,6 +107,39 @@ impl ReplaceIn {
     }
 }
 
+/// The canonical triage roles that describe PENDING triage work
+/// (docs/agents/triage-labels.md minus `wontfix`, which records a
+/// decision already taken rather than an open question).
+const PENDING_TRIAGE_LABELS: &[&str] = &[
+    "needs-triage",
+    "needs-info",
+    "ready-for-agent",
+    "ready-for-human",
+];
+
+/// Clears the pending triage-role labels off a record that just went
+/// `closed` (seeds-8666): closing answers the triage question, so the
+/// roles would only preempt it and inflate every label aggregate with
+/// history. A record left without labels loses the field entirely —
+/// the shape `update --remove-label` writes. Deliberate deviation from
+/// sd (which keeps every label); README DEVIATIONS carries the entry.
+fn strip_triage_labels(record: &mut SeedRecord) {
+    if record.field("labels").is_none() {
+        return;
+    }
+    let kept: Vec<String> = record
+        .labels()
+        .iter()
+        .filter(|label| !PENDING_TRIAGE_LABELS.contains(label))
+        .map(|label| (*label).to_owned())
+        .collect();
+    if kept.is_empty() {
+        record.remove_field("labels");
+    } else {
+        record.set_labels(kept);
+    }
+}
+
 /// Appends `text` to `existing`, separated by exactly one blank line;
 /// a missing or blank `existing` yields `text` alone.
 fn join_appended(existing: Option<&str>, text: &str) -> String {
@@ -283,6 +316,14 @@ pub fn update(ctx: &CommandContext, input: &UpdateInput) -> CommandOutcome {
             if input.clear_extensions {
                 record.remove_field("extensions");
             }
+            // Close hygiene runs LAST, after every label verb: a
+            // record that ends this write `closed` never keeps a
+            // pending triage role — not via `--status closed`, not via
+            // `--add-label`, and not from labels it still carried
+            // (seeds-8666).
+            if record.status() == Some(Status::Closed) {
+                strip_triage_labels(record);
+            }
             record.set_field("updatedAt", json!(now));
         }
         store
@@ -353,6 +394,9 @@ pub fn close(ctx: &CommandContext, input: &CloseInput) -> CommandOutcome {
             if let Some(reason) = reason {
                 record.set_field("closeReason", json!(reason));
             }
+            // Close hygiene (seeds-8666): pending triage roles go with
+            // the closure — see `strip_triage_labels`.
+            strip_triage_labels(record);
             record.set_field("updatedAt", json!(now));
             closed.push(id.clone());
         }

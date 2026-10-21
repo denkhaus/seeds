@@ -871,6 +871,115 @@ fn close_missing_issue_fails_without_mutating() {
     assert_eq!(stored["status"], json!("open"), "valid id stays untouched");
 }
 
+/// Close hygiene (seeds-8666): closing clears the pending triage roles
+/// while every other label — `wontfix` among them — survives, and a
+/// record left without labels loses the field entirely. The text
+/// surface stays exactly the reference's (the deviation is store-side,
+/// README DEVIATIONS).
+#[test]
+fn close_strips_pending_triage_labels() {
+    let dir = temp_store("close-triage");
+    write_records(&dir, &[
+        record(
+            "tst-0001",
+            "Triaged work",
+            json!({"labels": ["needs-triage", "ready-for-agent", "bug", "wontfix"]}),
+        ),
+        record(
+            "tst-0002",
+            "Only triage roles",
+            json!({"labels": ["needs-info"]}),
+        ),
+        record(
+            "tst-0003",
+            "Already clean",
+            json!({"labels": ["backend"], "status": "closed",
+                   "closedAt": "2026-01-05T00:00:00.000Z"}),
+        ),
+    ]);
+    let output = run(&dir, &["close", "tst-0001", "tst-0002"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert_eq!(
+        text.trim_end(),
+        "✓ Closed tst-0001\n✓ Closed tst-0002",
+        "silent deviation: no extra close output"
+    );
+
+    let records = read_records(&dir);
+    let find = |id: &str| {
+        records
+            .iter()
+            .find(|record| record["id"] == json!(id))
+            .expect("record")
+    };
+    assert_eq!(find("tst-0001")["status"], json!("closed"));
+    assert_eq!(
+        find("tst-0001")["labels"],
+        json!(["bug", "wontfix"]),
+        "pending roles dropped, decision label and content labels kept"
+    );
+    assert!(
+        find("tst-0002").get("labels").is_none(),
+        "all-labels record loses the field: {}",
+        find("tst-0002")
+    );
+    assert_eq!(
+        find("tst-0003")["labels"],
+        json!(["backend"]),
+        "untouched record keeps its labels"
+    );
+}
+
+/// Close hygiene also holds on the other two write paths that can
+/// leave a record `closed` (seeds-8666): `update --status closed` and
+/// a plain write against an already-closed record.
+#[test]
+fn update_write_on_closed_record_strips_triage_labels() {
+    let dir = temp_store("update-triage");
+    write_records(&dir, &[
+        record(
+            "tst-0001",
+            "Closing through update",
+            json!({"labels": ["ready-for-human", "cli"]}),
+        ),
+        record(
+            "tst-0002",
+            "Stale roles on history",
+            json!({"status": "closed", "closedAt": "2026-01-05T00:00:00.000Z",
+                   "labels": ["ready-for-agent", "parity"]}),
+        ),
+    ]);
+    let output = run(&dir, &[
+        "update", "tst-0001", "--status", "closed", "--json",
+    ]);
+    assert_eq!(output.status.code(), Some(0));
+    let output = run(&dir, &["update", "tst-0002", "--title", "Renamed"]);
+    assert_eq!(output.status.code(), Some(0));
+
+    let records = read_records(&dir);
+    let find = |id: &str| {
+        records
+            .iter()
+            .find(|record| record["id"] == json!(id))
+            .expect("record")
+    };
+    assert_eq!(find("tst-0001")["labels"], json!(["cli"]));
+    assert_eq!(find("tst-0002")["labels"], json!(["parity"]));
+
+    // An open record keeps every label — the rule keys on the closed
+    // status only.
+    let dir = temp_store("update-triage-open");
+    write_records(&dir, &[record(
+        "tst-0001",
+        "Still open",
+        json!({"labels": ["needs-triage"]}),
+    )]);
+    let output = run(&dir, &["update", "tst-0001", "--title", "Renamed"]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(read_records(&dir)[0]["labels"], json!(["needs-triage"]));
+}
+
 // ---------------------------------------------------------------------------
 // dep add
 // ---------------------------------------------------------------------------

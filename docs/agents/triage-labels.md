@@ -19,3 +19,14 @@ Edit the right-hand column to match whatever vocabulary you actually use.
 The tracker is the Seeds CLI: apply on create with
 `seeds create --labels <label>` and relabel with
 `seeds update <id> --set-labels <label>[,<label>...]`.
+
+## Closing drops the pending roles
+
+Closing a record clears the four PENDING roles (`needs-triage`,
+`needs-info`, `ready-for-agent`, `ready-for-human`) from its labels —
+`seeds close` and `update --status closed` alike, plus any write
+against an already-closed record (seeds-8666). A closed record has no
+pending triage state left, and the stale roles used to read as live
+inventory in every label aggregate. `wontfix` is the exception: it
+records a decision already taken, so it survives the close — carry the
+closing rationale in `seeds close --reason` either way.

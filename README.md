@@ -98,6 +98,23 @@ carrying its own expectation, never a silent split:
   the reference's silence. The limit also runs after every filter now
   (the reference slices last) — `search` no longer matches only inside
   the first `--limit` records.
+- **close triage-label hygiene:** closing a record clears the PENDING
+  canonical triage roles from its `labels` — `needs-triage`,
+  `needs-info`, `ready-for-agent`, `ready-for-human`
+  (docs/agents/triage-labels.md) — while content labels and `wontfix`
+  (a decision already taken, not an open question) survive; a record
+  left with no other label loses the `labels` field entirely
+  (seeds-8666). Closing answers the triage question, so keeping the
+  roles would only preempt it and feed history into every label
+  aggregate. The rule keys on the closed STATUS, not on the verb: it
+  covers `seeds close`, `update --status closed`, and a write against
+  an already-closed record (stale roles go the next time such a record
+  is touched) — closed history is never rewritten unprompted. stdout
+  stays byte-identical to the reference (the deviation is store-side
+  only), and the reference keeps every label: the tailored
+  `differential_close_strips_triage_labels_vs_sd` pins the split —
+  identical output and identical records, labels differing by exactly
+  the cleared roles on the records that were closed.
 - **config additive-fields writes:** `seeds config set/unset` preserve
   unknown top-level keys already present in `config.yaml` (and keep
   file order) instead of failing the reference's

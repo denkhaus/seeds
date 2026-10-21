@@ -263,6 +263,18 @@ fn fixture_pair(tag: &str) -> Pair {
     }
 }
 
+/// Overwrites a materialized side's store with `records` — the seam a
+/// tailored case uses when the shared fixture cannot carry the shape
+/// under test (triage-labelled close, seeds-8666).
+fn write_store(dir: &Path, records: &[Value]) {
+    let mut text = String::new();
+    for record in records {
+        text.push_str(&record.to_string());
+        text.push('\n');
+    }
+    fs::write(dir.join(".seeds/issues.jsonl"), text).expect("issues.jsonl");
+}
+
 fn our_binary() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_seeds"))
 }
@@ -975,6 +987,15 @@ fn matrix_covers_every_implemented_command() {
             "prime",
             "differential_prime_matches_sd",
         ),
+        (
+            // close's matrix cases stay byte-exact, but the fixture
+            // carries no triage role: the close-hygiene deviation
+            // (seeds-8666, README DEVIATIONS) — we clear pending
+            // triage roles, sd keeps them — is pinned by a case whose
+            // fixture carries them.
+            "close",
+            "differential_close_strips_triage_labels_vs_sd",
+        ),
     ];
     let cases = matrix();
     for command in IMPLEMENTED_COMMANDS {
@@ -1073,6 +1094,143 @@ fn new_record_normalized(dir: &Path) -> Value {
     normalize_volatile(&mut record);
     record["id"] = Value::String("<new>".to_owned());
     record
+}
+
+/// The pending triage roles `close` clears (README DEVIATIONS,
+/// seeds-8666) — the test-side mirror of the CLI's
+/// `PENDING_TRIAGE_LABELS`.
+const PENDING_TRIAGE_LABELS: &[&str] = &[
+    "needs-triage",
+    "needs-info",
+    "ready-for-agent",
+    "ready-for-human",
+];
+
+/// Keeps every label that is not a pending triage role, order intact —
+/// what our store must show after a write against a closed record. An
+/// emptied set is written as a MISSING `labels` field (the shape
+/// `update --remove-label` produces), so the fold ends at `null`.
+fn without_pending(labels: &Value) -> Value {
+    let Value::Array(items) = labels else {
+        return labels.clone();
+    };
+    let kept: Vec<Value> = items
+        .iter()
+        .filter(|item| {
+            !item
+                .as_str()
+                .is_some_and(|label| PENDING_TRIAGE_LABELS.contains(&label))
+        })
+        .cloned()
+        .collect();
+    if kept.is_empty() {
+        json!(null)
+    } else {
+        Value::Array(kept)
+    }
+}
+
+/// `close` tailors its comparison for the documented close-hygiene
+/// deviation (seeds-8666): sd keeps every label, we clear the pending
+/// triage roles. The matrix's close cases stay byte-exact because
+/// their fixtures carry no triage role — this case pins the split
+/// explicitly: identical records, identical output, and the labels
+/// differ by exactly the cleared roles on the records `close` wrote,
+/// while untouched history keeps its labels.
+#[test]
+fn differential_close_strips_triage_labels_vs_sd() {
+    let Some(reference) = reference() else {
+        skip_note();
+        return;
+    };
+    let args = [
+        "close",
+        "tst-0001",
+        "tst-0002",
+        "--reason",
+        "done here",
+        "--json",
+    ];
+    let pair = fixture_pair("close-triage");
+    let records = vec![
+        fixture_record(
+            "tst-0001",
+            "Triaged work",
+            json!({"labels": ["needs-triage", "ready-for-agent", "bug", "wontfix"],
+                   "assignee": "alice"}),
+        ),
+        fixture_record(
+            "tst-0002",
+            "Only pending roles",
+            json!({"labels": ["needs-info"]}),
+        ),
+        fixture_record(
+            "tst-0003",
+            "History stays untouched",
+            json!({"status": "closed", "priority": 3,
+                   "closedAt": "2026-01-05T00:00:00.000Z",
+                   "labels": ["ready-for-human", "backend"]}),
+        ),
+    ];
+    write_store(&pair.reference_dir, &records);
+    write_store(&pair.ours_dir, &records);
+
+    let sd = capture(&pair.reference_dir, &reference, &args);
+    let ours = capture(&pair.ours_dir, &our_binary(), &args);
+    assert_output_parity("close_triage", &sd, &ours);
+
+    let sd_records = store_records(&pair.reference_dir);
+    let ours_records = store_records(&pair.ours_dir);
+    assert_eq!(
+        sd_records.len(),
+        ours_records.len(),
+        "close_triage: record count diverged"
+    );
+    let written = ["tst-0001", "tst-0002"];
+    let mut roles_seen_kept = false;
+    for (mut sd_record, mut ours_record) in sd_records.into_iter().zip(ours_records) {
+        let id = sd_record["id"].as_str().expect("id").to_owned();
+        normalize_volatile(&mut sd_record);
+        normalize_volatile(&mut ours_record);
+        let sd_labels = sd_record
+            .get("labels")
+            .cloned()
+            .unwrap_or_else(|| json!(null));
+        let ours_labels = ours_record
+            .get("labels")
+            .cloned()
+            .unwrap_or_else(|| json!(null));
+        sd_record.as_object_mut().expect("record").remove("labels");
+        ours_record
+            .as_object_mut()
+            .expect("record")
+            .remove("labels");
+        assert_eq!(
+            sd_record, ours_record,
+            "close_triage: {id} diverged beyond its labels"
+        );
+        if written.contains(&id.as_str()) {
+            // The reference never clears — that is the deviation.
+            roles_seen_kept |= sd_labels != without_pending(&sd_labels);
+            assert_eq!(
+                ours_labels,
+                without_pending(&sd_labels),
+                "close_triage: {id} must keep exactly the non-pending labels"
+            );
+        } else {
+            assert_eq!(
+                ours_labels, sd_labels,
+                "close_triage: {id} was not closed, so its labels must match"
+            );
+        }
+    }
+    assert!(
+        roles_seen_kept,
+        "fixture must carry a pending role the reference keeps — the \
+         deviation is the point of this test"
+    );
+    fs::remove_dir_all(&pair.reference_dir).ok();
+    fs::remove_dir_all(&pair.ours_dir).ok();
 }
 
 /// `init` tailors the comparison: the output embeds each side's
