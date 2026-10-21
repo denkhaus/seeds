@@ -117,6 +117,13 @@ fn pace_json_is_the_pinned_golden() {
     assert_eq!(pace["exclusion_labels"], serde_json::json!(["backlog"]));
     assert_eq!(pace["eta"], Value::Null);
     assert_eq!(pace["eta_reason"], "insufficient_closures_in_window");
+    assert_eq!(pace["eta_basis"], Value::Null);
+    // v2 (ADR-0002 amendment 4): the intake side — 5 creations vs 3
+    // closures → k 0.6, net drain −0.5/wk, median open age 16.5d.
+    assert_eq!(pace["creations_in_window"], 5);
+    assert_eq!(pace["k"], serde_json::json!(0.6));
+    assert_eq!(pace["drain_rate_per_week"], serde_json::json!(-0.5));
+    assert_eq!(pace["open_age_median_days"], 16.5);
     // history 2025-12-20 → 2026-02-01 = 43 days ≈ 6.1 weeks.
     assert_eq!(pace["history_weeks"], 6.1);
     let rate_all = pace["rate_all_time"].as_f64().expect("all-time rate");
@@ -155,7 +162,9 @@ fn pace_text_section_carries_the_metrics_and_table() {
     assert!(text.contains("\nPace\n"), "pace section follows");
     assert!(text.contains("Rate (30d):"), "window label");
     assert!(text.contains("0.7 / week (3 closures in window)"));
+    assert!(text.contains("Pace k:             0.60 (3 closed / 5 created)"));
     assert!(text.contains("Lead time (median): 84.0h"));
+    assert!(text.contains("Open age (median):  16.5d"));
     assert!(text.contains("Open to target:     1 (exclusion: backlog — 1 open excluded)"));
     assert!(text.contains("ETA:                insufficient data (3 < 5 closures in 30d window"));
     assert!(text.contains("Week (ISO, UTC)"));

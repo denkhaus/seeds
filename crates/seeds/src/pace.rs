@@ -82,36 +82,55 @@ pub struct WeekBucket {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pace {
     /// The observation window the windowed rate was taken over.
-    pub window_days:            u32,
+    pub window_days: u32,
     /// Minimum closures for a trusted ETA (echoed for diagnostics).
-    pub min_closures:           u32,
+    pub min_closures: u32,
     /// Closures per week inside the window.
-    pub rate_window:            f64,
+    pub rate_window: f64,
     /// Closures inside the window.
-    pub closures_in_window:     usize,
+    pub closures_in_window: usize,
+    /// Creations inside the window (the intake side of the drain).
+    pub creations_in_window: usize,
+    /// The pace coefficient: `closures ÷ creations` inside the
+    /// window. `k = 1` holds the backlog, `k > 1` drains it,
+    /// `k < 1` grows it; `None` when the window saw no creations
+    /// (`no_creations_in_window` — pure drain, no ratio to form).
+    pub k: Option<f64>,
+    /// Net backlog reduction per week: `(closures − creations) × 7 ÷
+    /// window_days`; negative while the backlog grows.
+    pub drain_rate_per_week: f64,
     /// Closures per week over the full history (`None` without
     /// timestamped history).
-    pub rate_all_time:          Option<f64>,
+    pub rate_all_time: Option<f64>,
     /// Closures over the full history.
-    pub closures_total:         usize,
+    pub closures_total: usize,
     /// The history span in weeks (context for the all-time rate).
-    pub history_weeks:          Option<f64>,
+    pub history_weeks: Option<f64>,
     /// Median `createdAt → closedAt` in hours across closed seeds.
     pub lead_time_median_hours: Option<f64>,
+    /// Median age of the non-closed seeds, in days (`None` without
+    /// timestamped open seeds).
+    pub open_age_median_days: Option<f64>,
     /// Open seeds that still count toward Production Readiness.
-    pub open_to_target:         usize,
+    pub open_to_target: usize,
     /// Open seeds parked by the exclusion list.
-    pub excluded_open:          usize,
+    pub excluded_open: usize,
     /// The active exclusion labels (lowercased).
-    pub exclusion_labels:       Vec<String>,
+    pub exclusion_labels: Vec<String>,
     /// Projected date of Production Readiness, `YYYY-MM-DD`
-    /// (`None` when the window carries too little data).
-    pub eta:                    Option<String>,
-    /// Why no ETA is offered: `zero_closures_in_window` or
-    /// `insufficient_closures_in_window`.
-    pub eta_reason:             Option<String>,
+    /// (`None` when the window carries too little data or the
+    /// backlog is not shrinking).
+    pub eta: Option<String>,
+    /// Why no ETA is offered: `zero_closures_in_window`,
+    /// `insufficient_closures_in_window`, or
+    /// `backlog_not_shrinking`.
+    pub eta_reason: Option<String>,
+    /// Which rate carried the projection: `net_drain` (closures
+    /// minus creations) or `gross_rate` (no creations in the
+    /// window, net equals gross); `None` without a projection.
+    pub eta_basis: Option<&'static str>,
     /// The weekly series, oldest first.
-    pub weeks:                  Vec<WeekBucket>,
+    pub weeks: Vec<WeekBucket>,
 }
 
 impl Pace {
@@ -145,10 +164,17 @@ impl Pace {
         let mut creations: Vec<i64> = Vec::new();
         let mut closures: Vec<i64> = Vec::new();
         let mut lead_times: Vec<f64> = Vec::new();
+        let mut open_ages_days: Vec<f64> = Vec::new();
         let mut open_to_target = 0_usize;
         let mut excluded_open = 0_usize;
+        let window_ms = i64::from(options.window_days) * MILLIS_PER_DAY;
+        let window_start = now_ms.saturating_sub(window_ms);
+        let mut creations_in_window = 0_usize;
         for record in records {
             let created = record.created_at().and_then(timeutil::parse_iso_millis);
+            if created.is_some_and(|created_ms| created_ms > window_start && created_ms <= now_ms) {
+                creations_in_window += 1;
+            }
             creations.extend(created);
             let closed = if record.status() == Some(Status::Closed) {
                 record
@@ -167,6 +193,11 @@ impl Pace {
                 }
             }
             if record.status() != Some(Status::Closed) {
+                if let Some(created_ms) = created
+                    && created_ms <= now_ms
+                {
+                    open_ages_days.push((now_ms - created_ms) as f64 / MILLIS_PER_DAY as f64);
+                }
                 let parked = record.labels().iter().any(|label| {
                     exclusion
                         .iter()
@@ -180,8 +211,6 @@ impl Pace {
             }
         }
 
-        let window_ms = i64::from(options.window_days) * MILLIS_PER_DAY;
-        let window_start = now_ms.saturating_sub(window_ms);
         let closures_in_window = closures
             .iter()
             .filter(|closed_ms| **closed_ms > window_start && **closed_ms <= now_ms)
@@ -198,30 +227,58 @@ impl Pace {
 
         lead_times.sort_by(f64::total_cmp);
         let lead_time_median_hours = median(&lead_times);
+        open_ages_days.sort_by(f64::total_cmp);
+        let open_age_median_days = median(&open_ages_days);
 
         let now_days = now_ms.div_euclid(MILLIS_PER_DAY);
-        let (eta, eta_reason) = if open_to_target == 0 {
-            // Production Readiness reached: ETA is today.
-            (Some(timeutil::date_string(now_days)), None)
+        let k = (creations_in_window > 0)
+            .then(|| closures_in_window as f64 / creations_in_window as f64);
+        let drain_rate_per_week = (closures_in_window as f64 - creations_in_window as f64) * 7.0
+            / f64::from(options.window_days);
+        let (eta, eta_reason, eta_basis) = if open_to_target == 0 {
+            // Production Readiness reached: ETA is today, no
+            // projection happened.
+            (Some(timeutil::date_string(now_days)), None, None)
         } else if closures_in_window < usize::try_from(options.min_closures).unwrap_or(usize::MAX) {
             let reason = if closures_in_window == 0 {
                 "zero_closures_in_window"
             } else {
                 "insufficient_closures_in_window"
             };
-            (None, Some(reason.to_owned()))
-        } else if rate_window <= 0.0 {
-            (None, Some("zero_closures_in_window".to_owned()))
+            (None, Some(reason.to_owned()), None)
         } else {
-            // open / rate_window * 7 days, folded to exact integer
-            // arithmetic: rate_window = closures_in_window * 7 /
-            // window_days, so days = open * window / closures.
-            let window_scale = usize::try_from(options.window_days).unwrap_or(usize::MAX);
-            let horizon_days = open_to_target
-                .saturating_mul(window_scale)
-                .div_ceil(closures_in_window.max(1));
-            let horizon_days = i64::try_from(horizon_days).unwrap_or(i64::MAX);
-            (Some(timeutil::date_string(now_days + horizon_days)), None)
+            // The v2 identity (ADR-0002 amendment 4): the ETA
+            // projects the NET drain, not gross throughput —
+            // open ÷ (closures − creations) per window, folded to
+            // exact integer arithmetic: days = open × window / net.
+            // Without creations in the window, net equals gross
+            // (the gross_rate basis).
+            let net = i64::try_from(closures_in_window).unwrap_or(i64::MAX)
+                - i64::try_from(creations_in_window).unwrap_or(i64::MAX);
+            if net <= 0 {
+                (None, Some("backlog_not_shrinking".to_owned()), None)
+            } else {
+                let window_scale = i64::from(options.window_days);
+                let numerator = (i64::try_from(open_to_target).unwrap_or(i64::MAX))
+                    .saturating_mul(window_scale);
+                // i64::div_ceil is unstable; both sides are
+                // non-negative, so the u64 fold is exact.
+                let horizon_days = i64::try_from(
+                    (u64::try_from(numerator).unwrap_or(u64::MAX))
+                        .div_ceil(u64::try_from(net).unwrap_or(u64::MAX)),
+                )
+                .unwrap_or(i64::MAX);
+                let basis = if creations_in_window == 0 {
+                    "gross_rate"
+                } else {
+                    "net_drain"
+                };
+                (
+                    Some(timeutil::date_string(now_days + horizon_days)),
+                    None,
+                    Some(basis),
+                )
+            }
         };
 
         let weeks = weekly_series(&creations, &closures, now_days, since_days);
@@ -231,15 +288,20 @@ impl Pace {
             min_closures: options.min_closures,
             rate_window,
             closures_in_window,
+            creations_in_window,
+            k,
+            drain_rate_per_week,
             rate_all_time,
             closures_total,
             history_weeks,
             lead_time_median_hours,
+            open_age_median_days,
             open_to_target,
             excluded_open,
             exclusion_labels: exclusion.clone(),
             eta,
             eta_reason,
+            eta_basis,
             weeks,
         })
     }
@@ -252,8 +314,11 @@ impl Pace {
             .eta
             .clone()
             .unwrap_or_else(|| "n/a (insufficient data)".to_owned());
+        let k = self
+            .k
+            .map_or_else(|| "n/a".to_owned(), |k| format!("{k:.2}"));
         format!(
-            "{:.1} closures/wk ({}d) · {} open to target · ETA {}",
+            "{:.1} closures/wk ({}d) · k {k} · {} open to target · ETA {}",
             round1(self.rate_window),
             self.window_days,
             self.open_to_target,
@@ -269,15 +334,20 @@ impl Pace {
             "min_closures": self.min_closures,
             "rate_window": round1(self.rate_window),
             "closures_in_window": self.closures_in_window,
+            "creations_in_window": self.creations_in_window,
+            "k": self.k.map(round2),
+            "drain_rate_per_week": round1(self.drain_rate_per_week),
             "rate_all_time": self.rate_all_time.map(round1),
             "closures_total": self.closures_total,
             "history_weeks": self.history_weeks.map(round1),
             "lead_time_median_hours": self.lead_time_median_hours.map(round1),
+            "open_age_median_days": self.open_age_median_days.map(round1),
             "open_to_target": self.open_to_target,
             "excluded_open": self.excluded_open,
             "exclusion_labels": self.exclusion_labels,
             "eta": self.eta,
             "eta_reason": self.eta_reason,
+            "eta_basis": self.eta_basis,
             "weeks": self
                 .weeks
                 .iter()
@@ -317,6 +387,16 @@ impl Pace {
             render::pad_field("Rate (all-time):", 20),
             all_time
         ));
+        let k = self.k.map_or_else(
+            || "n/a (no creations in window)".to_owned(),
+            |k| {
+                format!(
+                    "{k:.2} ({} closed / {} created)",
+                    self.closures_in_window, self.creations_in_window
+                )
+            },
+        );
+        out.push_str(&format!("  {}{}\n", render::pad_field("Pace k:", 20), k));
         let lead = self.lead_time_median_hours.map_or_else(
             || "n/a (no closed seeds)".to_owned(),
             |hours| format!("{hours:.1}h"),
@@ -325,6 +405,15 @@ impl Pace {
             "  {}{}\n",
             render::pad_field("Lead time (median):", 20),
             lead
+        ));
+        let age = self.open_age_median_days.map_or_else(
+            || "n/a (no timestamped open seeds)".to_owned(),
+            |days| format!("{days:.1}d"),
+        );
+        out.push_str(&format!(
+            "  {}{}\n",
+            render::pad_field("Open age (median):", 20),
+            age
         ));
         let exclusion = if self.exclusion_labels.is_empty() {
             "none".to_owned()
@@ -380,6 +469,15 @@ impl Pace {
                     "insufficient data ({} closures in {}d window{})",
                     self.closures_in_window, self.window_days, hint
                 ),
+                Some("backlog_not_shrinking") => {
+                    let k = self
+                        .k
+                        .map_or_else(|| "n/a".to_owned(), |k| format!("{k:.2}"));
+                    format!(
+                        "backlog not shrinking (k {k}; {} created vs {} closed in {}d window)",
+                        self.creations_in_window, self.closures_in_window, self.window_days
+                    )
+                }
                 _ => format!(
                     "insufficient data ({} < {} closures in {}d window{})",
                     self.closures_in_window, self.min_closures, self.window_days, hint
@@ -411,6 +509,12 @@ fn week_row(name: &str, created: &str, closed: &str, net: &str, open: &str) -> S
 /// Rounds to one decimal for stable, readable metric output.
 fn round1(value: f64) -> f64 {
     (value * 10.0).round() / 10.0
+}
+
+/// Rounds to two decimals — trigger-relevant ratios like `k` keep
+/// the extra digit.
+fn round2(value: f64) -> f64 {
+    (value * 100.0).round() / 100.0
 }
 
 /// Buckets creations and closures into ISO weeks from the first event
@@ -476,39 +580,43 @@ mod tests {
         SeedRecord::try_from_fields(map).expect("valid test record")
     }
 
-    /// a/b/c close inside the 30d window, d closed before it, e/f stay
-    /// open (f parked on `backlog`).
-    fn fixture() -> Vec<SeedRecord> {
-        let made = |id: &str, created: &str, closed: Option<&str>, labels: Vec<&str>| {
-            let mut fields = json!({
-                "id": id,
-                "title": format!("seed {id}"),
-                "createdAt": format!("{created}T00:00:00.000Z"),
-            });
-            let Value::Object(map) = &mut fields else {
-                unreachable!("fields is an object");
-            };
-            match closed {
-                Some(day) => {
-                    map.insert("status".to_owned(), json!("closed"));
-                    map.insert("closedAt".to_owned(), json!(format!("{day}T00:00:00.000Z")));
-                }
-                None => {
-                    map.insert("status".to_owned(), json!("open"));
-                }
-            }
-            if !labels.is_empty() {
-                map.insert("labels".to_owned(), json!(labels));
-            }
-            seed(id, fields)
+    /// One fixture record: created on `created`, closed on `closed`
+    /// (when given), carrying `labels`.
+    fn made(id: &str, created: &str, closed: Option<&str>, labels: &[&str]) -> SeedRecord {
+        let mut fields = json!({
+            "id": id,
+            "title": format!("seed {id}"),
+            "createdAt": format!("{created}T00:00:00.000Z"),
+        });
+        let Value::Object(map) = &mut fields else {
+            unreachable!("fields is an object");
         };
+        match closed {
+            Some(day) => {
+                map.insert("status".to_owned(), json!("closed"));
+                map.insert("closedAt".to_owned(), json!(format!("{day}T00:00:00.000Z")));
+            }
+            None => {
+                map.insert("status".to_owned(), json!("open"));
+            }
+        }
+        if !labels.is_empty() {
+            map.insert("labels".to_owned(), json!(labels));
+        }
+        seed(id, fields)
+    }
+
+    /// a/b/c close inside the 30d window, d closed before it, e/f stay
+    /// open (f parked on `backlog`); a/b/c/e/f were created inside
+    /// the window, d before it.
+    fn fixture() -> Vec<SeedRecord> {
         vec![
-            made("tst-0001", "2026-01-05", Some("2026-01-06"), vec![]),
-            made("tst-0002", "2026-01-10", Some("2026-01-12"), vec![]),
-            made("tst-0003", "2026-01-20", Some("2026-01-25"), vec![]),
-            made("tst-0004", "2025-12-20", Some("2025-12-30"), vec![]),
-            made("tst-0005", "2026-01-15", None, vec![]),
-            made("tst-0006", "2026-01-16", None, vec!["backlog"]),
+            made("tst-0001", "2026-01-05", Some("2026-01-06"), &[]),
+            made("tst-0002", "2026-01-10", Some("2026-01-12"), &[]),
+            made("tst-0003", "2026-01-20", Some("2026-01-25"), &[]),
+            made("tst-0004", "2025-12-20", Some("2025-12-30"), &[]),
+            made("tst-0005", "2026-01-15", None, &[]),
+            made("tst-0006", "2026-01-16", None, &["backlog"]),
         ]
     }
 
@@ -552,15 +660,87 @@ mod tests {
     }
 
     #[test]
-    fn sufficient_window_projects_the_target_date() {
+    fn a_growing_backlog_refuses_the_eta() {
         let pace = pace_with(&PaceOptions {
             now: Some(NOW.to_owned()),
             min_closures: 3,
             ..PaceOptions::default()
         });
-        // rate 0.7/wk, 2 open seeds → ceil(2 * 30 / 3) = 20 days.
+        // 3 closures vs 5 creations in the window: k 0.6, net −2 —
+        // the gross rate would promise a date the intake erases
+        // (ADR-0002 amendment 4: one honest null over an optimistic
+        // projection).
+        assert_eq!(pace.closures_in_window, 3);
+        assert_eq!(pace.creations_in_window, 5);
+        assert!((pace.k.expect("creations exist") - 0.6).abs() < 1e-9);
+        assert!((pace.drain_rate_per_week - (-2.0 * 7.0 / 30.0)).abs() < 1e-9);
+        assert_eq!(pace.eta, None);
+        assert_eq!(pace.eta_reason.as_deref(), Some("backlog_not_shrinking"));
+        assert_eq!(pace.eta_basis, None);
+    }
+
+    #[test]
+    fn net_drain_projects_the_target_date() {
+        // a/b/c created before the window close inside it, d was
+        // created and closed inside it, e/f stay open: 4 closures vs
+        // 1 creation → k 4.0, net 3 → ceil(2 × 30 / 3) = 20 days.
+        let records = vec![
+            made("tst-0001", "2025-12-05", Some("2026-01-10"), &[]),
+            made("tst-0002", "2025-12-05", Some("2026-01-15"), &[]),
+            made("tst-0003", "2025-12-05", Some("2026-01-20"), &[]),
+            made("tst-0004", "2026-01-12", Some("2026-01-13"), &[]),
+            made("tst-0005", "2025-12-30", None, &[]),
+            made("tst-0006", "2025-12-31", None, &[]),
+        ];
+        let pace = Pace::collect(&records, &PaceOptions {
+            now: Some(NOW.to_owned()),
+            min_closures: 4,
+            ..PaceOptions::default()
+        })
+        .expect("options valid");
+        assert_eq!(pace.closures_in_window, 4);
+        assert_eq!(pace.creations_in_window, 1);
+        assert!((pace.k.expect("creations exist") - 4.0).abs() < 1e-9);
+        assert!((pace.drain_rate_per_week - (3.0 * 7.0 / 30.0)).abs() < 1e-9);
         assert_eq!(pace.eta.as_deref(), Some("2026-02-21"));
         assert_eq!(pace.eta_reason, None);
+        assert_eq!(pace.eta_basis, Some("net_drain"));
+    }
+
+    #[test]
+    fn a_window_without_creations_keeps_the_gross_basis() {
+        // Nothing was created inside the window: net equals gross,
+        // k is null (no ratio to form), the v1 identity carries the
+        // projection under the gross_rate basis.
+        let records = vec![
+            made("tst-0001", "2025-12-05", Some("2026-01-10"), &[]),
+            made("tst-0002", "2025-12-05", Some("2026-01-20"), &[]),
+            made("tst-0005", "2025-12-30", None, &[]),
+            made("tst-0006", "2025-12-31", None, &[]),
+        ];
+        let pace = Pace::collect(&records, &PaceOptions {
+            now: Some(NOW.to_owned()),
+            min_closures: 2,
+            ..PaceOptions::default()
+        })
+        .expect("options valid");
+        assert_eq!(pace.creations_in_window, 0);
+        assert_eq!(pace.k, None);
+        assert!((pace.drain_rate_per_week - pace.rate_window).abs() < 1e-9);
+        // ceil(2 × 30 / 2) = 30 days.
+        assert_eq!(pace.eta.as_deref(), Some("2026-03-03"));
+        assert_eq!(pace.eta_basis, Some("gross_rate"));
+    }
+
+    #[test]
+    fn median_open_age_spans_the_non_closed_seeds() {
+        let pace = pace_with(&PaceOptions {
+            now: Some(NOW.to_owned()),
+            ..PaceOptions::default()
+        });
+        // The two open seeds were created 2026-01-15 (17d) and
+        // 2026-01-16 (16d) before the fixed clock.
+        assert_eq!(pace.open_age_median_days, Some(16.5));
     }
 
     #[test]

@@ -959,6 +959,10 @@ fn prime_outputs_context_compact_and_json() {
     let pace = value["pace"].as_str().expect("pace key in envelope");
     assert!(pace.contains("open to target"), "{pace}");
     assert!(pace.contains("ETA"), "{pace}");
+    assert!(
+        pace.contains("k "),
+        "pace coefficient rides the line: {pace}"
+    );
     // The content mirror stays the static template (documented shape).
     let content = value["content"].as_str().expect("content mirror");
     assert!(!content.contains("> **Pace**:"), "content stays static");
@@ -1488,7 +1492,9 @@ fn stats_pace_renders_section_and_contract() {
     assert!(text.starts_with("Project Statistics\n"), "{text}");
     assert!(text.contains("\nPace\n"), "{text}");
     assert!(text.contains("Rate (30d):"), "{text}");
+    assert!(text.contains("Pace k:"), "{text}");
     assert!(text.contains("Lead time (median):"), "{text}");
+    assert!(text.contains("Open age (median):"), "{text}");
     assert!(text.contains("Open to target:"), "{text}");
     assert!(text.contains("Week (ISO, UTC)"), "{text}");
 
@@ -1499,15 +1505,20 @@ fn stats_pace_renders_section_and_contract() {
         "min_closures",
         "rate_window",
         "closures_in_window",
+        "creations_in_window",
+        "k",
+        "drain_rate_per_week",
         "rate_all_time",
         "closures_total",
         "history_weeks",
         "lead_time_median_hours",
+        "open_age_median_days",
         "open_to_target",
         "excluded_open",
         "exclusion_labels",
         "eta",
         "eta_reason",
+        "eta_basis",
         "weeks",
     ] {
         assert!(pace.get(key).is_some(), "pace.{key} present");
