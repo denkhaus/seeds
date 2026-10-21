@@ -799,14 +799,13 @@ fn update_replace_in_description_fails_loud() {
     }
 }
 
+/// `update` reports a missing id as a failure envelope (seeds-1579
+/// dropped the old no-`--format` boundary: the flag is accepted now,
+/// see `write_commands_accept_format_ids_and_json`).
 #[test]
-fn update_takes_no_format_flag_and_reports_missing_issue() {
+fn update_reports_missing_issue_as_failure_envelope() {
     let dir = temp_store("update-flags");
     write_records(&dir, &standard());
-    // The reference's update has no --format: unknown option, exit 1.
-    let output = run(&dir, &["update", "tst-0002", "--format", "json"]);
-    assert_eq!(output.status.code(), Some(1));
-
     let output = run(&dir, &["update", "tst-zzzz", "--title", "x", "--json"]);
     assert_eq!(output.status.code(), Some(1));
     let value = stdout_json(&output);
@@ -978,6 +977,268 @@ fn update_write_on_closed_record_strips_triage_labels() {
     let output = run(&dir, &["update", "tst-0001", "--title", "Renamed"]);
     assert_eq!(output.status.code(), Some(0));
     assert_eq!(read_records(&dir)[0]["labels"], json!(["needs-triage"]));
+}
+
+/// `close --comment` writes the closing remark in one call
+/// (seeds-1579): appended after one blank line to every closed record,
+/// reported by a single confirmation line in text mode, while the
+/// envelope keeps the reference's shape. A blank comment fails before
+/// anything is written.
+#[test]
+fn close_comment_appends_the_remark_in_one_call() {
+    let dir = temp_store("close-comment");
+    write_records(&dir, &[
+        record("tst-0001", "First", json!({"description": "Body line"})),
+        record("tst-0002", "Second", json!({})),
+    ]);
+    let output = run(&dir, &[
+        "close",
+        "tst-0001",
+        "tst-0002",
+        "--reason",
+        "done here",
+        "--comment",
+        "Shipped in 0.9.2",
+        "--json",
+    ]);
+    assert_eq!(output.status.code(), Some(0));
+    let value = stdout_json(&output);
+    assert_eq!(value["closed"], json!(["tst-0001", "tst-0002"]));
+
+    let records = read_records(&dir);
+    assert_eq!(
+        records[0]["description"],
+        json!("Body line\n\nShipped in 0.9.2"),
+        "existing description keeps its text, comment after one blank line"
+    );
+    assert_eq!(records[0]["closeReason"], json!("done here"));
+    assert_eq!(records[0]["status"], json!("closed"));
+    assert_eq!(
+        records[1]["description"],
+        json!("Shipped in 0.9.2"),
+        "a record without a description gets the comment alone"
+    );
+
+    // Text mode: the close lines stay reference-shaped, the appended
+    // comment gets its own confirmation.
+    let dir = temp_store("close-comment-text");
+    write_records(&dir, &[record("tst-0001", "First", json!({}))]);
+    let output = run(&dir, &["close", "tst-0001", "--comment", "Wrapped up"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8(output.stdout).expect("utf-8");
+    assert_eq!(
+        text.trim_end(),
+        "✓ Closed tst-0001\n+ comment appended to 1 issue(s)"
+    );
+
+    // A blank comment is rejected before the store is touched.
+    let dir = temp_store("close-comment-blank");
+    write_records(&dir, &[record("tst-0001", "First", json!({}))]);
+    let output = run(&dir, &["close", "tst-0001", "--comment", "   "]);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8(output.stderr).expect("utf-8");
+    assert!(stderr.contains("--comment requires text"), "{stderr}");
+    assert_eq!(read_records(&dir)[0]["status"], json!("open"));
+}
+
+/// `--priority` accepts every shape the output prints (seeds-1579):
+/// numbers, `P`-codes, level names, and the shown `P2 Medium` form —
+/// on writes and on the filters that share the parser.
+#[test]
+fn priority_accepts_numbers_names_and_the_shown_form() {
+    // The filter path shares `parse_priority`.
+    let dir = temp_store("priority-filter");
+    write_records(&dir, &standard());
+    let output = run(&dir, &["list", "--priority", "Medium", "--format", "json"]);
+    assert_eq!(output.status.code(), Some(0));
+    let value = stdout_json(&output);
+    assert_eq!(value["count"], json!(1), "only tst-0003 is P2: {value}");
+    assert_eq!(value["issues"][0]["id"], json!("tst-0003"));
+
+    let dir = temp_store("priority-names");
+    write_records(&dir, &standard());
+    for (value, expected) in [
+        ("0", 0),
+        ("P4", 4),
+        ("critical", 0),
+        ("High", 1),
+        ("medium", 2),
+        ("P2 Medium", 2),
+        ("p3 low", 3),
+        (" BACKLOG ", 4),
+    ] {
+        let output = run(&dir, &["create", "--title", "probe", "--priority", value]);
+        assert_eq!(output.status.code(), Some(0), "{value} is accepted");
+        let created =
+            read_records(&dir).pop().expect("create appends a record")["priority"].clone();
+        assert_eq!(created, json!(expected), "{value} means P{expected}");
+    }
+}
+
+/// The `--priority` error names the accepted shapes (seeds-1579) and
+/// rejects unknown names, out-of-range codes, and mismatched pairs.
+#[test]
+fn priority_rejects_unknown_names_and_mismatched_pairs() {
+    let dir = temp_store("priority-bad");
+    write_records(&dir, &standard());
+    for value in ["5", "P5", "P2 High", "mediumish", "2 nope"] {
+        let output = run(&dir, &["create", "--title", "probe", "--priority", value]);
+        assert_eq!(output.status.code(), Some(1), "{value} is rejected");
+        let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
+        assert!(stderr.contains("--priority must be 0-4, P0-P4"), "{stderr}");
+        assert!(stderr.contains("P2 Medium"), "{stderr}");
+    }
+    assert_eq!(read_records(&dir).len(), 6, "no rejected create wrote");
+}
+
+/// `--format` spans the write commands too (seeds-1579): `ids` prints
+/// the affected identifiers one per line (the README names what an id
+/// is per command), `json` equals `--json`, and the human modes land on
+/// the default text — unknown modes fall back to it the way the read
+/// side falls back to markdown.
+#[test]
+fn write_commands_accept_format_ids_and_json() {
+    let dir = temp_store("write-format");
+    write_records(&dir, &standard());
+
+    // create: the new id and nothing else.
+    let output = run(&dir, &[
+        "create", "--title", "Fresh", "--labels", "x,y", "--format", "ids",
+    ]);
+    assert_eq!(output.status.code(), Some(0));
+    let new_id = read_records(&dir).last().expect("create appends a record")["id"]
+        .as_str()
+        .expect("id")
+        .to_owned();
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("utf-8"),
+        format!("{new_id}\n")
+    );
+
+    // update / label add / dep add / block / unblock: the addressed id.
+    for args in [
+        vec![
+            "update",
+            new_id.as_str(),
+            "--title",
+            "Renamed",
+            "--format",
+            "ids",
+        ],
+        vec!["label", "add", new_id.as_str(), "z", "--format", "ids"],
+        vec!["dep", "add", new_id.as_str(), "tst-0001", "--format", "ids"],
+        vec![
+            "block",
+            new_id.as_str(),
+            "--by",
+            "tst-0001",
+            "--format",
+            "ids",
+        ],
+        vec!["unblock", new_id.as_str(), "--all", "--format", "ids"],
+    ] {
+        let output = run(&dir, &args);
+        assert_eq!(output.status.code(), Some(0), "{args:?}");
+        assert_eq!(
+            String::from_utf8(output.stdout).expect("utf-8"),
+            format!("{new_id}\n"),
+            "{args:?} prints the addressed id"
+        );
+    }
+
+    // close: every closed id, in order.
+    let output = run(&dir, &[
+        "close",
+        "tst-0002",
+        new_id.as_str(),
+        "--format",
+        "ids",
+    ]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("utf-8"),
+        format!("tst-0002\n{new_id}\n")
+    );
+
+    // dep list / label list / label list-all: the ids they report on.
+    let output = run(&dir, &["dep", "list", new_id.as_str(), "--format", "ids"]);
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("utf-8"),
+        "tst-0001\n",
+        "dep list prints the record's dependency graph"
+    );
+    let output = run(&dir, &["label", "list", new_id.as_str(), "--format", "ids"]);
+    assert_eq!(
+        String::from_utf8(output.stdout).expect("utf-8"),
+        "x\ny\nz\n"
+    );
+    let output = run(&dir, &["label", "list-all", "--format", "ids"]);
+    let all = String::from_utf8(output.stdout).expect("utf-8");
+    for label in ["x\n", "y\n", "z\n"] {
+        assert!(all.contains(label), "list-all ids carry {label:?}: {all}");
+    }
+
+    // `--format json` ≡ `--json`, the human modes share the text
+    // surface, and an unknown mode falls back to it.
+    let json_flag = run(&dir, &["update", "tst-0003", "--title", "A", "--json"]);
+    let json_format = run(&dir, &[
+        "update", "tst-0003", "--title", "B", "--format", "json",
+    ]);
+    let flag_value = stdout_json(&json_flag);
+    let format_value = stdout_json(&json_format);
+    assert_eq!(format_value["success"], json!(true));
+    assert_eq!(format_value["command"], flag_value["command"]);
+    let flag_issue = flag_value["issue"].as_object().expect("issue");
+    let format_issue = format_value["issue"].as_object().expect("issue");
+    assert_eq!(
+        format_issue.keys().collect::<Vec<_>>(),
+        flag_issue.keys().collect::<Vec<_>>(),
+        "--format json carries the same envelope shape as --json"
+    );
+    assert_eq!(
+        format_value["issue"]["title"],
+        json!("B"),
+        "the write landed"
+    );
+    for mode in ["markdown", "plain", "bogus"] {
+        let output = run(&dir, &[
+            "update", "tst-0003", "--title", "C", "--format", mode,
+        ]);
+        assert_eq!(output.status.code(), Some(0), "{mode} falls back to text");
+        assert_eq!(
+            String::from_utf8(output.stdout).expect("utf-8"),
+            "✓ Updated tst-0003\n",
+            "{mode} lands on the default text"
+        );
+    }
+}
+
+/// `doctor --format ids` lists the checks that did not pass — the
+/// report's stable names, empty on a healthy store (seeds-1579).
+#[test]
+fn doctor_format_ids_lists_non_passing_checks() {
+    let dir = temp_store("doctor-format-ids");
+    write_records(&dir, &standard());
+    let output = run(&dir, &["doctor", "--format", "ids"]);
+    assert_eq!(output.status.code(), Some(0), "no check FAILED here");
+    let listed = String::from_utf8(output.stdout).expect("utf-8");
+    assert!(
+        listed
+            .lines()
+            .all(|line| !line.is_empty() && !line.contains(' ')),
+        "one stable check name per line: {listed}"
+    );
+
+    // A malformed line trips the `jsonl-integrity` failure, so its
+    // name joins the list.
+    let path = dir.join(".seeds/issues.jsonl");
+    let mut text = fs::read_to_string(&path).expect("issues.jsonl");
+    text.push_str("not json at all\n");
+    fs::write(&path, text).expect("issues.jsonl");
+    let output = run(&dir, &["doctor", "--format", "ids"]);
+    assert_eq!(output.status.code(), Some(1));
+    let listed = String::from_utf8(output.stdout).expect("utf-8");
+    assert!(listed.contains("jsonl-integrity"), "{listed}");
 }
 
 // ---------------------------------------------------------------------------

@@ -90,6 +90,11 @@ impl SeedType {
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Priority(u8);
 
+/// The display names of the five levels, indexed by priority number —
+/// the `P2 Medium` shape the text surfaces print and `--priority`
+/// accepts back (seeds-1579). Single source for rendering and parsing.
+pub(crate) const PRIORITY_NAMES: [&str; 5] = ["Critical", "High", "Medium", "Low", "Backlog"];
+
 impl Priority {
     /// The highest urgency.
     pub const P0: Self = Self(0);

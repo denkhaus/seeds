@@ -3,8 +3,8 @@
 use serde_json::{Map, Value, json};
 
 use super::{
-    CommandContext, CommandError, CommandOutcome, comma_list, envelope_pretty, fresh_seed_id,
-    issue_value, parse_priority, parse_seed_type, push_line,
+    CommandContext, CommandError, CommandOutcome, WriteFormat, comma_list, envelope_pretty,
+    fresh_seed_id, issue_value, parse_priority, parse_seed_type, push_line, render_write,
 };
 use crate::{Fields, SeedRecord, render, timeutil};
 
@@ -24,13 +24,16 @@ pub struct CreateInput {
     pub labels:      Option<String>,
     /// `--assignee`.
     pub assignee:    Option<String>,
+    /// `--format` raw text (seeds-1579).
+    pub format:      Option<String>,
     /// JSON envelope output.
     pub json:        bool,
 }
 
 /// `create` — appends a record to the store.
 pub fn create(ctx: &CommandContext, input: &CreateInput) -> CommandOutcome {
-    let json = input.json;
+    let mode = WriteFormat::resolve(input.format.as_deref(), input.json);
+    let json = mode == WriteFormat::Json;
     let result = (|| -> Result<String, CommandError> {
         let Some(title) = input.title.clone() else {
             // The reference reports missing required options on stderr,
@@ -85,13 +88,11 @@ pub fn create(ctx: &CommandContext, input: &CreateInput) -> CommandOutcome {
     })();
     match result {
         Ok(id) => {
-            let mut out = String::new();
-            if json {
-                push_line(&mut out, &envelope_pretty("create", &[("id", json!(id))]));
-            } else {
-                push_line(&mut out, &format!("✓ Created {id}"));
-            }
-            CommandOutcome::ok(out)
+            let extra = [("id", json!(&id))];
+            let ids = [id.clone()];
+            let mut text = String::new();
+            push_line(&mut text, &format!("✓ Created {id}"));
+            CommandOutcome::ok(render_write(mode, "create", &extra, &ids, &text))
         }
         Err(error) => error.into_outcome(),
     }

@@ -115,6 +115,45 @@ carrying its own expectation, never a silent split:
   `differential_close_strips_triage_labels_vs_sd` pins the split —
   identical output and identical records, labels differing by exactly
   the cleared roles on the records that were closed.
+- **write-command `--format`:** the reference accepts `--format` only
+  on the read commands (`show`, `list`, `ready`, `search`, `blocked`,
+  `stats`); the write side (`create`, `update`, `close`, `dep`,
+  `label`, `block`/`unblock`, `doctor`) takes only `--json`. Ours
+  accepts the same five tokens everywhere (seeds-1579): `json` equals
+  `--json` (`--json` wins when both are given), `ids` prints one
+  identifier per line, and the human modes `markdown`/`compact`/`plain`
+  share the command's single text surface — a write reports one text
+  shape; unknown modes fall back to it the way the read side falls back
+  to markdown. Per command, `ids` prints: `create` the new id;
+  `update`, `label add`/`remove`, `dep add`/`remove`, `block`,
+  `unblock` the addressed issue id; `close` the closed ids; `dep list`
+  the record's dependency graph (`blockedBy`, then `blocks`); `label
+  list` the record's labels; `label list-all` every label in
+  first-appearance order; `doctor` the checks that did not pass (the
+  report's stable names — empty on a healthy store). The group
+  commands `plan`, `tpl`, `config`, `sync`, `dedupe`, `init`, `prime`,
+  and `upgrade` keep their own surfaces (their own mode flags, e.g.
+  `prime --compact`/`--export`); every write command's help and
+  completion now carries the flag.
+- **`close --comment`:** the reference closes with `--reason` (the
+  `closeReason`) only — a closing remark needs a second call
+  (`update --append-description`, then `close`). Ours takes
+  `--comment <text>`, appended to each closed record's description
+  after one blank line — the same join `update --append-description`
+  writes — with one confirmation line in text mode (`+ comment
+  appended to N issue(s)`); the envelope keeps the reference's
+  `{closed: [...]}` shape, and a blank `--comment` fails before
+  anything is written.
+- **`--priority` accepts the shown form:** the reference (and we, until
+  seeds-1579) parse only `0-4|P0-P4` while the text surfaces display
+  `P2 Medium` — every new user paid one failed attempt for that gap.
+  Ours also accepts the level names (`Critical|High|Medium|Low|
+  Backlog`) and the shown `P2 Medium` form (case-insensitive; a name
+  shown beside a code has to match it, so `P2 High` is still an error
+  whose message names the accepted shapes). The parser is shared, so
+  the names work on `create`, `update`, `plan edit`, `tpl step add`,
+  and the `list`/`ready`/`search` `--priority` filters alike; the
+  error message now lists the accepted shapes.
 - **config additive-fields writes:** `seeds config set/unset` preserve
   unknown top-level keys already present in `config.yaml` (and keep
   file order) instead of failing the reference's

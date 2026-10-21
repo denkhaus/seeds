@@ -13,7 +13,8 @@ Issues (explicitly unused, see `AGENTS.md`). Seed ids carry the prefix
 - **Claim**: `seeds update <id> --status in_progress --assignee fabro`.
 - **Body verbs** (seeds-0297/seeds-4c65): `seeds update <id> --append-description "<text>"` extends the narrative (appends, one blank line between — never re-emit the whole body); `seeds update <id> --set-description "<text>"` replaces wholesale (amend only this way when you truly mean a rewrite); `seeds update <id> --replace-in-description '{"find": "...", "replace": "..."}'` corrects one exact span (fails loud on not-found/multiple). The old `--description`/`--desc`/`--body` aliases are gone from `update`.
 - **Labels**: `--labels a,b` on create; `seeds update <id> --set-labels a,b` relabels.
-- **Close**: never hand-close from a run — the deterministic Closeout step closes approved seeds; the planner's one exception is the superseded close with a mandatory `--reason`. Operator-surface sessions (no run) may close with a reason.
+- **Close**: never hand-close from a run — the deterministic Closeout step closes approved seeds; the planner's one exception is the superseded close with a mandatory `--reason`. Operator-surface sessions (no run) may close with a reason. Closing remarks that belong in the narrative ride `--comment "<text>"` (appended to the description in the same call); `--reason` is the `closeReason` field.
+- **Machine-readable output** (seeds-1579): `--format json` (≡ `--json`) works on every read AND write command; `--format ids` prints one identifier per line — the addressed issue id for writes, the closed ids for `close`, the new id for `create`, the non-passing check names for `doctor`. Scripts parse `--format ids`, never the human text.
 - **Dependencies**: `seeds dep add <issue> <depends-on>` / `seeds dep remove <issue> <depends-on>` / `seeds dep list <issue>`.
 - **Search**: `seeds search "<keyword>" --format compact` (AND-strict — one keyword per query).
 

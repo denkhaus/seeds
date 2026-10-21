@@ -4,8 +4,8 @@
 use serde_json::{Value, json};
 
 use super::{
-    CommandContext, CommandError, CommandOutcome, envelope_pretty, issue_value, push_line,
-    store_has_unresolved_blockers,
+    CommandContext, CommandError, CommandOutcome, WriteFormat, envelope_pretty, issue_value,
+    push_line, render_write, store_has_unresolved_blockers,
 };
 use crate::{SeedRecord, Status, render, timeutil};
 
@@ -38,15 +38,18 @@ fn remove_dep_field(record: &mut SeedRecord, name: &str, dep: &str) {
 pub struct DepAddInput {
     /// `<issue> <depends-on>` positionals (wrong count reproduces the
     /// usage error).
-    pub ids:  Vec<String>,
+    pub ids:    Vec<String>,
+    /// `--format` raw text (seeds-1579).
+    pub format: Option<String>,
     /// JSON envelope output.
-    pub json: bool,
+    pub json:   bool,
 }
 
 /// `dep add` — records `issue blockedBy depends-on` and the reverse
 /// `blocks` entry.
 pub fn dep_add(ctx: &CommandContext, input: &DepAddInput) -> CommandOutcome {
-    let json = input.json;
+    let mode = WriteFormat::resolve(input.format.as_deref(), input.json);
+    let json = mode == WriteFormat::Json;
     let result = (|| -> Result<(String, String), CommandError> {
         if input.ids.len() != 2 {
             return Err(CommandError::new(
@@ -94,22 +97,13 @@ pub fn dep_add(ctx: &CommandContext, input: &DepAddInput) -> CommandOutcome {
     })();
     match result {
         Ok((issue_id, depends_on_id)) => {
-            let mut out = String::new();
-            if json {
-                push_line(
-                    &mut out,
-                    &envelope_pretty("dep add", &[
-                        ("issueId", json!(issue_id)),
-                        ("dependsOnId", json!(depends_on_id)),
-                    ]),
-                );
-            } else {
-                push_line(
-                    &mut out,
-                    &format!("Added dependency: {issue_id} → {depends_on_id}"),
-                );
-            }
-            CommandOutcome::ok(out)
+            let extra = [
+                ("issueId", json!(&issue_id)),
+                ("dependsOnId", json!(&depends_on_id)),
+            ];
+            let ids = [issue_id.clone()];
+            let text = format!("Added dependency: {issue_id} → {depends_on_id}\n");
+            CommandOutcome::ok(render_write(mode, "dep add", &extra, &ids, &text))
         }
         Err(error) => error.into_outcome(),
     }
@@ -120,14 +114,17 @@ pub fn dep_add(ctx: &CommandContext, input: &DepAddInput) -> CommandOutcome {
 pub struct DepRemoveInput {
     /// `<issue> <depends-on>` positionals (wrong count reproduces the
     /// usage error).
-    pub ids:  Vec<String>,
+    pub ids:    Vec<String>,
+    /// `--format` raw text (seeds-1579).
+    pub format: Option<String>,
     /// JSON envelope output.
-    pub json: bool,
+    pub json:   bool,
 }
 
 /// `dep remove` — drops both directions of a dependency.
 pub fn dep_remove(ctx: &CommandContext, input: &DepRemoveInput) -> CommandOutcome {
-    let json = input.json;
+    let mode = WriteFormat::resolve(input.format.as_deref(), input.json);
+    let json = mode == WriteFormat::Json;
     let result = (|| -> Result<(String, String), CommandError> {
         if input.ids.len() != 2 {
             return Err(CommandError::new(
@@ -170,22 +167,13 @@ pub fn dep_remove(ctx: &CommandContext, input: &DepRemoveInput) -> CommandOutcom
     })();
     match result {
         Ok((issue_id, depends_on_id)) => {
-            let mut out = String::new();
-            if json {
-                push_line(
-                    &mut out,
-                    &envelope_pretty("dep remove", &[
-                        ("issueId", json!(issue_id)),
-                        ("dependsOnId", json!(depends_on_id)),
-                    ]),
-                );
-            } else {
-                push_line(
-                    &mut out,
-                    &format!("Removed dependency: {issue_id} → {depends_on_id}"),
-                );
-            }
-            CommandOutcome::ok(out)
+            let extra = [
+                ("issueId", json!(&issue_id)),
+                ("dependsOnId", json!(&depends_on_id)),
+            ];
+            let ids = [issue_id.clone()];
+            let text = format!("Removed dependency: {issue_id} → {depends_on_id}\n");
+            CommandOutcome::ok(render_write(mode, "dep remove", &extra, &ids, &text))
         }
         Err(error) => error.into_outcome(),
     }
@@ -195,14 +183,17 @@ pub fn dep_remove(ctx: &CommandContext, input: &DepRemoveInput) -> CommandOutcom
 #[derive(Clone, Debug, Default)]
 pub struct DepListInput {
     /// The issue id (`None` reproduces the usage error).
-    pub id:   Option<String>,
+    pub id:     Option<String>,
+    /// `--format` raw text (seeds-1579).
+    pub format: Option<String>,
     /// JSON envelope output.
-    pub json: bool,
+    pub json:   bool,
 }
 
 /// `dep list` — one record's dependency graph.
 pub fn dep_list(ctx: &CommandContext, input: &DepListInput) -> CommandOutcome {
-    let json = input.json;
+    let mode = WriteFormat::resolve(input.format.as_deref(), input.json);
+    let json = mode == WriteFormat::Json;
     let result = (|| -> Result<(crate::Store, SeedRecord), CommandError> {
         let Some(id) = input.id.clone() else {
             return Err(CommandError::new("dep", "usage: sd dep list <issue>", json));
@@ -218,32 +209,28 @@ pub fn dep_list(ctx: &CommandContext, input: &DepListInput) -> CommandOutcome {
     })();
     match result {
         Ok((store, record)) => {
-            let mut out = String::new();
-            if json {
-                let blocked_by: Vec<Value> = record
-                    .blocked_by()
-                    .into_iter()
-                    .map(|id| json!(id))
-                    .collect();
-                let blocks: Vec<Value> = record.blocks().into_iter().map(|id| json!(id)).collect();
-                push_line(
-                    &mut out,
-                    &envelope_pretty("dep list", &[
-                        ("issueId", json!(record.id().as_str())),
-                        ("blockedBy", Value::Array(blocked_by)),
-                        ("blocks", Value::Array(blocks)),
-                    ]),
-                );
-            } else {
-                let unresolved = |dep: &str| -> bool {
-                    store
-                        .issue(dep)
-                        .is_none_or(|blocker| blocker.status() != Some(Status::Closed))
-                };
-                let text = render::dep_list_text(&record, &store, &unresolved);
-                out.push_str(&text);
-            }
-            CommandOutcome::ok(out)
+            let blocked_by: Vec<Value> = record
+                .blocked_by()
+                .into_iter()
+                .map(|id| json!(id))
+                .collect();
+            let blocks: Vec<Value> = record.blocks().into_iter().map(|id| json!(id)).collect();
+            let extra = [
+                ("issueId", json!(record.id().as_str())),
+                ("blockedBy", Value::Array(blocked_by)),
+                ("blocks", Value::Array(blocks)),
+            ];
+            // `--format ids`: the record's dependency graph — the ids
+            // `dep list` reports (seeds-1579).
+            let mut ids: Vec<String> = record.blocked_by().into_iter().map(str::to_owned).collect();
+            ids.extend(record.blocks().into_iter().map(str::to_owned));
+            let unresolved = |dep: &str| -> bool {
+                store
+                    .issue(dep)
+                    .is_none_or(|blocker| blocker.status() != Some(Status::Closed))
+            };
+            let text = render::dep_list_text(&record, &store, &unresolved);
+            CommandOutcome::ok(render_write(mode, "dep list", &extra, &ids, &text))
         }
         Err(error) => error.into_outcome(),
     }
@@ -323,16 +310,19 @@ pub fn blocked(ctx: &CommandContext, input: &BlockedInput) -> CommandOutcome {
 #[derive(Clone, Debug, Default)]
 pub struct BlockInput {
     /// The target id (`None` reproduces the usage error).
-    pub id:   Option<String>,
+    pub id:     Option<String>,
     /// `--by <blocker-id>` (`None` reproduces the usage error).
-    pub by:   Option<String>,
+    pub by:     Option<String>,
+    /// `--format` raw text (seeds-1579).
+    pub format: Option<String>,
     /// JSON envelope output.
-    pub json: bool,
+    pub json:   bool,
 }
 
 /// `block` — dep add through the block spelling.
 pub fn block(ctx: &CommandContext, input: &BlockInput) -> CommandOutcome {
-    let json = input.json;
+    let mode = WriteFormat::resolve(input.format.as_deref(), input.json);
+    let json = mode == WriteFormat::Json;
     let result = (|| -> Result<(String, String), CommandError> {
         let Some(id) = input.id.clone() else {
             return Err(CommandError::stderr_only(
@@ -381,19 +371,10 @@ pub fn block(ctx: &CommandContext, input: &BlockInput) -> CommandOutcome {
     })();
     match result {
         Ok((id, blocker_id)) => {
-            let mut out = String::new();
-            if json {
-                push_line(
-                    &mut out,
-                    &envelope_pretty("block", &[
-                        ("issueId", json!(id)),
-                        ("blockerId", json!(blocker_id)),
-                    ]),
-                );
-            } else {
-                push_line(&mut out, &format!("{id} is now blocked by {blocker_id}"));
-            }
-            CommandOutcome::ok(out)
+            let extra = [("issueId", json!(&id)), ("blockerId", json!(&blocker_id))];
+            let ids = [id.clone()];
+            let text = format!("{id} is now blocked by {blocker_id}\n");
+            CommandOutcome::ok(render_write(mode, "block", &extra, &ids, &text))
         }
         Err(error) => error.into_outcome(),
     }
@@ -403,19 +384,22 @@ pub fn block(ctx: &CommandContext, input: &BlockInput) -> CommandOutcome {
 #[derive(Clone, Debug, Default)]
 pub struct UnblockInput {
     /// The target id (`None` reproduces the usage error).
-    pub id:   Option<String>,
+    pub id:     Option<String>,
     /// `--from <blocker-id>`.
-    pub from: Option<String>,
+    pub from:   Option<String>,
     /// `--all` (only closed blockers).
-    pub all:  bool,
+    pub all:    bool,
+    /// `--format` raw text (seeds-1579).
+    pub format: Option<String>,
     /// JSON envelope output.
-    pub json: bool,
+    pub json:   bool,
 }
 
 /// `unblock` — removes one (`--from`) or every closed (`--all`)
 /// blocker.
 pub fn unblock(ctx: &CommandContext, input: &UnblockInput) -> CommandOutcome {
-    let json = input.json;
+    let mode = WriteFormat::resolve(input.format.as_deref(), input.json);
+    let json = mode == WriteFormat::Json;
     let result = (|| -> Result<(String, Vec<String>), CommandError> {
         let Some(id) = input.id.clone() else {
             return Err(CommandError::stderr_only(
@@ -492,28 +476,25 @@ pub fn unblock(ctx: &CommandContext, input: &UnblockInput) -> CommandOutcome {
     })();
     match result {
         Ok((id, removed)) => {
-            let mut out = String::new();
-            if json {
-                let removed_value: Vec<Value> = removed.iter().map(|r| json!(r)).collect();
+            let removed_value: Vec<Value> = removed.iter().map(|r| json!(r)).collect();
+            let extra = [
+                ("issueId", json!(&id)),
+                ("removed", Value::Array(removed_value)),
+            ];
+            let ids = [id.clone()];
+            let mut text = String::new();
+            if removed.is_empty() {
                 push_line(
-                    &mut out,
-                    &envelope_pretty("unblock", &[
-                        ("issueId", json!(id)),
-                        ("removed", Value::Array(removed_value)),
-                    ]),
-                );
-            } else if removed.is_empty() {
-                push_line(
-                    &mut out,
+                    &mut text,
                     &format!("No closed blockers to remove from {id}."),
                 );
             } else {
                 push_line(
-                    &mut out,
+                    &mut text,
                     &format!("{id} unblocked from {}", removed.join(", ")),
                 );
             }
-            CommandOutcome::ok(out)
+            CommandOutcome::ok(render_write(mode, "unblock", &extra, &ids, &text))
         }
         Err(error) => error.into_outcome(),
     }

@@ -30,6 +30,7 @@ pub(crate) static CREATE_SPEC: &[OptSpec] = &[
     opt("assignee"),
     opt("description"),
     opt("labels"),
+    opt("format"),
     flag("json"),
 ];
 
@@ -95,16 +96,18 @@ pub(crate) static UPDATE_SPEC: &[OptSpec] = &[
     opt("set-labels"),
     opt("extensions"),
     flag("clear-extensions"),
+    opt("format"),
     flag("json"),
 ];
 
-pub(crate) static CLOSE_SPEC: &[OptSpec] = &[opt("reason"), flag("json")];
+pub(crate) static CLOSE_SPEC: &[OptSpec] =
+    &[opt("reason"), opt("comment"), opt("format"), flag("json")];
 
-pub(crate) static DEP_ADD_SPEC: &[OptSpec] = &[flag("json")];
+pub(crate) static DEP_ADD_SPEC: &[OptSpec] = &[opt("format"), flag("json")];
 
-pub(crate) static DEP_REMOVE_SPEC: &[OptSpec] = &[flag("json")];
+pub(crate) static DEP_REMOVE_SPEC: &[OptSpec] = &[opt("format"), flag("json")];
 
-pub(crate) static DEP_LIST_SPEC: &[OptSpec] = &[flag("json")];
+pub(crate) static DEP_LIST_SPEC: &[OptSpec] = &[opt("format"), flag("json")];
 
 pub(crate) static BLOCKED_SPEC: &[OptSpec] = &[opt("format"), flag("json")];
 
@@ -122,20 +125,22 @@ pub(crate) static DOCTOR_SPEC: &[OptSpec] = &[
     flag("fix"),
     flag("verbose"),
     flag("repair-report"),
+    opt("format"),
     flag("json"),
 ];
 
-pub(crate) static LABEL_ADD_SPEC: &[OptSpec] = &[flag("json")];
+pub(crate) static LABEL_ADD_SPEC: &[OptSpec] = &[opt("format"), flag("json")];
 
-pub(crate) static LABEL_REMOVE_SPEC: &[OptSpec] = &[flag("json")];
+pub(crate) static LABEL_REMOVE_SPEC: &[OptSpec] = &[opt("format"), flag("json")];
 
-pub(crate) static LABEL_LIST_SPEC: &[OptSpec] = &[flag("json")];
+pub(crate) static LABEL_LIST_SPEC: &[OptSpec] = &[opt("format"), flag("json")];
 
-pub(crate) static LABEL_LIST_ALL_SPEC: &[OptSpec] = &[flag("json")];
+pub(crate) static LABEL_LIST_ALL_SPEC: &[OptSpec] = &[opt("format"), flag("json")];
 
-pub(crate) static BLOCK_SPEC: &[OptSpec] = &[opt("by"), flag("json")];
+pub(crate) static BLOCK_SPEC: &[OptSpec] = &[opt("by"), opt("format"), flag("json")];
 
-pub(crate) static UNBLOCK_SPEC: &[OptSpec] = &[opt("from"), flag("all"), flag("json")];
+pub(crate) static UNBLOCK_SPEC: &[OptSpec] =
+    &[opt("from"), flag("all"), opt("format"), flag("json")];
 
 pub(crate) static PRIME_SPEC: &[OptSpec] = &[flag("compact"), flag("export"), flag("json")];
 

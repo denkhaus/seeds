@@ -2,7 +2,7 @@
 
 use serde_json::{Map, Value, json};
 
-use super::{CommandContext, CommandError, CommandOutcome, envelope_pretty, push_line};
+use super::{CommandContext, CommandError, CommandOutcome, WriteFormat, render_write};
 use crate::{render, timeutil};
 
 /// Typed input for `label add`.
@@ -12,13 +12,16 @@ pub struct LabelAddInput {
     pub id:     Option<String>,
     /// The labels to add (empty reproduces the usage error).
     pub labels: Vec<String>,
+    /// `--format` raw text (seeds-1579).
+    pub format: Option<String>,
     /// JSON envelope output.
     pub json:   bool,
 }
 
 /// `label add` — adds labels to one record.
 pub fn label_add(ctx: &CommandContext, input: &LabelAddInput) -> CommandOutcome {
-    let json = input.json;
+    let mode = WriteFormat::resolve(input.format.as_deref(), input.json);
+    let json = mode == WriteFormat::Json;
     let result = (|| -> Result<(String, Vec<String>), CommandError> {
         let Some(id) = input.id.clone() else {
             return Err(CommandError::new(
@@ -65,23 +68,14 @@ pub fn label_add(ctx: &CommandContext, input: &LabelAddInput) -> CommandOutcome 
     })();
     match result {
         Ok((id, labels)) => {
-            let mut out = String::new();
-            if json {
-                let labels_value: Vec<Value> = labels.iter().map(|l| json!(l)).collect();
-                push_line(
-                    &mut out,
-                    &envelope_pretty("label add", &[
-                        ("issueId", json!(id)),
-                        ("labels", Value::Array(labels_value)),
-                    ]),
-                );
-            } else {
-                push_line(
-                    &mut out,
-                    &format!("✓ Added label(s) {} to {id}", labels.join(", ")),
-                );
-            }
-            CommandOutcome::ok(out)
+            let labels_value: Vec<Value> = labels.iter().map(|l| json!(l)).collect();
+            let extra = [
+                ("issueId", json!(&id)),
+                ("labels", Value::Array(labels_value)),
+            ];
+            let ids = [id.clone()];
+            let text = format!("✓ Added label(s) {} to {id}\n", labels.join(", "));
+            CommandOutcome::ok(render_write(mode, "label add", &extra, &ids, &text))
         }
         Err(error) => error.into_outcome(),
     }
@@ -94,13 +88,16 @@ pub struct LabelRemoveInput {
     pub id:     Option<String>,
     /// The labels to remove (empty reproduces the usage error).
     pub labels: Vec<String>,
+    /// `--format` raw text (seeds-1579).
+    pub format: Option<String>,
     /// JSON envelope output.
     pub json:   bool,
 }
 
 /// `label remove` — removes labels from one record.
 pub fn label_remove(ctx: &CommandContext, input: &LabelRemoveInput) -> CommandOutcome {
-    let json = input.json;
+    let mode = WriteFormat::resolve(input.format.as_deref(), input.json);
+    let json = mode == WriteFormat::Json;
     let result = (|| -> Result<(String, Vec<String>), CommandError> {
         let Some(id) = input.id.clone() else {
             return Err(CommandError::new(
@@ -150,20 +147,14 @@ pub fn label_remove(ctx: &CommandContext, input: &LabelRemoveInput) -> CommandOu
     })();
     match result {
         Ok((id, labels)) => {
-            let mut out = String::new();
-            if json {
-                let labels_value: Vec<Value> = labels.iter().map(|l| json!(l)).collect();
-                push_line(
-                    &mut out,
-                    &envelope_pretty("label remove", &[
-                        ("issueId", json!(id)),
-                        ("labels", Value::Array(labels_value)),
-                    ]),
-                );
-            } else {
-                push_line(&mut out, &format!("✓ Removed label(s) from {id}"));
-            }
-            CommandOutcome::ok(out)
+            let labels_value: Vec<Value> = labels.iter().map(|l| json!(l)).collect();
+            let extra = [
+                ("issueId", json!(&id)),
+                ("labels", Value::Array(labels_value)),
+            ];
+            let ids = [id.clone()];
+            let text = format!("✓ Removed label(s) from {id}\n");
+            CommandOutcome::ok(render_write(mode, "label remove", &extra, &ids, &text))
         }
         Err(error) => error.into_outcome(),
     }
@@ -173,14 +164,17 @@ pub fn label_remove(ctx: &CommandContext, input: &LabelRemoveInput) -> CommandOu
 #[derive(Clone, Debug, Default)]
 pub struct LabelListInput {
     /// The target id (`None` reproduces the usage error).
-    pub id:   Option<String>,
+    pub id:     Option<String>,
+    /// `--format` raw text (seeds-1579).
+    pub format: Option<String>,
     /// JSON envelope output.
-    pub json: bool,
+    pub json:   bool,
 }
 
 /// `label list` — one record's labels.
 pub fn label_list(ctx: &CommandContext, input: &LabelListInput) -> CommandOutcome {
-    let json = input.json;
+    let mode = WriteFormat::resolve(input.format.as_deref(), input.json);
+    let json = mode == WriteFormat::Json;
     let result = (|| -> Result<crate::SeedRecord, CommandError> {
         let Some(id) = input.id.clone() else {
             return Err(CommandError::new(
@@ -199,25 +193,20 @@ pub fn label_list(ctx: &CommandContext, input: &LabelListInput) -> CommandOutcom
     })();
     match result {
         Ok(record) => {
-            let mut out = String::new();
-            if json {
-                let labels: Vec<Value> = record
-                    .labels()
-                    .into_iter()
-                    .map(|label| json!(label))
-                    .collect();
-                push_line(
-                    &mut out,
-                    &envelope_pretty("label list", &[
-                        ("issueId", json!(record.id().as_str())),
-                        ("labels", Value::Array(labels)),
-                    ]),
-                );
-            } else {
-                let text = render::label_list_text(&record);
-                out.push_str(&text);
-            }
-            CommandOutcome::ok(out)
+            let labels: Vec<Value> = record
+                .labels()
+                .into_iter()
+                .map(|label| json!(label))
+                .collect();
+            let extra = [
+                ("issueId", json!(record.id().as_str())),
+                ("labels", Value::Array(labels)),
+            ];
+            // `--format ids`: the record's labels, one per line
+            // (seeds-1579).
+            let ids: Vec<String> = record.labels().into_iter().map(str::to_owned).collect();
+            let text = render::label_list_text(&record);
+            CommandOutcome::ok(render_write(mode, "label list", &extra, &ids, &text))
         }
         Err(error) => error.into_outcome(),
     }
@@ -226,13 +215,16 @@ pub fn label_list(ctx: &CommandContext, input: &LabelListInput) -> CommandOutcom
 /// Typed input for `label list-all`.
 #[derive(Clone, Debug, Default)]
 pub struct LabelListAllInput {
+    /// `--format` raw text (seeds-1579).
+    pub format: Option<String>,
     /// JSON envelope output.
-    pub json: bool,
+    pub json:   bool,
 }
 
 /// `label list-all` — every label in the project with counts.
 pub fn label_list_all(ctx: &CommandContext, input: &LabelListAllInput) -> CommandOutcome {
-    let json = input.json;
+    let mode = WriteFormat::resolve(input.format.as_deref(), input.json);
+    let json = mode == WriteFormat::Json;
     let result = (|| -> Result<Vec<(String, usize)>, CommandError> {
         let store = ctx
             .open_store()
@@ -251,29 +243,25 @@ pub fn label_list_all(ctx: &CommandContext, input: &LabelListAllInput) -> Comman
     })();
     match result {
         Ok(counts) => {
-            let mut out = String::new();
-            if json {
-                let mut sorted: Vec<&(String, usize)> = counts.iter().collect();
-                sorted.sort_by(|a, b| a.0.cmp(&b.0));
-                let labels: Vec<Value> = sorted.iter().map(|(label, _)| json!(label)).collect();
-                // The counts object keeps encounter order (the
-                // reference's insertion-ordered map).
-                let mut counts_map = Map::new();
-                for (label, count) in &counts {
-                    counts_map.insert(label.clone(), json!(count));
-                }
-                push_line(
-                    &mut out,
-                    &envelope_pretty("label list-all", &[
-                        ("labels", Value::Array(labels)),
-                        ("counts", Value::Object(counts_map)),
-                    ]),
-                );
-            } else {
-                let text = render::label_list_all_text(&counts);
-                out.push_str(&text);
+            let mut sorted: Vec<&(String, usize)> = counts.iter().collect();
+            sorted.sort_by(|a, b| a.0.cmp(&b.0));
+            let labels: Vec<Value> = sorted.iter().map(|(label, _)| json!(label)).collect();
+            // The counts object keeps encounter order (the
+            // reference's insertion-ordered map).
+            let mut counts_map = Map::new();
+            for (label, count) in &counts {
+                counts_map.insert(label.clone(), json!(count));
             }
-            CommandOutcome::ok(out)
+            let extra = [
+                ("labels", Value::Array(labels)),
+                ("counts", Value::Object(counts_map)),
+            ];
+            // `--format ids`: every label in the project, one per line,
+            // in first-appearance order — the order the text table
+            // prints (seeds-1579).
+            let ids: Vec<String> = counts.iter().map(|(label, _)| label.clone()).collect();
+            let text = render::label_list_all_text(&counts);
+            CommandOutcome::ok(render_write(mode, "label list-all", &extra, &ids, &text))
         }
         Err(error) => error.into_outcome(),
     }

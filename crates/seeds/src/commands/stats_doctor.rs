@@ -2,7 +2,9 @@
 
 use serde_json::{Map, Value, json};
 
-use super::{CommandContext, CommandError, CommandOutcome, envelope_pretty};
+use super::{
+    CommandContext, CommandError, CommandOutcome, WriteFormat, envelope_pretty, push_line,
+};
 use crate::{Pace, PaceOptions, Status, WriterLock, doctor, render};
 
 /// Typed input for `stats`.
@@ -91,6 +93,8 @@ pub struct DoctorInput {
     pub fix:           bool,
     /// `--repair-report` (append the repair plan in text mode).
     pub repair_report: bool,
+    /// `--format` raw text (seeds-1579).
+    pub format:        Option<String>,
     /// JSON envelope output.
     pub json:          bool,
 }
@@ -98,7 +102,8 @@ pub struct DoctorInput {
 /// `doctor` — store integrity checks; unsuccessful when any check
 /// fails.
 pub fn doctor(ctx: &CommandContext, input: &DoctorInput) -> CommandOutcome {
-    let json = input.json;
+    let mode = WriteFormat::resolve(input.format.as_deref(), input.json);
+    let json = mode == WriteFormat::Json;
     let fix = input.fix;
     let repair_report = input.repair_report;
     let result = (|| -> Result<doctor::Report, CommandError> {
@@ -120,24 +125,36 @@ pub fn doctor(ctx: &CommandContext, input: &DoctorInput) -> CommandOutcome {
     match result {
         Ok(report) => {
             let mut out = String::new();
-            if json {
-                let mut envelope = Map::new();
-                envelope.insert("success".to_owned(), json!(!report.has_failures()));
-                envelope.insert("command".to_owned(), json!("doctor"));
-                let Value::Object(report_map) = report.json_value(repair_report) else {
-                    unreachable!("report json is an object");
-                };
-                for (key, value) in report_map {
-                    envelope.insert(key, value);
+            match mode {
+                WriteFormat::Json => {
+                    let mut envelope = Map::new();
+                    envelope.insert("success".to_owned(), json!(!report.has_failures()));
+                    envelope.insert("command".to_owned(), json!("doctor"));
+                    let Value::Object(report_map) = report.json_value(repair_report) else {
+                        unreachable!("report json is an object");
+                    };
+                    for (key, value) in report_map {
+                        envelope.insert(key, value);
+                    }
+                    let text = serde_json::to_string_pretty(&Value::Object(envelope))
+                        .expect("envelope always serializes");
+                    out.push_str(&text);
+                    out.push('\n');
                 }
-                let text = serde_json::to_string_pretty(&Value::Object(envelope))
-                    .expect("envelope always serializes");
-                out.push_str(&text);
-                out.push('\n');
-            } else {
-                out.push_str(&report.text());
-                if repair_report {
-                    out.push_str(&report.repair_report_text());
+                // `--format ids`: the checks that did not pass, one per
+                // line — the report's stable check names (seeds-1579).
+                WriteFormat::Ids => {
+                    for check in &report.checks {
+                        if check.status != doctor::CheckStatus::Pass {
+                            push_line(&mut out, check.name);
+                        }
+                    }
+                }
+                WriteFormat::Text => {
+                    out.push_str(&report.text());
+                    if repair_report {
+                        out.push_str(&report.repair_report_text());
+                    }
                 }
             }
             CommandOutcome {

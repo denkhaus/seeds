@@ -3,8 +3,8 @@
 use serde_json::{Map, Value, json};
 
 use super::{
-    CommandContext, CommandError, CommandOutcome, comma_list, envelope_pretty, issue_value,
-    parse_priority, parse_seed_type, push_line,
+    CommandContext, CommandError, CommandOutcome, WriteFormat, comma_list, issue_value,
+    parse_priority, parse_seed_type, push_line, render_write,
 };
 use crate::{SeedRecord, Status, timeutil};
 
@@ -40,6 +40,8 @@ pub struct UpdateInput {
     pub extensions:             Option<String>,
     /// `--clear-extensions`.
     pub clear_extensions:       bool,
+    /// `--format` raw text (seeds-1579).
+    pub format:                 Option<String>,
     /// JSON envelope output.
     pub json:                   bool,
 }
@@ -151,7 +153,8 @@ fn join_appended(existing: Option<&str>, text: &str) -> String {
 
 /// `update` — mutates one record's fields, bumping `updatedAt`.
 pub fn update(ctx: &CommandContext, input: &UpdateInput) -> CommandOutcome {
-    let json = input.json;
+    let mode = WriteFormat::resolve(input.format.as_deref(), input.json);
+    let json = mode == WriteFormat::Json;
     let result = (|| -> Result<(SeedRecord, Option<DescriptionShape>), CommandError> {
         let message_of = |text: String| CommandError::new("update", text, json);
         let Some(id) = input.id.clone() else {
@@ -334,17 +337,14 @@ pub fn update(ctx: &CommandContext, input: &UpdateInput) -> CommandOutcome {
     })();
     match result {
         Ok((record, description_shape)) => {
-            let mut out = String::new();
-            if json {
-                let issue = issue_value(&record);
-                push_line(&mut out, &envelope_pretty("update", &[("issue", issue)]));
-            } else {
-                push_line(&mut out, &format!("✓ Updated {}", record.id()));
-                if let Some(shape) = description_shape {
-                    push_line(&mut out, &shape.to_line());
-                }
+            let extra = [("issue", issue_value(&record))];
+            let ids = [record.id().to_string()];
+            let mut text = String::new();
+            push_line(&mut text, &format!("✓ Updated {}", record.id()));
+            if let Some(shape) = description_shape {
+                push_line(&mut text, &shape.to_line());
             }
-            CommandOutcome::ok(out)
+            CommandOutcome::ok(render_write(mode, "update", &extra, &ids, &text))
         }
         Err(error) => error.into_outcome(),
     }
@@ -354,23 +354,37 @@ pub fn update(ctx: &CommandContext, input: &UpdateInput) -> CommandOutcome {
 #[derive(Clone, Debug, Default)]
 pub struct CloseInput {
     /// The ids to close (empty reproduces the usage error).
-    pub ids:    Vec<String>,
+    pub ids:     Vec<String>,
     /// `--reason` (written as `closeReason`).
-    pub reason: Option<String>,
+    pub reason:  Option<String>,
+    /// `--comment`: appended to each closed record's description after
+    /// one blank line — the closing remark in one call instead of
+    /// `update --append-description` + `close` (seeds-1579).
+    pub comment: Option<String>,
+    /// `--format` raw text (seeds-1579).
+    pub format:  Option<String>,
     /// JSON envelope output.
-    pub json:   bool,
+    pub json:    bool,
 }
 
 /// `close` — closes one or more records with `closedAt`/`closeReason`.
 pub fn close(ctx: &CommandContext, input: &CloseInput) -> CommandOutcome {
-    let json = input.json;
-    let result = (|| -> Result<Vec<String>, CommandError> {
+    let mode = WriteFormat::resolve(input.format.as_deref(), input.json);
+    let json = mode == WriteFormat::Json;
+    let result = (|| -> Result<(Vec<String>, usize), CommandError> {
         if input.ids.is_empty() {
             return Err(CommandError::new(
                 "close",
                 "usage: sd close <id> [ids...]",
                 json,
             ));
+        }
+        if input
+            .comment
+            .as_deref()
+            .is_some_and(|text| text.trim().is_empty())
+        {
+            return Err(CommandError::new("close", "--comment requires text", json));
         }
         let mut store = ctx
             .open_store_exclusive()
@@ -386,13 +400,22 @@ pub fn close(ctx: &CommandContext, input: &CloseInput) -> CommandOutcome {
         }
         let now = timeutil::now_iso();
         let reason = input.reason.as_deref();
+        let comment = input.comment.as_deref().map(str::trim);
         let mut closed = Vec::with_capacity(input.ids.len());
+        let mut commented = 0_usize;
         for id in &input.ids {
             let record = store.issue_mut(id).expect("existence checked above");
             record.set_status(Status::Closed);
             record.set_field("closedAt", json!(now));
             if let Some(reason) = reason {
                 record.set_field("closeReason", json!(reason));
+            }
+            // The closing remark lands with the close itself
+            // (seeds-1579) — one call instead of append + close.
+            if let Some(text) = comment {
+                let joined = join_appended(record.description(), text);
+                record.set_description(Some(&joined));
+                commented += 1;
             }
             // Close hygiene (seeds-8666): pending triage roles go with
             // the closure — see `strip_triage_labels`.
@@ -403,26 +426,26 @@ pub fn close(ctx: &CommandContext, input: &CloseInput) -> CommandOutcome {
         store
             .save()
             .map_err(|error| CommandError::new("close", error.to_string(), json))?;
-        Ok(closed)
+        Ok((closed, commented))
     })();
     match result {
-        Ok(closed) => {
-            let mut out = String::new();
-            if json {
-                push_line(
-                    &mut out,
-                    &envelope_pretty("close", &[("closed", json!(closed))]),
-                );
-            } else {
-                let reason = input.reason.as_deref();
-                for id in &closed {
-                    match reason {
-                        Some(reason) => push_line(&mut out, &format!("✓ Closed {id} — {reason}")),
-                        None => push_line(&mut out, &format!("✓ Closed {id}")),
-                    }
+        Ok((closed, commented)) => {
+            let extra = [("closed", json!(&closed))];
+            let mut text = String::new();
+            let reason = input.reason.as_deref();
+            for id in &closed {
+                match reason {
+                    Some(reason) => push_line(&mut text, &format!("✓ Closed {id} — {reason}")),
+                    None => push_line(&mut text, &format!("✓ Closed {id}")),
                 }
             }
-            CommandOutcome::ok(out)
+            if commented > 0 {
+                push_line(
+                    &mut text,
+                    &format!("+ comment appended to {commented} issue(s)"),
+                );
+            }
+            CommandOutcome::ok(render_write(mode, "close", &extra, &closed, &text))
         }
         Err(error) => error.into_outcome(),
     }

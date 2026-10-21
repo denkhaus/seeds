@@ -219,6 +219,63 @@ fn push_line(buf: &mut String, text: &str) {
     buf.push('\n');
 }
 
+/// The output surface of a WRITE command behind `--format`
+/// (seeds-1579): the JSON envelope, the `ids` line list, or the
+/// command's default text. The human modes
+/// (`markdown`/`compact`/`plain`) all land on the text surface — a
+/// write reports exactly one text shape, and `ids` is the script's
+/// line-oriented read of it (the README names what an id means per
+/// command).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WriteFormat {
+    /// The `{success, command, …}` envelope.
+    Json,
+    /// One identifier per line.
+    Ids,
+    /// The default human text.
+    Text,
+}
+
+impl WriteFormat {
+    /// Resolves the parsed surface: `--json` and `--format json` both
+    /// select the envelope (the flag wins when both are given), `--format
+    /// ids` the line list, and unknown modes fall back to the text
+    /// surface the way the read side falls back to markdown.
+    pub(crate) fn resolve(format: Option<&str>, json: bool) -> Self {
+        if json || format == Some("json") {
+            Self::Json
+        } else if format == Some("ids") {
+            Self::Ids
+        } else {
+            Self::Text
+        }
+    }
+}
+
+/// Renders one write command's stdout for `mode`: the `{success,
+/// command, …}` envelope from `extra`, the `ids` one per line, or the
+/// human `text` verbatim. Errors keep the caller's `json` decision —
+/// a failed `ids` call reads like a failed text call.
+pub(crate) fn render_write(
+    mode: WriteFormat,
+    command: &str,
+    extra: &[(&str, Value)],
+    ids: &[String],
+    text: &str,
+) -> String {
+    let mut out = String::new();
+    match mode {
+        WriteFormat::Json => push_line(&mut out, &envelope_pretty(command, extra)),
+        WriteFormat::Ids => {
+            for id in ids {
+                push_line(&mut out, id);
+            }
+        }
+        WriteFormat::Text => out.push_str(text),
+    }
+    out
+}
+
 /// A fresh seed id: `<project>-<hex4>`, unique within the store.
 fn fresh_seed_id(store: &Store) -> String {
     let prefix = format!("{}-", store.config.project);
@@ -275,14 +332,35 @@ pub(crate) fn parse_seed_type(text: &str) -> Result<SeedType, String> {
         .ok_or_else(|| format!("--type must be task|bug|feature|epic, got `{text}`"))
 }
 
+/// Parses a `--priority` value: the numeric forms (`2`, `P2`), the
+/// level name (`Medium`), and the form the output shows (`P2 Medium`).
+/// Everything is case-insensitive, and a name shown beside a code has
+/// to match that code — so every shape the CLI PRINTS is also accepted
+/// back (seeds-1579).
 pub(crate) fn parse_priority(text: &str) -> Result<u8, String> {
-    let digits = text
-        .strip_prefix('P')
-        .or_else(|| text.strip_prefix('p'))
-        .unwrap_or(text);
-    let message = format!("--priority must be 0-4 or P0-P4, got `{text}`");
+    let message = format!(
+        "--priority must be 0-4, P0-P4, Critical|High|Medium|Low|Backlog, or \
+         the shown form `P2 Medium`, got `{text}`"
+    );
+    let lowered = text.trim().to_ascii_lowercase();
+    if let Some(index) = crate::model::PRIORITY_NAMES
+        .iter()
+        .position(|name| name.eq_ignore_ascii_case(&lowered))
+    {
+        return u8::try_from(index).map_err(|_| message);
+    }
+    let (code, name) = match lowered.split_once(char::is_whitespace) {
+        Some((code, name)) => (code, name.trim()),
+        None => (lowered.as_str(), ""),
+    };
+    let digits = code.strip_prefix('p').unwrap_or(code);
     let number: u8 = digits.parse().map_err(|_| message.clone())?;
-    if number <= 4 {
+    if number > 4 {
+        return Err(message);
+    }
+    if name.is_empty()
+        || name.eq_ignore_ascii_case(crate::model::PRIORITY_NAMES[usize::from(number)])
+    {
         Ok(number)
     } else {
         Err(message)

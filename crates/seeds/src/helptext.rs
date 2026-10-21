@@ -110,7 +110,7 @@ Add a step to a template
 Options:
   --title <text>  Step title
   --type <type>   Step type (task|bug|feature|epic) (default: \"task\")
-  --priority <n>  Step priority 0-4 (default: \"2\")
+  --priority <n>  Step priority 0-4, P0-P4, or name (default: \"2\")
   --json          Output as JSON
   -h, --help      display help for command";
 
@@ -253,11 +253,12 @@ Create a new issue
 Options:
   --title <text>        Issue title
   --type <type>         Issue type (task|bug|feature|epic) (default: \"task\")
-  --priority <n>        Priority 0-4 or P0-P4 (default: \"2\")
+  --priority <n>        Priority 0-4, P0-P4, or P2 Medium (default: \"2\")
   --assignee <name>     Assignee name
   --description <text>  Issue description
   --labels <labels>     Comma-separated labels
-  --json                Output as JSON
+  --format <mode>       Output format (ids|json; human modes = default text)
+  --json                Output as JSON (alias for --format json)
   -h, --help            display help for command";
 
 pub(crate) const SHOW: &str = "\
@@ -283,7 +284,7 @@ Options:
   --label <labels>      Filter: must have ALL labels (comma-separated, AND)
   --label-any <labels>  Filter: must have any label (comma-separated, OR)
   --unlabeled           Filter: issues with no labels
-  --priority <levels>   Filter by priority (comma-separated, e.g. 0,1 or P0,P1)
+  --priority <levels>   Filter by priority (comma, e.g. 0,1 | P0,P1 | Medium)
   --priority-max <n>    Filter to priority <= n (e.g. --priority-max 1 = P0+P1)
   --limit <n>           Max issues to show (default: \"50\")
   --sort <mode>         Sort order (priority|created|updated|id) (default:
@@ -303,7 +304,7 @@ Options:
   --label <labels>      Filter: must have ALL labels (comma-separated, AND)
   --label-any <labels>  Filter: must have any label (comma-separated, OR)
   --unlabeled           Filter: issues with no labels
-  --priority <levels>   Filter by priority (comma-separated, e.g. 0,1 or P0,P1)
+  --priority <levels>   Filter by priority (comma, e.g. 0,1 | P0,P1 | Medium)
   --priority-max <n>    Filter to priority <= n (e.g. --priority-max 1 = P0+P1)
   --limit <n>           Max issues to show (default: \"50\")
   --sort <mode>         Sort order (priority|created|updated|id) (default:
@@ -329,7 +330,7 @@ Options:
   --label <labels>      Filter: must have ALL labels (comma-separated, AND)
   --label-any <labels>  Filter: must have any label (comma-separated, OR)
   --unlabeled           Filter: issues with no labels
-  --priority <levels>   Filter by priority (comma-separated, e.g. 0,1 or P0,P1)
+  --priority <levels>   Filter by priority (comma, e.g. 0,1 | P0,P1 | Medium)
   --priority-max <n>    Filter to priority <= n (e.g. --priority-max 1 = P0+P1)
   --limit <n>           Max issues to show (default: \"50\")
   --sort <mode>         Sort order (priority|created|updated|id) (default:
@@ -351,13 +352,14 @@ Options:
   --append-description <text>       Append to the description (one blank line between)
   --replace-in-description <json>   Replace one exact span: {\"find\": string, \"replace\": string}
   --type <type>                     New type (task|bug|feature|epic)
-  --priority <n>                    New priority 0-4 or P0-P4
+  --priority <n>                    New priority 0-4, P0-P4, or P2 Medium
   --add-label <labels>              Add label(s) (comma-separated)
   --remove-label <labels>           Remove label(s) (comma-separated)
   --set-labels <labels>             Set labels (comma-separated, empty to clear)
   --extensions <json>               Shallow-merge JSON object into Issue.extensions
   --clear-extensions                Remove the extensions field
-  --json                            Output as JSON
+  --format <mode>                   Output format (ids|json; human modes = default text)
+  --json                            Output as JSON (alias for --format json)
   -h, --help                        display help for command";
 
 pub(crate) const CLOSE: &str = "\
@@ -366,9 +368,11 @@ Usage: sd close [options] <id> [ids...]
 Close one or more issues
 
 Options:
-  --reason <text>  Close reason
-  --json           Output as JSON
-  -h, --help       display help for command";
+  --reason <text>   Close reason
+  --comment <text>  Append a closing comment to the description (each id)
+  --format <mode>   Output format (ids|json; human modes = default text)
+  --json            Output as JSON (alias for --format json)
+  -h, --help        display help for command";
 
 pub(crate) const DEP: &str = "\
 Usage: sd dep [options] [command]
@@ -390,7 +394,8 @@ Usage: sd dep add [options] <issue> <depends-on>
 Add a dependency (issue depends on depends-on)
 
 Options:
-  --json  Output as JSON
+  --format <mode>Output format (ids|json; human modes = default text)
+  --json  Output as JSON (alias for --format json)
   -h, --help  display help for command";
 
 pub(crate) const DEP_REMOVE: &str = "\
@@ -399,7 +404,8 @@ Usage: sd dep remove [options] <issue> <depends-on>
 Remove a dependency
 
 Options:
-  --json  Output as JSON
+  --format <mode>Output format (ids|json; human modes = default text)
+  --json  Output as JSON (alias for --format json)
   -h, --help  display help for command";
 
 pub(crate) const DEP_LIST: &str = "\
@@ -408,7 +414,8 @@ Usage: sd dep list [options] <issue>
 Show dependencies for an issue
 
 Options:
-  --json  Output as JSON
+  --format <mode>Output format (ids|json; human modes = default text)
+  --json  Output as JSON (alias for --format json)
   -h, --help  display help for command";
 
 pub(crate) const BLOCKED: &str = "\
@@ -431,7 +438,8 @@ Arguments:
 
 Options:
   --by <blocker-id>  Issue that blocks this issue
-  --json             Output as JSON
+  --format <mode>    Output format (ids|json; human modes = default text)
+  --json             Output as JSON (alias for --format json)
   -h, --help         display help for command";
 
 pub(crate) const UNBLOCK: &str = "\
@@ -445,7 +453,8 @@ Arguments:
 Options:
   --from <blocker-id>  Remove a specific blocker
   --all                Remove all closed blockers
-  --json               Output as JSON
+  --format <mode>      Output format (ids|json; human modes = default text)
+  --json               Output as JSON (alias for --format json)
   -h, --help           display help for command";
 
 pub(crate) const LABEL: &str = "\
@@ -469,8 +478,9 @@ Usage: sd label add [options] <issue> <labels...>
 Add labels to an issue
 
 Options:
-  --json      Output as JSON
-  -h, --help  display help for command";
+  --format <mode>   Output format (ids|json; human modes = default text)
+  --json            Output as JSON (alias for --format json)
+  -h, --help       display help for command";
 
 pub(crate) const LABEL_REMOVE: &str = "\
 Usage: sd label remove [options] <issue> <labels...>
@@ -478,8 +488,9 @@ Usage: sd label remove [options] <issue> <labels...>
 Remove labels from an issue
 
 Options:
-  --json      Output as JSON
-  -h, --help  display help for command";
+  --format <mode>   Output format (ids|json; human modes = default text)
+  --json            Output as JSON (alias for --format json)
+  -h, --help       display help for command";
 
 pub(crate) const LABEL_LIST: &str = "\
 Usage: sd label list [options] <issue>
@@ -487,8 +498,9 @@ Usage: sd label list [options] <issue>
 List labels on an issue
 
 Options:
-  --json      Output as JSON
-  -h, --help  display help for command";
+  --format <mode>   Output format (ids|json; human modes = default text)
+  --json            Output as JSON (alias for --format json)
+  -h, --help       display help for command";
 
 pub(crate) const LABEL_LIST_ALL: &str = "\
 Usage: sd label list-all [options]
@@ -496,8 +508,9 @@ Usage: sd label list-all [options]
 List all labels used in the project
 
 Options:
-  --json      Output as JSON
-  -h, --help  display help for command";
+  --format <mode>   Output format (ids|json; human modes = default text)
+  --json            Output as JSON (alias for --format json)
+  -h, --help       display help for command";
 
 pub(crate) const STATS: &str = "\
 Usage: sd stats [options]
@@ -529,7 +542,8 @@ Options:
   --verbose        Show all check results including passes
   --repair-report  Name the exact repair for each fixable finding
                    (native addition beyond sd parity)
-  --json           Output as JSON
+  --format <mode>   Output format (ids|json; human modes = default text)
+  --json            Output as JSON (alias for --format json)
   -h, --help       display help for command";
 
 pub(crate) const PRIME: &str = "\
@@ -704,8 +718,8 @@ Options:
                                 --title/--priority/--type)
   --title <text>                New title for the step (with --step); propagates
                                 to child seed
-  --priority <p>                New priority (0-4 or P0-P4) for the step (with
-                                --step)
+  --priority <p>                New priority (0-4, P0-P4, or P2 Medium) for
+                                the step (with --step)
   --type <type>                 New type for the step (with --step):
                                 task|bug|feature|epic
   --json                        Output as JSON

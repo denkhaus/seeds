@@ -172,6 +172,7 @@ fn cmd_create(args: &[String]) -> ExitCode {
         description: parsed.options.get("description").cloned(),
         labels:      parsed.options.get("labels").cloned(),
         assignee:    parsed.options.get("assignee").cloned(),
+        format:      parsed.options.get("format").cloned(),
         json:        json_mode(&parsed),
     };
     report(&commands::create(&ctx(), &input))
@@ -262,6 +263,7 @@ fn cmd_update(args: &[String]) -> ExitCode {
         set_labels:             parsed.options.get("set-labels").cloned(),
         extensions:             parsed.options.get("extensions").cloned(),
         clear_extensions:       parsed.flags.contains("clear-extensions"),
+        format:                 parsed.options.get("format").cloned(),
         json:                   json_mode(&parsed),
     };
     report(&commands::update(&ctx(), &input))
@@ -272,9 +274,11 @@ fn cmd_close(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = CloseInput {
-        ids:    parsed.positionals.clone(),
-        reason: parsed.options.get("reason").cloned(),
-        json:   json_mode(&parsed),
+        ids:     parsed.positionals.clone(),
+        reason:  parsed.options.get("reason").cloned(),
+        comment: parsed.options.get("comment").cloned(),
+        format:  parsed.options.get("format").cloned(),
+        json:    json_mode(&parsed),
     };
     report(&commands::close(&ctx(), &input))
 }
@@ -303,8 +307,9 @@ fn cmd_dep_add(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = DepAddInput {
-        ids:  parsed.positionals.clone(),
-        json: json_mode(&parsed),
+        ids:    parsed.positionals.clone(),
+        format: parsed.options.get("format").cloned(),
+        json:   json_mode(&parsed),
     };
     report(&commands::dep_add(&ctx(), &input))
 }
@@ -314,8 +319,9 @@ fn cmd_dep_remove(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = DepRemoveInput {
-        ids:  parsed.positionals.clone(),
-        json: json_mode(&parsed),
+        ids:    parsed.positionals.clone(),
+        format: parsed.options.get("format").cloned(),
+        json:   json_mode(&parsed),
     };
     report(&commands::dep_remove(&ctx(), &input))
 }
@@ -325,8 +331,9 @@ fn cmd_dep_list(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = DepListInput {
-        id:   parsed.positionals.first().cloned(),
-        json: json_mode(&parsed),
+        id:     parsed.positionals.first().cloned(),
+        format: parsed.options.get("format").cloned(),
+        json:   json_mode(&parsed),
     };
     report(&commands::dep_list(&ctx(), &input))
 }
@@ -347,9 +354,10 @@ fn cmd_block(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = BlockInput {
-        id:   parsed.positionals.first().cloned(),
-        by:   parsed.options.get("by").cloned(),
-        json: json_mode(&parsed),
+        id:     parsed.positionals.first().cloned(),
+        by:     parsed.options.get("by").cloned(),
+        format: parsed.options.get("format").cloned(),
+        json:   json_mode(&parsed),
     };
     report(&commands::block(&ctx(), &input))
 }
@@ -359,10 +367,11 @@ fn cmd_unblock(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = UnblockInput {
-        id:   parsed.positionals.first().cloned(),
-        from: parsed.options.get("from").cloned(),
-        all:  parsed.flags.contains("all"),
-        json: json_mode(&parsed),
+        id:     parsed.positionals.first().cloned(),
+        from:   parsed.options.get("from").cloned(),
+        all:    parsed.flags.contains("all"),
+        format: parsed.options.get("format").cloned(),
+        json:   json_mode(&parsed),
     };
     report(&commands::unblock(&ctx(), &input))
 }
@@ -396,6 +405,7 @@ fn cmd_label_add(args: &[String]) -> ExitCode {
     let input = LabelAddInput {
         id:     parsed.positionals.first().cloned(),
         labels: parsed.positionals[1..].to_vec(),
+        format: parsed.options.get("format").cloned(),
         json:   json_mode(&parsed),
     };
     report(&commands::label_add(&ctx(), &input))
@@ -408,6 +418,7 @@ fn cmd_label_remove(args: &[String]) -> ExitCode {
     let input = LabelRemoveInput {
         id:     parsed.positionals.first().cloned(),
         labels: parsed.positionals[1..].to_vec(),
+        format: parsed.options.get("format").cloned(),
         json:   json_mode(&parsed),
     };
     report(&commands::label_remove(&ctx(), &input))
@@ -418,8 +429,9 @@ fn cmd_label_list(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = LabelListInput {
-        id:   parsed.positionals.first().cloned(),
-        json: json_mode(&parsed),
+        id:     parsed.positionals.first().cloned(),
+        format: parsed.options.get("format").cloned(),
+        json:   json_mode(&parsed),
     };
     report(&commands::label_list(&ctx(), &input))
 }
@@ -430,7 +442,8 @@ fn cmd_label_list_all(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = LabelListAllInput {
-        json: json_mode(&parsed),
+        format: parsed.options.get("format").cloned(),
+        json:   json_mode(&parsed),
     };
     report(&commands::label_list_all(&ctx(), &input))
 }
@@ -495,6 +508,7 @@ fn cmd_doctor(args: &[String]) -> ExitCode {
     let input = DoctorInput {
         fix:           parsed.flags.contains("fix"),
         repair_report: parsed.flags.contains("repair-report"),
+        format:        parsed.options.get("format").cloned(),
         json:          json_mode(&parsed),
     };
     report(&commands::doctor(&ctx(), &input))

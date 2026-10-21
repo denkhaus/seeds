@@ -72,8 +72,9 @@ fn typed_inputs_produce_the_reference_envelopes() {
 
     // dep add blocks ready until closed.
     let outcome = commands::dep_add(&ctx, &DepAddInput {
-        ids:  vec![id.clone(), beta_id.clone()],
+        ids: vec![id.clone(), beta_id.clone()],
         json: true,
+        ..Default::default()
     });
     assert!(outcome.success);
     let outcome = commands::ready(&ctx, &QueryInput {

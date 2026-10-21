@@ -8,6 +8,7 @@
     reason = "line assembly over optional fields is clearer incrementally"
 )]
 
+use crate::model::PRIORITY_NAMES;
 use crate::{SeedRecord, SeedType, Status};
 
 /// The `--format` output modes (JSON is handled by the envelope path).
@@ -25,8 +26,6 @@ pub(crate) enum RenderMode {
     /// exhaustive so `render_mode` stays total.
     Json,
 }
-
-const PRIORITY_NAMES: [&str; 5] = ["Critical", "High", "Medium", "Low", "Backlog"];
 
 /// Maps a `--format` value to its render mode (JSON goes through the
 /// envelope path).
