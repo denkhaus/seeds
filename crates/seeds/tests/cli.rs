@@ -1242,6 +1242,189 @@ fn doctor_fix_repairs_mismatches_and_gitattributes() {
     assert_eq!(blocker["blocks"], json!(["tst-0006"]));
 }
 
+/// The seeds-cbee fixture: every check that declares `fixable` but
+/// had no apply block — a duplicate id pair, a dangling reference,
+/// string labels, a non-object extensions, a closed record without
+/// `closedAt`, open close metadata, and a stale lock file.
+fn doctor_corrupt_fixture() -> Vec<Value> {
+    vec![
+        record(
+            "tst-0001",
+            "Survivor",
+            json!({
+                "status": "closed",
+                "updatedAt": "2026-01-02T00:00:00.000Z",
+                "labels": "bug, ui, ui",
+                "extensions": "not-an-object",
+            }),
+        ),
+        record(
+            "tst-0001",
+            "Older duplicate",
+            json!({"updatedAt": "2026-01-01T00:00:00.000Z"}),
+        ),
+        record(
+            "tst-0002",
+            "Dangling ref with open close metadata",
+            json!({
+                "blockedBy": ["tst-9999", "tst-0001"],
+                "closedAt": "2026-01-05T00:00:00.000Z",
+                "closeReason": "stale metadata",
+            }),
+        ),
+    ]
+}
+
+/// Every `fixable: true` declaration now carries an apply block
+/// (seeds-cbee): `doctor --fix` heals duplicates, dangling refs,
+/// label/extensions shapes, status/closedAt pairs, and stale locks —
+/// a second run is green, the pre-fix `fix:` lines without effect
+/// are gone.
+#[test]
+fn doctor_fix_applies_every_declared_repair() {
+    let dir = temp_store("doctor-fix-apply");
+    write_records(&dir, &doctor_corrupt_fixture());
+    fs::write(dir.join(".seeds/stale.lock"), "").expect("stale lock file");
+
+    // Report-only: the repair report names the repairs that will
+    // apply — the same six checks the run heals.
+    let report = run(&dir, &["doctor", "--repair-report"]);
+    assert_eq!(report.status.code(), Some(1));
+    let stdout = String::from_utf8(report.stdout.clone()).expect("utf-8");
+    assert!(stdout.contains("fix: keep the newest occurrence per duplicate id"));
+    assert!(stdout.contains("fix: remove the dangling references"));
+    assert!(stdout.contains("fix: rewrite labels as an array of strings"));
+    assert!(stdout.contains("fix: rewrite extensions as a JSON object"));
+    assert!(stdout.contains("fix: set closedAt on closed issues, drop it on open ones"));
+    assert!(stdout.contains("fix: delete the stale lock file(s)"));
+
+    let output = run(&dir, &["doctor", "--fix"]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    for expected in [
+        "✓ Deduped 1 duplicate occurrence(s) (newest updatedAt kept)",
+        "✓ Removed 1 dangling dependency reference(s)",
+        "✓ Repaired 1 bidirectional dependency mismatch(es)",
+        "✓ Rewrote 1 invalid label array(s)",
+        "✓ Reset 1 invalid extensions field(s) to empty object(s)",
+        "✓ Set closedAt on 1 closed issue(s)",
+        "✓ Dropped close metadata on 1 open issue(s)",
+        "✓ Deleted 1 stale lock file(s)",
+        "✓ Created .gitattributes with merge=union entries",
+    ] {
+        assert!(
+            stdout.contains(expected),
+            "missing fix line `{expected}`:
+{stdout}"
+        );
+    }
+
+    // The store healed record by record.
+    let repaired = read_records(&dir);
+    assert_eq!(repaired.len(), 2, "duplicate dropped: {repaired:?}");
+    let survivor = repaired
+        .iter()
+        .find(|record| record["id"] == "tst-0001")
+        .expect("survivor");
+    assert_eq!(survivor["title"], "Survivor", "newest occurrence won");
+    assert_eq!(survivor["labels"], json!(["bug", "ui"]));
+    assert_eq!(survivor["extensions"], json!({}));
+    assert_eq!(survivor["status"], "closed");
+    assert!(
+        survivor["closedAt"]
+            .as_str()
+            .is_some_and(|stamp| !stamp.is_empty()),
+        "closedAt set: {survivor}"
+    );
+    assert_eq!(survivor["blocks"], json!(["tst-0002"]), "reverse ref added");
+    let dangling = repaired
+        .iter()
+        .find(|record| record["id"] == "tst-0002")
+        .expect("tst-0002");
+    assert_eq!(
+        dangling["blockedBy"],
+        json!(["tst-0001"]),
+        "dangling ref removed"
+    );
+    assert!(
+        dangling.get("closedAt").is_none(),
+        "open close metadata dropped"
+    );
+    assert!(dangling.get("closeReason").is_none());
+    assert!(
+        !dir.join(".seeds/stale.lock").exists(),
+        "stale lock deleted"
+    );
+
+    // The acceptance bar: green after one --fix.
+    let again = run(&dir, &["doctor"]);
+    assert_eq!(again.status.code(), Some(0));
+    let stdout = String::from_utf8(again.stdout.clone()).expect("utf-8");
+    assert!(
+        stdout.contains("12 passed, 0 warning(s), 0 failure(s)"),
+        "{stdout}"
+    );
+}
+
+/// The label repair repairs the shape, not the spelling: a prose
+/// string coerces (case kept, trimmed, deduped), a labels value with
+/// nothing to keep drops the field (sd omits empty labels), and
+/// mixed arrays are conforming (sd parity: `string_array` reads their
+/// string items) — the repair never touches them.
+#[test]
+fn doctor_fix_label_repair_coerces_prose_drops_junk_keeps_arrays() {
+    let dir = temp_store("doctor-label-repair");
+    write_records(&dir, &[
+        record(
+            "tst-0003",
+            "Prose labels",
+            json!({"labels": " Bug , ui, ui, "}),
+        ),
+        record("tst-0004", "Number labels", json!({"labels": 42})),
+        record(
+            "tst-0005",
+            "Mixed array",
+            json!({"labels": [1, "keep", ""]}),
+        ),
+    ]);
+
+    let output = run(&dir, &["doctor", "--fix"]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(
+        stdout.contains("✓ Rewrote 2 invalid label array(s)"),
+        "{stdout}"
+    );
+
+    let repaired = read_records(&dir);
+    let prose = repaired
+        .iter()
+        .find(|record| record["id"] == "tst-0003")
+        .expect("tst-0003");
+    assert_eq!(
+        prose["labels"],
+        json!(["Bug", "ui"]),
+        "trimmed, deduped, case kept"
+    );
+    let number = repaired
+        .iter()
+        .find(|record| record["id"] == "tst-0004")
+        .expect("tst-0004");
+    assert!(number.get("labels").is_none(), "junk type drops the field");
+    let mixed = repaired
+        .iter()
+        .find(|record| record["id"] == "tst-0005")
+        .expect("tst-0005");
+    assert_eq!(
+        mixed["labels"],
+        json!([1, "keep", ""]),
+        "mixed arrays conform (parity) and stay untouched"
+    );
+
+    let again = run(&dir, &["doctor"]);
+    assert_eq!(again.status.code(), Some(0));
+}
+
 /// A malformed JSONL line is a doctor FAILURE (non-zero exit), keeping
 /// sd's check name and exit semantics (detail wording is the
 /// documented Rust-side divergence).

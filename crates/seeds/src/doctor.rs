@@ -359,127 +359,155 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
             "Removed {} malformed line(s) from tracker files",
             malformed.len()
         ));
-        files_lines = files_lines
-            .into_iter()
-            .map(|(file, _)| (file, read_lines(root, file)))
-            .collect();
+        files_lines = scan_files(root);
         jsonl_check.status = CheckStatus::Pass;
         "All JSONL lines parse correctly".clone_into(&mut jsonl_check.message);
         jsonl_check.details.clear();
     }
 
-    let issues_lines = files_lines
-        .iter()
-        .find(|(file, _)| *file == "issues.jsonl")
-        .map(|(_, lines)| lines)
-        .expect("issues.jsonl is always scanned");
-    let issue_records = records(issues_lines);
-
     // schema-validation
-    let schema_issues: Vec<String> = issue_records
-        .iter()
-        .filter(|(_id, fields)| {
-            fields.get("title").and_then(Value::as_str).is_none()
-                || fields.get("status").and_then(Value::as_str).is_none()
-        })
-        .map(|(id, _)| format!("{id}: missing required field (title/status)"))
-        .collect();
-    let schema_check = if schema_issues.is_empty() {
-        passed("schema-validation", "All issues have valid schema")
-    } else {
-        Check {
-            name:    "schema-validation",
-            status:  CheckStatus::Fail,
-            message: format!("{} issue(s) with invalid schema", schema_issues.len()),
-            details: schema_issues,
-            fixable: false,
-            repair:  None,
+    let schema_check = {
+        let issue_records = records(issues_slice(&files_lines));
+        let schema_issues: Vec<String> = issue_records
+            .iter()
+            .filter(|(_id, fields)| {
+                fields.get("title").and_then(Value::as_str).is_none()
+                    || fields.get("status").and_then(Value::as_str).is_none()
+            })
+            .map(|(id, _)| format!("{id}: missing required field (title/status)"))
+            .collect();
+        if schema_issues.is_empty() {
+            passed("schema-validation", "All issues have valid schema")
+        } else {
+            Check {
+                name:    "schema-validation",
+                status:  CheckStatus::Fail,
+                message: format!("{} issue(s) with invalid schema", schema_issues.len()),
+                details: schema_issues,
+                fixable: false,
+                repair:  None,
+            }
         }
     };
 
-    // duplicate-ids
-    let mut seen = HashSet::new();
-    let mut duplicate_ids = Vec::new();
-    for (id, _) in &issue_records {
-        if !seen.insert(id.clone()) && !duplicate_ids.contains(id) {
-            duplicate_ids.push(id.clone());
+    // duplicate-ids (with the fix: one occurrence per id, the
+    // `dedupe` heal semantics — newest `updatedAt` wins)
+    let mut duplicate_check = {
+        let issue_records = records(issues_slice(&files_lines));
+        let mut seen = HashSet::new();
+        let mut duplicate_ids = Vec::new();
+        for (id, _) in &issue_records {
+            if !seen.insert(id.clone()) && !duplicate_ids.contains(id) {
+                duplicate_ids.push(id.clone());
+            }
         }
-    }
-    let duplicate_check = if duplicate_ids.is_empty() {
-        passed("duplicate-ids", "No duplicate IDs")
-    } else {
-        Check {
-            name:    "duplicate-ids",
-            status:  CheckStatus::Fail,
-            message: format!("{} duplicate id(s)", duplicate_ids.len()),
-            details: duplicate_ids,
-            fixable: true,
-            repair:  Some("run `seeds dedupe --write` to heal duplicates".to_owned()),
+        if duplicate_ids.is_empty() {
+            passed("duplicate-ids", "No duplicate IDs")
+        } else {
+            Check {
+                name:    "duplicate-ids",
+                status:  CheckStatus::Fail,
+                message: format!("{} duplicate id(s)", duplicate_ids.len()),
+                details: duplicate_ids,
+                fixable: true,
+                repair:  Some("keep the newest occurrence per duplicate id".to_owned()),
+            }
         }
     };
+    if fix && duplicate_check.status == CheckStatus::Fail {
+        let dropped = repair_duplicates(root)?;
+        fixes.push(format!(
+            "Deduped {dropped} duplicate occurrence(s) (newest updatedAt kept)"
+        ));
+        files_lines = scan_files(root);
+        duplicate_check = passed("duplicate-ids", "No duplicate IDs");
+    }
 
-    // referential-integrity
-    let known: HashSet<&str> = issue_records.iter().map(|(id, _)| id.as_str()).collect();
-    let mut dangling = Vec::new();
-    for (id, fields) in &issue_records {
-        for dep in string_array(fields.get("blockedBy")).unwrap_or_default() {
-            if !known.contains(dep.as_str()) {
-                dangling.push(format!("{id}.blockedBy references unknown {dep}"));
+    // referential-integrity (with the fix: drop references to
+    // unknown ids)
+    let mut referential_check = {
+        let issue_records = records(issues_slice(&files_lines));
+        let known: HashSet<&str> = issue_records.iter().map(|(id, _)| id.as_str()).collect();
+        let mut dangling = Vec::new();
+        for (id, fields) in &issue_records {
+            for dep in string_array(fields.get("blockedBy")).unwrap_or_default() {
+                if !known.contains(dep.as_str()) {
+                    dangling.push(format!("{id}.blockedBy references unknown {dep}"));
+                }
+            }
+            for dep in string_array(fields.get("blocks")).unwrap_or_default() {
+                if !known.contains(dep.as_str()) {
+                    dangling.push(format!("{id}.blocks references unknown {dep}"));
+                }
             }
         }
-        for dep in string_array(fields.get("blocks")).unwrap_or_default() {
-            if !known.contains(dep.as_str()) {
-                dangling.push(format!("{id}.blocks references unknown {dep}"));
+        if dangling.is_empty() {
+            passed(
+                "referential-integrity",
+                "All dependency references are valid",
+            )
+        } else {
+            Check {
+                name:    "referential-integrity",
+                status:  CheckStatus::Fail,
+                message: format!("{} dangling dependency reference(s)", dangling.len()),
+                details: dangling,
+                fixable: true,
+                repair:  Some("remove the dangling references".to_owned()),
             }
-        }
-    }
-    let referential_check = if dangling.is_empty() {
-        passed(
-            "referential-integrity",
-            "All dependency references are valid",
-        )
-    } else {
-        Check {
-            name:    "referential-integrity",
-            status:  CheckStatus::Fail,
-            message: format!("{} dangling dependency reference(s)", dangling.len()),
-            details: dangling,
-            fixable: true,
-            repair:  Some(
-                "remove the dangling references (or create the missing issues)".to_owned(),
-            ),
         }
     };
+    if fix && referential_check.status == CheckStatus::Fail {
+        let removed = {
+            let issue_records = records(issues_slice(&files_lines));
+            repair_dangling(root, &issue_records)?
+        };
+        if removed > 0 {
+            fixes.push(format!(
+                "Removed {removed} dangling dependency reference(s)"
+            ));
+            files_lines = scan_files(root);
+            referential_check = passed(
+                "referential-integrity",
+                "All dependency references are valid",
+            );
+        }
+    }
 
     // bidirectional-consistency (with the fix: add missing reverse refs)
-    let mut mismatches: Vec<Mismatch> = Vec::new();
-    for (id, fields) in &issue_records {
-        for dep in string_array(fields.get("blockedBy")).unwrap_or_default() {
-            if let Some((_, blocker)) = issue_records.iter().find(|(other, _)| *other == dep) {
-                let blocks = string_array(blocker.get("blocks")).unwrap_or_default();
-                if !blocks.iter().any(|blocked| blocked == id) {
-                    mismatches.push(Mismatch::MissingBlocks {
-                        dependent: id.clone(),
-                        blocker:   dep.clone(),
-                    });
+    let mismatches: Vec<Mismatch> = {
+        let issue_records = records(issues_slice(&files_lines));
+        let mut mismatches: Vec<Mismatch> = Vec::new();
+        for (id, fields) in &issue_records {
+            for dep in string_array(fields.get("blockedBy")).unwrap_or_default() {
+                if let Some((_, blocker)) = issue_records.iter().find(|(other, _)| *other == dep) {
+                    let blocks = string_array(blocker.get("blocks")).unwrap_or_default();
+                    if !blocks.iter().any(|blocked| blocked == id) {
+                        mismatches.push(Mismatch::MissingBlocks {
+                            dependent: id.clone(),
+                            blocker:   dep.clone(),
+                        });
+                    }
                 }
             }
         }
-    }
-    for (id, fields) in &issue_records {
-        for blocked in string_array(fields.get("blocks")).unwrap_or_default() {
-            if let Some((_, dependent)) = issue_records.iter().find(|(other, _)| *other == blocked)
-            {
-                let blocked_by = string_array(dependent.get("blockedBy")).unwrap_or_default();
-                if !blocked_by.iter().any(|dep| dep == id) {
-                    mismatches.push(Mismatch::MissingBlockedBy {
-                        blocker:   id.clone(),
-                        dependent: blocked.clone(),
-                    });
+        for (id, fields) in &issue_records {
+            for blocked in string_array(fields.get("blocks")).unwrap_or_default() {
+                if let Some((_, dependent)) =
+                    issue_records.iter().find(|(other, _)| *other == blocked)
+                {
+                    let blocked_by = string_array(dependent.get("blockedBy")).unwrap_or_default();
+                    if !blocked_by.iter().any(|dep| dep == id) {
+                        mismatches.push(Mismatch::MissingBlockedBy {
+                            blocker:   id.clone(),
+                            dependent: blocked.clone(),
+                        });
+                    }
                 }
             }
         }
-    }
+        mismatches
+    };
     let mut bidirectional_check = if mismatches.is_empty() {
         passed(
             "bidirectional-consistency",
@@ -514,100 +542,114 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
             bidirectional_check.status = CheckStatus::Pass;
             "Bidirectional dependencies consistent".clone_into(&mut bidirectional_check.message);
             bidirectional_check.details.clear();
+            // The added reverse refs can close a cycle: later checks
+            // read the healed store, not the pre-fix snapshot.
+            files_lines = scan_files(root);
         }
     }
 
     // circular-dependencies
-    let mut cycles = Vec::new();
-    for (start, _) in &issue_records {
-        let mut path = vec![start.clone()];
-        let mut current = start.clone();
-        while let Some((_, fields)) = issue_records.iter().find(|(id, _)| *id == current) {
-            let Some(next) = string_array(fields.get("blockedBy"))
-                .unwrap_or_default()
-                .into_iter()
-                .find(|dep| known.contains(dep.as_str()))
-            else {
-                break;
-            };
-            if next == *start {
-                cycles.push(format!("{} → {} (→ {start})", path.join(" → "), next));
-                break;
+    let circular_check = {
+        let issue_records = records(issues_slice(&files_lines));
+        let known: HashSet<String> = issue_records.iter().map(|(id, _)| id.clone()).collect();
+        let mut cycles = Vec::new();
+        for (start, _) in &issue_records {
+            let mut path = vec![start.clone()];
+            let mut current = start.clone();
+            while let Some((_, fields)) = issue_records.iter().find(|(id, _)| *id == current) {
+                let Some(next) = string_array(fields.get("blockedBy"))
+                    .unwrap_or_default()
+                    .into_iter()
+                    .find(|dep| known.contains(dep.as_str()))
+                else {
+                    break;
+                };
+                if next == *start {
+                    cycles.push(format!("{} → {} (→ {start})", path.join(" → "), next));
+                    break;
+                }
+                if path.contains(&next) || path.len() > issue_records.len() {
+                    break;
+                }
+                path.push(next.clone());
+                current = next;
             }
-            if path.contains(&next) || path.len() > issue_records.len() {
-                break;
-            }
-            path.push(next.clone());
-            current = next;
         }
-    }
-    let circular_check = if cycles.is_empty() {
-        passed("circular-dependencies", "No circular dependencies")
-    } else {
-        Check {
-            name:    "circular-dependencies",
-            status:  CheckStatus::Fail,
-            message: format!("{} circular dependency cycle(s)", cycles.len()),
-            details: cycles,
-            fixable: false,
-            repair:  None,
+        if cycles.is_empty() {
+            passed("circular-dependencies", "No circular dependencies")
+        } else {
+            Check {
+                name:    "circular-dependencies",
+                status:  CheckStatus::Fail,
+                message: format!("{} circular dependency cycle(s)", cycles.len()),
+                details: cycles,
+                fixable: false,
+                repair:  None,
+            }
         }
     };
 
-    // label-schema
-    let bad_labels: Vec<String> = issue_records
-        .iter()
-        .filter(|(_id, fields)| {
-            fields.contains_key("labels") && string_array(fields.get("labels")).is_none()
-        })
-        .map(|(id, _)| format!("{id}: labels is not an array of strings"))
-        .collect();
-    let label_check = if bad_labels.is_empty() {
+    // label-schema, extensions-schema, closed-fields-consistency (one
+    // combined heal pass: all three rewrite record fields)
+    let (bad_labels, bad_extensions, inconsistent): (Vec<String>, Vec<String>, Vec<String>) = {
+        let issue_records = records(issues_slice(&files_lines));
+        let bad_labels: Vec<String> = issue_records
+            .iter()
+            .filter(|(_id, fields)| {
+                fields.contains_key("labels") && string_array(fields.get("labels")).is_none()
+            })
+            .map(|(id, _)| id.to_owned())
+            .collect();
+        let bad_extensions: Vec<String> = issue_records
+            .iter()
+            .filter(|(_id, fields)| {
+                fields.contains_key("extensions")
+                    && !matches!(fields.get("extensions"), Some(Value::Object(_)))
+            })
+            .map(|(id, _)| id.to_owned())
+            .collect();
+        let inconsistent: Vec<String> = issue_records
+            .iter()
+            .filter(|(_id, fields)| {
+                let status = fields.get("status").and_then(Value::as_str);
+                let has_closed_at = fields.contains_key("closedAt");
+                (status == Some("closed")) != has_closed_at
+            })
+            .map(|(id, _)| id.to_owned())
+            .collect();
+        (bad_labels, bad_extensions, inconsistent)
+    };
+    let mut label_check = if bad_labels.is_empty() {
         passed("label-schema", "All label arrays are valid")
     } else {
         Check {
             name:    "label-schema",
             status:  CheckStatus::Fail,
             message: format!("{} invalid label array(s)", bad_labels.len()),
-            details: bad_labels,
+            details: bad_labels
+                .iter()
+                .map(|id| format!("{id}: labels is not an array of strings"))
+                .collect(),
             fixable: true,
             repair:  Some("rewrite labels as an array of strings".to_owned()),
         }
     };
-
-    // extensions-schema
-    let bad_extensions: Vec<String> = issue_records
-        .iter()
-        .filter(|(_id, fields)| {
-            fields.contains_key("extensions")
-                && !matches!(fields.get("extensions"), Some(Value::Object(_)))
-        })
-        .map(|(id, _)| format!("{id}: extensions is not an object"))
-        .collect();
-    let extensions_check = if bad_extensions.is_empty() {
+    let mut extensions_check = if bad_extensions.is_empty() {
         passed("extensions-schema", "All extensions fields are valid")
     } else {
         Check {
             name:    "extensions-schema",
             status:  CheckStatus::Fail,
             message: format!("{} invalid extensions field(s)", bad_extensions.len()),
-            details: bad_extensions,
+            details: bad_extensions
+                .iter()
+                .map(|id| format!("{id}: extensions is not an object"))
+                .collect(),
             fixable: true,
             repair:  Some("rewrite extensions as a JSON object".to_owned()),
         }
     };
-
-    // closed-fields-consistency
-    let inconsistent: Vec<String> = issue_records
-        .iter()
-        .filter(|(_id, fields)| {
-            let status = fields.get("status").and_then(Value::as_str);
-            let has_closed_at = fields.contains_key("closedAt");
-            (status == Some("closed")) != has_closed_at
-        })
-        .map(|(id, _)| format!("{id}: status/closedAt pair inconsistent"))
-        .collect();
-    let closed_check = if inconsistent.is_empty() {
+    let mut closed_check = if inconsistent.is_empty() {
         passed(
             "closed-fields-consistency",
             "All status/close-metadata pairs are consistent",
@@ -620,32 +662,100 @@ pub(crate) fn run(root: &Path, fix: bool) -> Result<Report, String> {
                 "{} inconsistent status/close-metadata pair(s)",
                 inconsistent.len()
             ),
-            details: inconsistent,
+            details: inconsistent
+                .iter()
+                .map(|id| format!("{id}: status/closedAt pair inconsistent"))
+                .collect(),
             fixable: true,
             repair:  Some("set closedAt on closed issues, drop it on open ones".to_owned()),
         }
     };
+    if fix && !(bad_labels.is_empty() && bad_extensions.is_empty() && inconsistent.is_empty()) {
+        let label_ids: HashSet<String> = bad_labels.iter().cloned().collect();
+        let extension_ids: HashSet<String> = bad_extensions.iter().cloned().collect();
+        let closed_ids: HashSet<String> = inconsistent.iter().cloned().collect();
+        let counts = repair_fields(
+            root,
+            &crate::timeutil::now_iso(),
+            &label_ids,
+            &extension_ids,
+            &closed_ids,
+        )?;
+        if counts.labels > 0 {
+            fixes.push(format!("Rewrote {} invalid label array(s)", counts.labels));
+        }
+        if counts.extensions > 0 {
+            fixes.push(format!(
+                "Reset {} invalid extensions field(s) to empty object(s)",
+                counts.extensions
+            ));
+        }
+        if counts.closed_at_set > 0 {
+            fixes.push(format!(
+                "Set closedAt on {} closed issue(s)",
+                counts.closed_at_set
+            ));
+        }
+        if counts.close_meta_dropped > 0 {
+            fixes.push(format!(
+                "Dropped close metadata on {} open issue(s)",
+                counts.close_meta_dropped
+            ));
+        }
+        if !bad_labels.is_empty() {
+            label_check = passed("label-schema", "All label arrays are valid");
+        }
+        if !bad_extensions.is_empty() {
+            extensions_check = passed("extensions-schema", "All extensions fields are valid");
+        }
+        if !inconsistent.is_empty() {
+            closed_check = passed(
+                "closed-fields-consistency",
+                "All status/close-metadata pairs are consistent",
+            );
+        }
+    }
 
-    // stale-locks
-    let locks: Vec<String> = std::fs::read_dir(root)
+    // stale-locks (with the fix: delete the lock files — the
+    // permanent `.lock` writer lock is a dotfile without an extension
+    // and never matches)
+    let lock_paths: Vec<std::path::PathBuf> = std::fs::read_dir(root)
         .into_iter()
         .flatten()
         .flatten()
         .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "lock"))
-        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .map(|entry| entry.path())
         .collect();
-    let locks_check = if locks.is_empty() {
+    let mut locks_check = if lock_paths.is_empty() {
         passed("stale-locks", "No stale lock files")
     } else {
         Check {
             name:    "stale-locks",
             status:  CheckStatus::Warn,
-            message: format!("{} stale lock file(s)", locks.len()),
-            details: locks,
+            message: format!("{} stale lock file(s)", lock_paths.len()),
+            details: lock_paths
+                .iter()
+                .map(|path| {
+                    path.file_name().map_or_else(
+                        || path.to_string_lossy().into_owned(),
+                        |name| name.to_string_lossy().into_owned(),
+                    )
+                })
+                .collect(),
             fixable: true,
             repair:  Some("delete the stale lock file(s)".to_owned()),
         }
     };
+    if fix && locks_check.status == CheckStatus::Warn {
+        let mut deleted = 0;
+        for path in &lock_paths {
+            std::fs::remove_file(path)
+                .map_err(|error| format!("deleting {}: {error}", path.display()))?;
+            deleted += 1;
+        }
+        fixes.push(format!("Deleted {deleted} stale lock file(s)"));
+        locks_check = passed("stale-locks", "No stale lock files");
+    }
 
     // gitattributes (with the fix: create the merge=union entries)
     let project_root = root.parent().unwrap_or(Path::new("."));
@@ -763,6 +873,32 @@ impl Mismatch {
 /// fields directly (the store API would re-validate everything; the
 /// doctor must heal precisely the named mismatches).
 fn repair_bidirectional(root: &Path, mismatches: &[Mismatch]) -> Result<usize, String> {
+    rewrite_issues(root, |id, fields| {
+        let mut repaired = 0;
+        for mismatch in mismatches {
+            match mismatch {
+                Mismatch::MissingBlocks { dependent, blocker } if blocker == id => {
+                    repaired += usize::from(push_unique(fields, "blocks", dependent));
+                }
+                Mismatch::MissingBlockedBy { blocker, dependent } if dependent == id => {
+                    repaired += usize::from(push_unique(fields, "blockedBy", blocker));
+                }
+                _ => {}
+            }
+        }
+        repaired
+    })
+}
+
+/// Rewrites `issues.jsonl` by applying `edit` to every well-formed
+/// record (the store API would re-validate everything; the doctor
+/// heals precisely the findings it named). `edit` returns how many
+/// repairs it made on the record; malformed and id-less lines pass
+/// through untouched.
+fn rewrite_issues<E>(root: &Path, mut edit: E) -> Result<usize, String>
+where
+    E: FnMut(&str, &mut Map<String, Value>) -> usize,
+{
     let path = root.join("issues.jsonl");
     let text =
         std::fs::read_to_string(&path).map_err(|error| format!("reading issues.jsonl: {error}"))?;
@@ -784,17 +920,7 @@ fn repair_bidirectional(root: &Path, mismatches: &[Mismatch]) -> Result<usize, S
             lines.push(line.to_owned());
             continue;
         };
-        for mismatch in mismatches {
-            match mismatch {
-                Mismatch::MissingBlocks { dependent, blocker } if blocker == &id => {
-                    repaired += usize::from(push_unique(fields, "blocks", dependent));
-                }
-                Mismatch::MissingBlockedBy { blocker, dependent } if dependent == &id => {
-                    repaired += usize::from(push_unique(fields, "blockedBy", blocker));
-                }
-                _ => {}
-            }
-        }
+        repaired += edit(&id, fields);
         lines.push(serde_json::to_string(&value).expect("record serializes"));
     }
     let body = if lines.is_empty() {
@@ -805,6 +931,169 @@ fn repair_bidirectional(root: &Path, mismatches: &[Mismatch]) -> Result<usize, S
     crate::store::write_file(&path, body)
         .map_err(|error| format!("writing issues.jsonl: {error}"))?;
     Ok(repaired)
+}
+
+/// Heals duplicate ids in `issues.jsonl` with the `dedupe` semantics
+/// (the newest `updatedAt` wins, ties break to the later line) and
+/// returns the number of dropped occurrences.
+fn repair_duplicates(root: &Path) -> Result<usize, String> {
+    let path = root.join("issues.jsonl");
+    let text =
+        std::fs::read_to_string(&path).map_err(|error| format!("reading issues.jsonl: {error}"))?;
+    let lines: Vec<&str> = text
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .collect();
+    let (healed, duplicates) = crate::dedupe::heal_lines(&lines);
+    let dropped: usize = duplicates.iter().map(|dup| dup.count - 1).sum();
+    let body = if healed.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n", healed.join("\n"))
+    };
+    crate::store::write_file(&path, body)
+        .map_err(|error| format!("writing issues.jsonl: {error}"))?;
+    Ok(dropped)
+}
+
+/// Drops every `blockedBy`/`blocks` entry that references an unknown
+/// id and returns the number of removed references. A dependency
+/// field left empty is removed (sd omits empty collections).
+fn repair_dangling(
+    root: &Path,
+    issue_records: &[(String, &Map<String, Value>)],
+) -> Result<usize, String> {
+    let known: HashSet<&str> = issue_records.iter().map(|(id, _)| id.as_str()).collect();
+    // (id, field, dep) per dangling reference, in record order.
+    let mut drops: Vec<(String, String, String)> = Vec::new();
+    for (id, fields) in issue_records {
+        for field in ["blockedBy", "blocks"] {
+            for dep in string_array(fields.get(field)).unwrap_or_default() {
+                if !known.contains(dep.as_str()) {
+                    drops.push((id.clone(), field.to_owned(), dep));
+                }
+            }
+        }
+    }
+    rewrite_issues(root, |id, fields| {
+        let mut removed = 0;
+        for (target, field, dep) in &drops {
+            if target != id {
+                continue;
+            }
+            let mut deps = string_array(fields.get(field)).unwrap_or_default();
+            let before = deps.len();
+            deps.retain(|kept| kept != dep);
+            removed += before - deps.len();
+            if before != deps.len() {
+                if deps.is_empty() {
+                    fields.remove(field.as_str());
+                } else {
+                    let kept: Vec<Value> = deps.into_iter().map(Value::String).collect();
+                    fields.insert(field.clone(), Value::Array(kept));
+                }
+            }
+        }
+        removed
+    })
+}
+
+/// Per-class repair counts of the combined field heal.
+#[derive(Default)]
+struct FieldCounts {
+    labels:             usize,
+    extensions:         usize,
+    closed_at_set:      usize,
+    close_meta_dropped: usize,
+}
+
+/// The label/extensions/closed-fields heal: one pass over
+/// `issues.jsonl`, rewriting exactly the records the checks flagged.
+/// `closedAt = now` mirrors the `close` command's timestamp semantics
+/// (the seed's declared repair; git-derived historical timestamps
+/// stay out of doctor).
+fn repair_fields(
+    root: &Path,
+    now: &str,
+    label_ids: &HashSet<String>,
+    extension_ids: &HashSet<String>,
+    closed_ids: &HashSet<String>,
+) -> Result<FieldCounts, String> {
+    let mut counts = FieldCounts::default();
+    rewrite_issues(root, |id, fields| {
+        let mut repaired = 0;
+        if label_ids.contains(id) {
+            match fields.get("labels").map(coerce_labels) {
+                Some(Some(labels)) => {
+                    fields.insert("labels".to_owned(), labels);
+                }
+                Some(None) => {
+                    fields.remove("labels");
+                }
+                None => {}
+            }
+            counts.labels += 1;
+            repaired += 1;
+        }
+        if extension_ids.contains(id) {
+            fields.insert("extensions".to_owned(), Value::Object(Map::new()));
+            counts.extensions += 1;
+            repaired += 1;
+        }
+        if closed_ids.contains(id) {
+            if fields.get("status").and_then(Value::as_str) == Some("closed") {
+                fields.insert("closedAt".to_owned(), Value::String(now.to_owned()));
+                counts.closed_at_set += 1;
+            } else {
+                fields.remove("closedAt");
+                fields.remove("closeReason");
+                counts.close_meta_dropped += 1;
+            }
+            repaired += 1;
+        }
+        repaired
+    })?;
+    Ok(counts)
+}
+
+/// Coerces a non-conforming `labels` value into a schema-conform
+/// array of strings: a prose string splits on commas; entries trim,
+/// empties drop, duplicates keep their first position. Every other
+/// non-array shape has nothing to keep — the field drops (sd omits
+/// empty labels). Case is preserved — this repairs the shape, not
+/// the spelling. Arrays never reach the repair: the check flags only
+/// non-array values (mixed arrays conform — `string_array` reads
+/// their string items).
+fn coerce_labels(value: &Value) -> Option<Value> {
+    let candidates: Vec<String> = match value {
+        Value::String(text) => text.split(',').map(str::to_owned).collect(),
+        _ => Vec::new(),
+    };
+    let mut seen = HashSet::new();
+    let labels: Vec<Value> = candidates
+        .into_iter()
+        .map(|label| label.trim().to_owned())
+        .filter(|label| !label.is_empty() && seen.insert(label.clone()))
+        .map(Value::String)
+        .collect();
+    (!labels.is_empty()).then_some(Value::Array(labels))
+}
+
+/// Reads the three tracker files fresh (the post-fix re-scan).
+fn scan_files(root: &Path) -> Vec<(&'static str, Vec<(usize, Line)>)> {
+    TRACKER_FILES
+        .iter()
+        .map(|file| (*file, read_lines(root, file)))
+        .collect()
+}
+
+/// The scanned `issues.jsonl` lines.
+fn issues_slice<'a>(files_lines: &'a [(&'static str, Vec<(usize, Line)>)]) -> &'a [(usize, Line)] {
+    files_lines
+        .iter()
+        .find(|(file, _)| *file == "issues.jsonl")
+        .map(|(_, lines)| lines.as_slice())
+        .expect("issues.jsonl is always scanned")
 }
 
 /// Pushes `id` onto the string-array field `name` (creating it when

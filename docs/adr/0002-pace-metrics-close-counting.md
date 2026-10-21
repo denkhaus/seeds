@@ -35,6 +35,22 @@ time-series comes from.
    `eta: null` with an `eta_reason` and the markdown prints
    "insufficient data" plus the all-time hint, rather than a number
    that swings wildly week to week.
+4. **[Amended 2026-10-21, design v2] The ETA projects net drain, not
+   gross throughput.** The v1 identity `open ÷ rate_window` silently
+   assumed zero future creations — optimistic exactly when the backlog
+   grows (the failure mode fabro's friction-score drain-deficit
+   measures). v2 reports the **pace coefficient**
+   `k = closures_in_window / creations_in_window` (null with
+   `no_creations_in_window` when the window saw no creations) and the
+   **Drain Rate** `(closures − creations) × 7 / window_days`, and the
+   ETA becomes `open_to_target ÷ Drain Rate` — `eta: null` with
+   `eta_reason: "backlog_not_shrinking"` while the drain is not
+   positive. Uniform close counting (decision 1) still underwrites
+   the identity: numerator and denominator keep one scope. The gross
+   windowed rate stays visible as `Rate (30d)`; there is exactly one
+   ETA. Also added: median open age of non-closed seeds (`Open age
+   (median)`), measurement only — no verdict bands in the tracker;
+   bands are loop policy (fabro architect), not tracker policy.
 
 ## Considered Options
 
