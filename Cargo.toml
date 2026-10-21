@@ -4,7 +4,7 @@ members = ["crates/seeds"]
 
 [workspace.package]
 # Tag == crate version, strictly (d54c discipline; next release tag v0.8.0).
-version = "0.9.0"
+version = "0.9.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 
@@ -27,6 +27,11 @@ too_many_arguments = "allow"
 too_many_lines = "allow"
 cast_precision_loss = "allow"
 doc_markdown = "allow"
+# `.map(..).unwrap_or_default()` beats `map_or_default()`: the method
+# stabilized only after 2026-04-14, so consumers on older pinned
+# toolchains (fabro CI clippy, nightly-2026-04-14) cannot compile it
+# (4070ea1).
+map_unwrap_or = "allow"
 # Disallowed restriction lints
 print_stdout = "warn"
 print_stderr = "warn"

@@ -16,14 +16,15 @@ fn remove_dep_field(record: &mut SeedRecord, name: &str, dep: &str) {
         .fields()
         .get(name)
         .and_then(Value::as_array)
-        .map_or_default(|items| {
+        .map(|items| {
             items
                 .iter()
                 .filter_map(Value::as_str)
                 .filter(|id| *id != dep)
                 .map(str::to_owned)
                 .collect()
-        });
+        })
+        .unwrap_or_default();
     if remaining.is_empty() {
         record.remove_field(name);
     } else {

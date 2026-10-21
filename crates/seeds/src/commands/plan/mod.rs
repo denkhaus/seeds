@@ -391,13 +391,16 @@ pub(crate) fn merge_adopted_labels(
     if normalized.is_empty() {
         return None;
     }
-    let current: Vec<String> = existing.and_then(Value::as_array).map_or_default(|items| {
-        items
-            .iter()
-            .filter_map(Value::as_str)
-            .map(String::from)
-            .collect()
-    });
+    let current: Vec<String> = existing
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default();
     let mut merged = current.clone();
     for label in normalized {
         if !merged.contains(&label) {
@@ -472,13 +475,14 @@ pub(crate) fn append_unique_field(record_fields: &mut Fields, key: &str, id: &st
     let current: Vec<String> = record_fields
         .get(key)
         .and_then(Value::as_array)
-        .map_or_default(|items| {
+        .map(|items| {
             items
                 .iter()
                 .filter_map(Value::as_str)
                 .map(String::from)
                 .collect()
-        });
+        })
+        .unwrap_or_default();
     if current.iter().any(|entry| entry == id) {
         return false;
     }
