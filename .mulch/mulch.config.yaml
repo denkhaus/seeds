@@ -11,6 +11,7 @@ domains:
   loop-assets: {}
   conventions: {}
   seeds: {}
+  agent-process: {}
 governance:
   max_entries: 100
   warn_entries: 150
