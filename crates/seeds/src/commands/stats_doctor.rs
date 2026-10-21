@@ -3,19 +3,23 @@
 use serde_json::{Map, Value, json};
 
 use super::{CommandContext, CommandError, CommandOutcome, envelope_pretty};
-use crate::{Status, doctor, render};
+use crate::{Pace, PaceOptions, Status, WriterLock, doctor, render};
 
 /// Typed input for `stats`.
 #[derive(Clone, Debug, Default)]
 pub struct StatsInput {
     /// JSON envelope output.
     pub json: bool,
+    /// `--pace`: the pace section (closure rates, lead time, ETA, week
+    /// table); absent means the parity surface only.
+    pub pace: Option<PaceOptions>,
 }
 
-/// `stats` — project statistics by status, type, priority, and label.
+/// `stats` — project statistics by status, type, priority, and label,
+/// plus the pace section behind `--pace` (seeds-8fc5).
 pub fn stats(ctx: &CommandContext, input: &StatsInput) -> CommandOutcome {
     let json = input.json;
-    let result = (|| -> Result<render::Stats, CommandError> {
+    let result = (|| -> Result<(render::Stats, Option<Pace>), CommandError> {
         let store = ctx
             .open_store()
             .map_err(|message| CommandError::new("stats", message, json))?;
@@ -24,10 +28,17 @@ pub fn stats(ctx: &CommandContext, input: &StatsInput) -> CommandOutcome {
                 .issue(dep)
                 .is_none_or(|blocker| blocker.status() != Some(Status::Closed))
         };
-        Ok(render::Stats::collect(&store.issues, &unresolved))
+        let stats = render::Stats::collect(&store.issues, &unresolved);
+        let pace = input
+            .pace
+            .as_ref()
+            .map(|options| Pace::collect(&store.issues, options))
+            .transpose()
+            .map_err(|message| CommandError::new("stats", message, json))?;
+        Ok((stats, pace))
     })();
     match result {
-        Ok(stats) => {
+        Ok((stats, pace)) => {
             let mut out = String::new();
             if json {
                 let mut by_type = Map::new();
@@ -35,12 +46,14 @@ pub fn stats(ctx: &CommandContext, input: &StatsInput) -> CommandOutcome {
                     by_type.insert(kind.clone(), json!(count));
                 }
                 let mut by_priority = Map::new();
-                for (level, count) in &stats.by_priority {
-                    by_priority.insert(level.to_string(), json!(count));
+                for (level, counts) in &stats.by_priority {
+                    // The reference's all-status totals (seeds-4cf6
+                    // splits only the text display).
+                    by_priority.insert(level.to_string(), json!(counts.total()));
                 }
                 let mut by_label = Map::new();
-                for (label, count) in &stats.by_label {
-                    by_label.insert(label.clone(), json!(count));
+                for (label, counts) in &stats.by_label {
+                    by_label.insert(label.clone(), json!(counts.total()));
                 }
                 let mut stats_map = Map::new();
                 stats_map.insert("total".to_owned(), json!(stats.total));
@@ -51,11 +64,19 @@ pub fn stats(ctx: &CommandContext, input: &StatsInput) -> CommandOutcome {
                 stats_map.insert("byType".to_owned(), Value::Object(by_type));
                 stats_map.insert("byPriority".to_owned(), Value::Object(by_priority));
                 stats_map.insert("byLabel".to_owned(), Value::Object(by_label));
-                let text = envelope_pretty("stats", &[("stats", Value::Object(stats_map))]);
+                let mut extra = vec![("stats", Value::Object(stats_map))];
+                if let Some(pace) = &pace {
+                    extra.push(("pace", pace.json_value()));
+                }
+                let text = envelope_pretty("stats", &extra);
                 out.push_str(&text);
                 out.push('\n');
             } else {
                 out.push_str(&stats.text());
+                if let Some(pace) = &pace {
+                    out.push('\n');
+                    out.push_str(&pace.text());
+                }
             }
             CommandOutcome::ok(out)
         }
@@ -84,6 +105,16 @@ pub fn doctor(ctx: &CommandContext, input: &DoctorInput) -> CommandOutcome {
         let root = ctx
             .resolve()
             .map_err(|message| CommandError::new("doctor", message, json))?;
+        // Repairs rewrite store files: one writer at a time
+        // (seeds-0d7b). The report-only mode stays lock-free.
+        let _lock = if fix {
+            Some(
+                WriterLock::acquire(root)
+                    .map_err(|error| CommandError::new("doctor", error.to_string(), json))?,
+            )
+        } else {
+            None
+        };
         doctor::run(root, fix).map_err(|message| CommandError::new("doctor", message, json))
     })();
     match result {

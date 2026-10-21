@@ -111,8 +111,15 @@ fn compact_line(record: &SeedRecord, blocked: bool) -> String {
 }
 
 /// The footer count per command (`issue(s)`, `ready issue(s)`,
-/// `match(es)`, `blocked issue(s)`).
-fn footer(command: &str, count: usize) -> String {
+/// `match(es)`, `blocked issue(s)`). When `--limit` truncated the
+/// result set, `shown of total` names the cap instead of letting the
+/// rendered count pass as the whole stock (seeds-4cf6).
+fn footer(command: &str, shown: usize, total: usize) -> String {
+    let count = if total > shown {
+        format!("{shown} of {total}")
+    } else {
+        shown.to_string()
+    };
     match command {
         "ready" => format!("{count} ready issue(s)"),
         "search" => format!("{count} match(es)"),
@@ -123,12 +130,14 @@ fn footer(command: &str, count: usize) -> String {
 
 /// Renders a list of records in the requested mode. `is_unresolved`
 /// resolves `blockedBy` ids against the same store the records came
-/// from.
+/// from. `total` is the match count before `--limit` truncated — it
+/// equals `records.len()` when nothing was cut.
 pub(crate) fn list_text(
     records: &[SeedRecord],
     mode: RenderMode,
     is_unresolved: &dyn Fn(&str) -> bool,
     command: &str,
+    total: usize,
 ) -> String {
     let blocked: Vec<bool> = records
         .iter()
@@ -162,7 +171,7 @@ pub(crate) fn list_text(
                 text.push('\n');
             }
             text.push('\n');
-            text.push_str(&footer(command, records.len()));
+            text.push_str(&footer(command, records.len(), total));
             text.push('\n');
             text
         }
@@ -181,9 +190,21 @@ pub(crate) fn show_text(records: &[SeedRecord], mode: RenderMode) -> String {
                 .join("\n---\n\n")
                 + "\n"
         }
-        RenderMode::Compact => list_text(records, RenderMode::Compact, &|_| false, "show"),
-        RenderMode::Plain => list_text(records, RenderMode::Plain, &|_| false, "show"),
-        RenderMode::Ids => list_text(records, RenderMode::Ids, &|_| false, "show"),
+        RenderMode::Compact => list_text(
+            records,
+            RenderMode::Compact,
+            &|_| false,
+            "show",
+            records.len(),
+        ),
+        RenderMode::Plain => list_text(
+            records,
+            RenderMode::Plain,
+            &|_| false,
+            "show",
+            records.len(),
+        ),
+        RenderMode::Ids => list_text(records, RenderMode::Ids, &|_| false, "show", records.len()),
     }
 }
 
@@ -314,9 +335,32 @@ pub(crate) fn label_list_all_text(counts: &[(String, usize)]) -> String {
 
 /// Pads `text` to `width` with at least one trailing space (the
 /// reference's `padEnd` layout for label/type/priority columns).
-fn pad_field(text: &str, width: usize) -> String {
+pub(crate) fn pad_field(text: &str, width: usize) -> String {
     let padding = width.saturating_sub(text.chars().count()).max(1);
     format!("{text}{}", " ".repeat(padding))
+}
+
+/// One `By Priority`/`By Label` row's counts (seeds-4cf6): the live
+/// (non-closed) stock beside the closed history — the display split
+/// that stops the sections from reading like pure inventory.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct StatusCounts {
+    /// Non-closed records (`open` + `in_progress`) — the live stock.
+    pub open:   usize,
+    /// `closed` records — history.
+    pub closed: usize,
+}
+
+impl StatusCounts {
+    /// The all-status total the reference prints.
+    pub(crate) const fn total(self) -> usize {
+        self.open + self.closed
+    }
+
+    /// The display split (`3 open / 50 closed`).
+    fn split_text(self) -> String {
+        format!("{} open / {} closed", self.open, self.closed)
+    }
 }
 
 /// The aggregate counts behind `stats` (encounter order preserved —
@@ -334,10 +378,10 @@ pub(crate) struct Stats {
     pub blocked:     usize,
     /// Type name → count, first-seen order.
     pub by_type:     Vec<(String, usize)>,
-    /// Priority level → count, first-seen order.
-    pub by_priority: Vec<(u8, usize)>,
-    /// Label → count, first-seen order.
-    pub by_label:    Vec<(String, usize)>,
+    /// Priority level → open/closed split, first-seen order.
+    pub by_priority: Vec<(u8, StatusCounts)>,
+    /// Label → open/closed split, first-seen order.
+    pub by_label:    Vec<(String, StatusCounts)>,
 }
 
 fn bump(map: &mut Vec<(String, usize)>, key: &str) {
@@ -345,6 +389,15 @@ fn bump(map: &mut Vec<(String, usize)>, key: &str) {
         entry.1 += 1;
     } else {
         map.push((key.to_owned(), 1));
+    }
+}
+
+fn bump_split(map: &mut Vec<(String, StatusCounts)>, key: &str, counts: StatusCounts) {
+    if let Some(entry) = map.iter_mut().find(|(existing, _)| existing == key) {
+        entry.1.open += counts.open;
+        entry.1.closed += counts.closed;
+    } else {
+        map.push((key.to_owned(), counts));
     }
 }
 
@@ -374,18 +427,24 @@ impl Stats {
                 stats.blocked += 1;
             }
             bump(&mut stats.by_type, type_word(record));
+            let closed = record.status() == Some(Status::Closed);
+            let live = StatusCounts {
+                open:   usize::from(!closed),
+                closed: usize::from(closed),
+            };
             let priority = record.priority().map_or(4_u8, crate::Priority::get);
             if let Some(entry) = stats
                 .by_priority
                 .iter_mut()
                 .find(|(existing, _)| *existing == priority)
             {
-                entry.1 += 1;
+                entry.1.open += live.open;
+                entry.1.closed += live.closed;
             } else {
-                stats.by_priority.push((priority, 1));
+                stats.by_priority.push((priority, live));
             }
             for label in record.labels() {
-                bump(&mut stats.by_label, label);
+                bump_split(&mut stats.by_label, label, live);
             }
         }
         stats
@@ -410,15 +469,23 @@ impl Stats {
         }
         out.push('\n');
         out.push_str("By Priority\n");
-        for (level, count) in &self.by_priority {
+        for (level, counts) in &self.by_priority {
             let name = format!("P{level} {}", PRIORITY_NAMES[usize::from(*level)]);
-            out.push_str(&format!("  {}{}\n", pad_field(&name, 14), count));
+            out.push_str(&format!(
+                "  {}{}\n",
+                pad_field(&name, 14),
+                counts.split_text()
+            ));
         }
         if !self.by_label.is_empty() {
             out.push('\n');
             out.push_str("By Label\n");
-            for (label, count) in &self.by_label {
-                out.push_str(&format!("  {}{}\n", pad_field(label, 16), count));
+            for (label, counts) in &self.by_label {
+                out.push_str(&format!(
+                    "  {}{}\n",
+                    pad_field(label, 16),
+                    counts.split_text()
+                ));
             }
         }
         out

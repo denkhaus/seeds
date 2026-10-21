@@ -16,14 +16,15 @@ fn remove_dep_field(record: &mut SeedRecord, name: &str, dep: &str) {
         .fields()
         .get(name)
         .and_then(Value::as_array)
-        .map_or_default(|items| {
+        .map(|items| {
             items
                 .iter()
                 .filter_map(Value::as_str)
                 .filter(|id| *id != dep)
                 .map(str::to_owned)
                 .collect()
-        });
+        })
+        .unwrap_or_default();
     if remaining.is_empty() {
         record.remove_field(name);
     } else {
@@ -57,7 +58,7 @@ pub fn dep_add(ctx: &CommandContext, input: &DepAddInput) -> CommandOutcome {
         let issue_id = input.ids[0].clone();
         let depends_on_id = input.ids[1].clone();
         let mut store = ctx
-            .open_store()
+            .open_store_exclusive()
             .map_err(|message| CommandError::new("dep", message, json))?;
         for id in [&issue_id, &depends_on_id] {
             if store.issue(id).is_none() {
@@ -138,7 +139,7 @@ pub fn dep_remove(ctx: &CommandContext, input: &DepRemoveInput) -> CommandOutcom
         let issue_id = input.ids[0].clone();
         let depends_on_id = input.ids[1].clone();
         let mut store = ctx
-            .open_store()
+            .open_store_exclusive()
             .map_err(|message| CommandError::new("dep", message, json))?;
         for id in [&issue_id, &depends_on_id] {
             if store.issue(id).is_none() {
@@ -298,7 +299,7 @@ pub fn blocked(ctx: &CommandContext, input: &BlockedInput) -> CommandOutcome {
                             .is_none_or(|blocker| blocker.status() != Some(Status::Closed))
                     })
                 };
-                let text = render::list_text(&records, mode, &unresolved, "blocked");
+                let text = render::list_text(&records, mode, &unresolved, "blocked", records.len());
                 if records.is_empty()
                     && matches!(
                         mode,
@@ -344,7 +345,7 @@ pub fn block(ctx: &CommandContext, input: &BlockInput) -> CommandOutcome {
             ));
         };
         let mut store = ctx
-            .open_store()
+            .open_store_exclusive()
             .map_err(|message| CommandError::new("block", message, json))?;
         for target in [&id, &blocker_id] {
             if store.issue(target).is_none() {
@@ -429,7 +430,7 @@ pub fn unblock(ctx: &CommandContext, input: &UnblockInput) -> CommandOutcome {
             ));
         }
         let mut store = ctx
-            .open_store()
+            .open_store_exclusive()
             .map_err(|message| CommandError::new("unblock", message, json))?;
         if store.issue(&id).is_none() {
             return Err(CommandError::new(

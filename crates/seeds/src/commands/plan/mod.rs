@@ -173,7 +173,24 @@ pub enum PlanSub {
 pub fn plan(ctx: &CommandContext, input: &PlanInput) -> CommandOutcome {
     let json = input.json;
     let fail = move |message: String| CommandError::new("plan", message, json);
-    let mut store = match ctx.open_store() {
+    // Write subs open the store under the writer lock (seeds-0d7b);
+    // read subs stay lock-free and never create `.seeds/.lock`.
+    let exclusive = matches!(
+        input.sub,
+        PlanSub::Submit { .. }
+            | PlanSub::Outcome { .. }
+            | PlanSub::Review { .. }
+            | PlanSub::Edit { .. }
+            | PlanSub::Create { .. }
+            | PlanSub::Adopt { .. }
+            | PlanSub::Reorder { .. }
+            | PlanSub::Release { .. }
+    );
+    let mut store = match if exclusive {
+        ctx.open_store_exclusive()
+    } else {
+        ctx.open_store()
+    } {
         Ok(store) => store,
         Err(message) => return fail(message).into_outcome(),
     };
@@ -374,13 +391,16 @@ pub(crate) fn merge_adopted_labels(
     if normalized.is_empty() {
         return None;
     }
-    let current: Vec<String> = existing.and_then(Value::as_array).map_or_default(|items| {
-        items
-            .iter()
-            .filter_map(Value::as_str)
-            .map(String::from)
-            .collect()
-    });
+    let current: Vec<String> = existing
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default();
     let mut merged = current.clone();
     for label in normalized {
         if !merged.contains(&label) {
@@ -455,13 +475,14 @@ pub(crate) fn append_unique_field(record_fields: &mut Fields, key: &str, id: &st
     let current: Vec<String> = record_fields
         .get(key)
         .and_then(Value::as_array)
-        .map_or_default(|items| {
+        .map(|items| {
             items
                 .iter()
                 .filter_map(Value::as_str)
                 .map(String::from)
                 .collect()
-        });
+        })
+        .unwrap_or_default();
     if current.iter().any(|entry| entry == id) {
         return false;
     }

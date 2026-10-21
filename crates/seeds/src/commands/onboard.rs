@@ -296,6 +296,7 @@ This injects session context: rules, command reference, and workflows. Pass `--f
 - `seeds search <query>` — Full-text search across titles + descriptions
 - `seeds create --title \"...\" --type task --priority 2` — Create issue
 - `seeds update <id> --status in_progress` — Claim work
+- `seeds update <id> --append-description <text>` — Extend a seed's narrative (appends, never replaces)
 - `seeds close <id>` — Complete work
 - `seeds dep add <id> <depends-on>` — Add dependency between issues
 - `seeds sync` — Sync with git (run before pushing)

@@ -495,7 +495,7 @@ fn update_applies_fields_and_json_shape() {
         "in_progress",
         "--title",
         "Renamed",
-        "--desc",
+        "--set-description",
         "via alias",
         "--add-label",
         "a,b",
@@ -562,6 +562,241 @@ fn update_extensions_merge_and_clear() {
         stored.get("extensions").is_none(),
         "clear-extensions removes"
     );
+}
+
+#[test]
+fn update_description_verbs_append_and_change_shape() {
+    let dir = temp_store("update-desc-verbs");
+    write_records(&dir, &standard());
+
+    // Set names its change shape: old -> new chars (tst-0002 starts
+    // with the 27-char "Mention parity in the guide").
+    let output = run(&dir, &[
+        "update",
+        "tst-0002",
+        "--set-description",
+        "Original body.\n\n",
+    ]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines[0], "✓ Updated tst-0002");
+    assert_eq!(lines[1], "description: set 27 -> 16 chars");
+
+    // Append joins with exactly one blank line: trailing whitespace on
+    // the existing text is trimmed, the appended text both sides.
+    let output = run(&dir, &[
+        "update",
+        "tst-0002",
+        "--append-description",
+        " Evidence block. ",
+    ]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines[1], "description: appended +15 (total 31)");
+    let stored = read_records(&dir)
+        .into_iter()
+        .find(|record| record["id"] == json!("tst-0002"))
+        .expect("record");
+    assert_eq!(
+        stored["description"],
+        json!("Original body.\n\nEvidence block.")
+    );
+
+    // Append onto a record without a description: first content, no
+    // leading blank line, shape line still reports the total.
+    let output = run(&dir, &[
+        "update",
+        "tst-0003",
+        "--append-description",
+        "First note",
+    ]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines[1], "description: appended +10 (total 10)");
+    let stored = read_records(&dir)
+        .into_iter()
+        .find(|record| record["id"] == json!("tst-0003"))
+        .expect("record");
+    assert_eq!(stored["description"], json!("First note"));
+}
+
+#[test]
+fn update_description_verbs_reject_bad_input() {
+    let dir = temp_store("update-desc-verbs-errors");
+    write_records(&dir, &standard());
+
+    let output = run(&dir, &[
+        "update",
+        "tst-0002",
+        "--set-description",
+        "a",
+        "--append-description",
+        "b",
+    ]);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
+    assert!(stderr.contains("mutually exclusive"), "stderr: {stderr}");
+
+    let output = run(&dir, &["update", "tst-0002", "--append-description", "  "]);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
+    assert!(
+        stderr.contains("--append-description requires text"),
+        "stderr: {stderr}"
+    );
+}
+
+#[test]
+fn update_description_set_aliases_are_gone() {
+    let dir = temp_store("update-alias-purge");
+    write_records(&dir, &standard());
+    // The pre-verb aliases fail loud on both write commands (the
+    // documented deviation, seeds-0297).
+    for (command, id_args, flag) in [
+        ("update", vec!["tst-0002"], "--description"),
+        ("update", vec!["tst-0002"], "--desc"),
+        ("update", vec!["tst-0002"], "--body"),
+        ("create", vec![], "--desc"),
+        ("create", vec![], "--body"),
+    ] {
+        let mut args = vec![command];
+        args.extend(id_args);
+        args.extend([flag, "x"]);
+        let output = run(&dir, &args);
+        assert_eq!(output.status.code(), Some(1), "{flag} on {command} fails");
+        let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
+        assert!(
+            stderr.contains(&format!("unknown option '{flag}'")),
+            "{flag} on {command}: stderr: {stderr}"
+        );
+    }
+}
+
+#[test]
+fn update_replace_in_description_span_surgery() {
+    let dir = temp_store("update-replace-in");
+    write_records(&dir, &standard());
+    run(&dir, &[
+        "update",
+        "tst-0002",
+        "--set-description",
+        "Demand line.\nBasis: hash-aaaa\nDesign: keep",
+    ]);
+
+    // Exactly one occurrence: replaced, shape line names the sizes
+    // (42 chars -> 42 chars, same-length hash swap).
+    let output = run(&dir, &[
+        "update",
+        "tst-0002",
+        "--replace-in-description",
+        r#"{"find": "hash-aaaa", "replace": "hash-bbbb"}"#,
+    ]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines[0], "✓ Updated tst-0002");
+    assert_eq!(lines[1], "description: replaced span (42 -> 42 chars)");
+    let stored = read_records(&dir)
+        .into_iter()
+        .find(|record| record["id"] == json!("tst-0002"))
+        .expect("record");
+    assert_eq!(
+        stored["description"],
+        json!("Demand line.\nBasis: hash-bbbb\nDesign: keep")
+    );
+
+    // Empty replace deletes the span (span semantics: the trailing
+    // newline stays, 42 -> 30 chars).
+    let output = run(&dir, &[
+        "update",
+        "tst-0002",
+        "--replace-in-description",
+        r#"{"find": "\nDesign: keep", "replace": ""}"#,
+    ]);
+    assert_eq!(output.status.code(), Some(0));
+    let stored = read_records(&dir)
+        .into_iter()
+        .find(|record| record["id"] == json!("tst-0002"))
+        .expect("record");
+    assert_eq!(
+        stored["description"],
+        json!("Demand line.\nBasis: hash-bbbb")
+    );
+}
+
+#[test]
+fn update_replace_in_description_fails_loud() {
+    let dir = temp_store("update-replace-in-errors");
+    write_records(&dir, &standard());
+    run(&dir, &[
+        "update",
+        "tst-0002",
+        "--set-description",
+        "one tag and tag again",
+    ]);
+
+    let cases: Vec<(&[&str], &str)> = vec![
+        (
+            &[
+                "update",
+                "tst-0002",
+                "--replace-in-description",
+                r#"{"find": "tag", "replace": "x"}"#,
+            ],
+            "2 occurrences",
+        ),
+        (
+            &[
+                "update",
+                "tst-0002",
+                "--replace-in-description",
+                r#"{"find": "missing", "replace": "x"}"#,
+            ],
+            "text not found",
+        ),
+        (
+            &[
+                "update",
+                "tst-0002",
+                "--replace-in-description",
+                r#"{"find": "", "replace": "x"}"#,
+            ],
+            "find must not be empty",
+        ),
+        (
+            &["update", "tst-0002", "--replace-in-description", "not json"],
+            "must be a JSON object",
+        ),
+        (
+            &[
+                "update",
+                "tst-0002",
+                "--replace-in-description",
+                r#"{"find": "one"}"#,
+            ],
+            "must be a JSON object",
+        ),
+        (
+            &[
+                "update",
+                "tst-0002",
+                "--set-description",
+                "x",
+                "--replace-in-description",
+                r#"{"find": "y", "replace": "z"}"#,
+            ],
+            "mutually exclusive",
+        ),
+    ];
+    for (args, needle) in cases {
+        let output = run(&dir, args);
+        assert_eq!(output.status.code(), Some(1), "{args:?} fails");
+        let stderr = String::from_utf8(output.stderr.clone()).expect("utf-8");
+        assert!(stderr.contains(needle), "{args:?}: stderr: {stderr}");
+    }
 }
 
 #[test]
@@ -705,6 +940,49 @@ fn prime_outputs_context_compact_and_json() {
     let value = stdout_json(&run(&dir, &["prime", "--json"]));
     assert_eq!(value["command"], json!("prime"));
     assert_eq!(value["sections"]["mode"], json!("full"));
+
+    // The round-trip pace line (seeds-8fc5): one compact line under
+    // the anchor of each text template, one top-level `pace` key in the
+    // JSON envelope — no week table, no full metric block.
+    for args in [&["prime"][..], &["prime", "--compact"][..]] {
+        let output = run(&dir, args);
+        assert_eq!(output.status.code(), Some(0), "args: {args:?}");
+        let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+        assert!(
+            text.contains("> **Pace**: "),
+            "pace line in {args:?}: {text}"
+        );
+        assert!(text.contains("open to target"), "{text}");
+        assert!(!text.contains("Week (ISO, UTC)"), "no table: {text}");
+    }
+    let value = stdout_json(&run(&dir, &["prime", "--json"]));
+    let pace = value["pace"].as_str().expect("pace key in envelope");
+    assert!(pace.contains("open to target"), "{pace}");
+    assert!(pace.contains("ETA"), "{pace}");
+    assert!(
+        pace.contains("k "),
+        "pace coefficient rides the line: {pace}"
+    );
+    // The content mirror stays the static template (documented shape).
+    let content = value["content"].as_str().expect("content mirror");
+    assert!(!content.contains("> **Pace**:"), "content stays static");
+
+    // The examples name the live `seeds` CLI (README DEVIATIONS):
+    // nothing provides `sd` on PATH since the self-hosting cutover,
+    // so an `sd` example would send agents at a missing command.
+    let output = run(&dir, &["prime"]);
+    let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(
+        text.contains("Run `seeds prime` after compaction"),
+        "{text}"
+    );
+    assert!(text.contains("`seeds ready`"), "{text}");
+    assert!(!text.contains("`sd "), "no retired sd commands: {text}");
+    let value = stdout_json(&run(&dir, &["prime", "--json"]));
+    assert_eq!(
+        value["sections"]["commandGroups"][0]["commands"][0]["command"],
+        json!("seeds ready")
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -728,6 +1006,7 @@ fn help_and_version_match_reference_surface() {
         ("list", "--priority-max <n>"),
         ("ready", "--respect-schedule"),
         ("update", "--clear-extensions"),
+        ("update", "--append-description <text>"),
         ("search", "Case-insensitive substring"),
     ] {
         let output = run(&dir, &[command, "--help"]);
@@ -967,6 +1246,189 @@ fn doctor_fix_repairs_mismatches_and_gitattributes() {
     assert_eq!(blocker["blocks"], json!(["tst-0006"]));
 }
 
+/// The seeds-cbee fixture: every check that declares `fixable` but
+/// had no apply block — a duplicate id pair, a dangling reference,
+/// string labels, a non-object extensions, a closed record without
+/// `closedAt`, open close metadata, and a stale lock file.
+fn doctor_corrupt_fixture() -> Vec<Value> {
+    vec![
+        record(
+            "tst-0001",
+            "Survivor",
+            json!({
+                "status": "closed",
+                "updatedAt": "2026-01-02T00:00:00.000Z",
+                "labels": "bug, ui, ui",
+                "extensions": "not-an-object",
+            }),
+        ),
+        record(
+            "tst-0001",
+            "Older duplicate",
+            json!({"updatedAt": "2026-01-01T00:00:00.000Z"}),
+        ),
+        record(
+            "tst-0002",
+            "Dangling ref with open close metadata",
+            json!({
+                "blockedBy": ["tst-9999", "tst-0001"],
+                "closedAt": "2026-01-05T00:00:00.000Z",
+                "closeReason": "stale metadata",
+            }),
+        ),
+    ]
+}
+
+/// Every `fixable: true` declaration now carries an apply block
+/// (seeds-cbee): `doctor --fix` heals duplicates, dangling refs,
+/// label/extensions shapes, status/closedAt pairs, and stale locks —
+/// a second run is green, the pre-fix `fix:` lines without effect
+/// are gone.
+#[test]
+fn doctor_fix_applies_every_declared_repair() {
+    let dir = temp_store("doctor-fix-apply");
+    write_records(&dir, &doctor_corrupt_fixture());
+    fs::write(dir.join(".seeds/stale.lock"), "").expect("stale lock file");
+
+    // Report-only: the repair report names the repairs that will
+    // apply — the same six checks the run heals.
+    let report = run(&dir, &["doctor", "--repair-report"]);
+    assert_eq!(report.status.code(), Some(1));
+    let stdout = String::from_utf8(report.stdout.clone()).expect("utf-8");
+    assert!(stdout.contains("fix: keep the newest occurrence per duplicate id"));
+    assert!(stdout.contains("fix: remove the dangling references"));
+    assert!(stdout.contains("fix: rewrite labels as an array of strings"));
+    assert!(stdout.contains("fix: rewrite extensions as a JSON object"));
+    assert!(stdout.contains("fix: set closedAt on closed issues, drop it on open ones"));
+    assert!(stdout.contains("fix: delete the stale lock file(s)"));
+
+    let output = run(&dir, &["doctor", "--fix"]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    for expected in [
+        "✓ Deduped 1 duplicate occurrence(s) (newest updatedAt kept)",
+        "✓ Removed 1 dangling dependency reference(s)",
+        "✓ Repaired 1 bidirectional dependency mismatch(es)",
+        "✓ Rewrote 1 invalid label array(s)",
+        "✓ Reset 1 invalid extensions field(s) to empty object(s)",
+        "✓ Set closedAt on 1 closed issue(s)",
+        "✓ Dropped close metadata on 1 open issue(s)",
+        "✓ Deleted 1 stale lock file(s)",
+        "✓ Created .gitattributes with merge=union entries",
+    ] {
+        assert!(
+            stdout.contains(expected),
+            "missing fix line `{expected}`:
+{stdout}"
+        );
+    }
+
+    // The store healed record by record.
+    let repaired = read_records(&dir);
+    assert_eq!(repaired.len(), 2, "duplicate dropped: {repaired:?}");
+    let survivor = repaired
+        .iter()
+        .find(|record| record["id"] == "tst-0001")
+        .expect("survivor");
+    assert_eq!(survivor["title"], "Survivor", "newest occurrence won");
+    assert_eq!(survivor["labels"], json!(["bug", "ui"]));
+    assert_eq!(survivor["extensions"], json!({}));
+    assert_eq!(survivor["status"], "closed");
+    assert!(
+        survivor["closedAt"]
+            .as_str()
+            .is_some_and(|stamp| !stamp.is_empty()),
+        "closedAt set: {survivor}"
+    );
+    assert_eq!(survivor["blocks"], json!(["tst-0002"]), "reverse ref added");
+    let dangling = repaired
+        .iter()
+        .find(|record| record["id"] == "tst-0002")
+        .expect("tst-0002");
+    assert_eq!(
+        dangling["blockedBy"],
+        json!(["tst-0001"]),
+        "dangling ref removed"
+    );
+    assert!(
+        dangling.get("closedAt").is_none(),
+        "open close metadata dropped"
+    );
+    assert!(dangling.get("closeReason").is_none());
+    assert!(
+        !dir.join(".seeds/stale.lock").exists(),
+        "stale lock deleted"
+    );
+
+    // The acceptance bar: green after one --fix.
+    let again = run(&dir, &["doctor"]);
+    assert_eq!(again.status.code(), Some(0));
+    let stdout = String::from_utf8(again.stdout.clone()).expect("utf-8");
+    assert!(
+        stdout.contains("12 passed, 0 warning(s), 0 failure(s)"),
+        "{stdout}"
+    );
+}
+
+/// The label repair repairs the shape, not the spelling: a prose
+/// string coerces (case kept, trimmed, deduped), a labels value with
+/// nothing to keep drops the field (sd omits empty labels), and
+/// mixed arrays are conforming (sd parity: `string_array` reads their
+/// string items) — the repair never touches them.
+#[test]
+fn doctor_fix_label_repair_coerces_prose_drops_junk_keeps_arrays() {
+    let dir = temp_store("doctor-label-repair");
+    write_records(&dir, &[
+        record(
+            "tst-0003",
+            "Prose labels",
+            json!({"labels": " Bug , ui, ui, "}),
+        ),
+        record("tst-0004", "Number labels", json!({"labels": 42})),
+        record(
+            "tst-0005",
+            "Mixed array",
+            json!({"labels": [1, "keep", ""]}),
+        ),
+    ]);
+
+    let output = run(&dir, &["doctor", "--fix"]);
+    assert_eq!(output.status.code(), Some(0));
+    let stdout = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(
+        stdout.contains("✓ Rewrote 2 invalid label array(s)"),
+        "{stdout}"
+    );
+
+    let repaired = read_records(&dir);
+    let prose = repaired
+        .iter()
+        .find(|record| record["id"] == "tst-0003")
+        .expect("tst-0003");
+    assert_eq!(
+        prose["labels"],
+        json!(["Bug", "ui"]),
+        "trimmed, deduped, case kept"
+    );
+    let number = repaired
+        .iter()
+        .find(|record| record["id"] == "tst-0004")
+        .expect("tst-0004");
+    assert!(number.get("labels").is_none(), "junk type drops the field");
+    let mixed = repaired
+        .iter()
+        .find(|record| record["id"] == "tst-0005")
+        .expect("tst-0005");
+    assert_eq!(
+        mixed["labels"],
+        json!([1, "keep", ""]),
+        "mixed arrays conform (parity) and stay untouched"
+    );
+
+    let again = run(&dir, &["doctor"]);
+    assert_eq!(again.status.code(), Some(0));
+}
+
 /// A malformed JSONL line is a doctor FAILURE (non-zero exit), keeping
 /// sd's check name and exit semantics (detail wording is the
 /// documented Rust-side divergence).
@@ -1015,6 +1477,153 @@ fn stats_json_has_stable_keys() {
     assert_eq!(stats["inProgress"], json!(1));
     assert_eq!(stats["closed"], json!(1));
     assert_eq!(stats["blocked"], json!(1));
+}
+
+/// `stats --pace` renders the pace section (seeds-8fc5): the JSON
+/// contract keys next to the parity stats, an honest null ETA when the
+/// window carries no closures, and the week table in text mode.
+#[test]
+fn stats_pace_renders_section_and_contract() {
+    let dir = temp_store("stats-pace");
+    write_records(&dir, &standard());
+    let output = run(&dir, &["stats", "--pace"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(text.starts_with("Project Statistics\n"), "{text}");
+    assert!(text.contains("\nPace\n"), "{text}");
+    assert!(text.contains("Rate (30d):"), "{text}");
+    assert!(text.contains("Pace k:"), "{text}");
+    assert!(text.contains("Lead time (median):"), "{text}");
+    assert!(text.contains("Open age (median):"), "{text}");
+    assert!(text.contains("Open to target:"), "{text}");
+    assert!(text.contains("Week (ISO, UTC)"), "{text}");
+
+    let value = stdout_json(&run(&dir, &["stats", "--pace", "--json"]));
+    let pace = &value["pace"];
+    for key in [
+        "window_days",
+        "min_closures",
+        "rate_window",
+        "closures_in_window",
+        "creations_in_window",
+        "k",
+        "drain_rate_per_week",
+        "rate_all_time",
+        "closures_total",
+        "history_weeks",
+        "lead_time_median_hours",
+        "open_age_median_days",
+        "open_to_target",
+        "excluded_open",
+        "exclusion_labels",
+        "eta",
+        "eta_reason",
+        "eta_basis",
+        "weeks",
+    ] {
+        assert!(pace.get(key).is_some(), "pace.{key} present");
+    }
+    // The fixture's only close carries no closedAt: zero windowed
+    // closures → a null ETA that says why instead of guessing.
+    assert_eq!(pace["closures_in_window"], json!(0));
+    assert_eq!(pace["eta"], Value::Null);
+    assert_eq!(pace["eta_reason"], "zero_closures_in_window");
+    // The parity stats ride along unchanged.
+    assert_eq!(value["stats"]["total"], json!(6));
+}
+
+/// Any pace option implies `--pace`; garbage values name the flag on
+/// stderr; the help surface documents the whole group.
+#[test]
+fn stats_pace_options_imply_section_and_garbage_is_named() {
+    let dir = temp_store("stats-pace-flags");
+    write_records(&dir, &standard());
+    let output = run(&dir, &["stats", "--window", "7"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(text.contains("Rate (7d):"), "{text}");
+
+    for bad_args in [
+        &["stats", "--window", "soon"][..],
+        &["stats", "--window", "0"][..],
+        &["stats", "--min-closures", "many"][..],
+    ] {
+        let bad = run(&dir, bad_args);
+        assert_eq!(bad.status.code(), Some(1), "args: {bad_args:?}");
+        let stderr = String::from_utf8(bad.stderr.clone()).expect("utf-8");
+        let flag = bad_args[1];
+        assert!(stderr.contains(flag), "stderr names {flag}: {stderr}");
+    }
+
+    let help = run(&dir, &["stats", "--help"]);
+    assert_eq!(help.status.code(), Some(0));
+    let text = String::from_utf8(help.stdout.clone()).expect("utf-8");
+    for flag in [
+        "--pace",
+        "--window",
+        "--min-closures",
+        "--exclude-label",
+        "--since",
+    ] {
+        assert!(text.contains(flag), "help lists {flag}");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// stats/list display deviations (seeds-4cf6)
+// ---------------------------------------------------------------------------
+
+/// stats text splits `By Priority`/`By Label` into `N open / M closed`
+/// (README DEVIATIONS) while JSON keeps the reference's all-status
+/// totals.
+#[test]
+fn stats_text_splits_open_and_closed() {
+    let dir = temp_store("stats-split");
+    write_records(&dir, &standard());
+    let output = run(&dir, &["stats"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8(output.stdout).expect("utf-8");
+    // P3 carries only the closed tst-0004; the bug label spans
+    // tst-0001 (open) + tst-0003 (in_progress), nothing closed.
+    assert!(text.contains("0 open / 1 closed"), "closed row: {text}");
+    assert!(text.contains("2 open / 0 closed"), "live rows: {text}");
+    assert!(
+        text.contains("1 open / 0 closed"),
+        "single live row: {text}"
+    );
+
+    let value = stdout_json(&run(&dir, &["stats", "--json"]));
+    assert_eq!(value["stats"]["byLabel"]["bug"], json!(2));
+    assert_eq!(value["stats"]["byPriority"]["3"], json!(1));
+}
+
+/// The query footers name the `--limit` cap (README DEVIATIONS):
+/// `shown of total` when the cap cut rows, the reference's plain
+/// count otherwise — shared by list/ready/search through the one
+/// pipeline.
+#[test]
+fn list_footer_names_the_limit_cap() {
+    let dir = temp_store("limit-cap");
+    write_records(&dir, &standard());
+    // Default list scope: five non-closed records; limit 2 truncates.
+    let output = run(&dir, &["list", "--limit", "2", "--sort", "id"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8(output.stdout).expect("utf-8");
+    assert!(text.contains("\n2 of 5 issue(s)"), "{text}");
+
+    // Without truncation the footer keeps the reference wording.
+    let output = run(&dir, &["list", "--sort", "id"]);
+    let text = String::from_utf8(output.stdout).expect("utf-8");
+    assert!(text.contains("\n5 issue(s)"), "{text}");
+    assert!(
+        !text.contains(" of "),
+        "plain count when untruncated: {text}"
+    );
+
+    // ready shares the pipeline and names its own cap.
+    let output = run(&dir, &["ready", "--limit", "1"]);
+    let text = String::from_utf8(output.stdout).expect("utf-8");
+    assert!(text.contains("\n1 of 3 ready issue(s)"), "{text}");
 }
 
 // ---------------------------------------------------------------------------

@@ -99,7 +99,8 @@ pub(super) fn run_outcome(
     let note_suffix = outcome_note
         .as_deref()
         .filter(|note| !note.is_empty())
-        .map_or_default(|note| format!(" — {note}"));
+        .map(|note| format!(" — {note}"))
+        .unwrap_or_default();
     let mut out = String::new();
     success_line(
         &mut out,
@@ -408,7 +409,8 @@ pub(super) fn run_edit(
             let parent_id = store.plans[idx].seed().unwrap_or_default().to_owned();
             let parent_title = store
                 .issue(&parent_id)
-                .map_or_default(|record| record.title().to_owned());
+                .map(|record| record.title().to_owned())
+                .unwrap_or_default();
             let approach = next_sections.get("approach").cloned();
             for position in 0..store.issues.len() {
                 let child_id = store.issues[position].id().as_str().to_owned();

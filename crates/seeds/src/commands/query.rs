@@ -70,8 +70,12 @@ impl Filters {
             kind,
             assignee: input.assignee.clone(),
             all: input.all,
-            label: input.label.as_deref().map_or_default(comma_list),
-            label_any: input.label_any.as_deref().map_or_default(comma_list),
+            label: input.label.as_deref().map(comma_list).unwrap_or_default(),
+            label_any: input
+                .label_any
+                .as_deref()
+                .map(comma_list)
+                .unwrap_or_default(),
             unlabeled: input.unlabeled,
             priority,
             priority_max,
@@ -80,7 +84,9 @@ impl Filters {
         })
     }
 
-    /// Applies every filter, then sorts, then limits.
+    /// Applies every filter, then sorts. The caller truncates after
+    /// its own final filters so the pre-limit total stays honest
+    /// (seeds-4cf6) — mirroring the reference's slice-last order.
     fn apply<'a>(&self, store: &'a Store, scope_ready: bool) -> Vec<&'a SeedRecord> {
         let mut selected: Vec<&SeedRecord> = store
             .issues
@@ -164,7 +170,6 @@ impl Filters {
                 pa.cmp(&pb).then(created(b).cmp(&created(a)))
             }),
         }
-        selected.truncate(self.limit);
         selected
     }
 }
@@ -263,7 +268,7 @@ pub fn search(ctx: &CommandContext, input: &QueryInput) -> CommandOutcome {
 pub fn query(ctx: &CommandContext, input: &QueryInput, command: QueryCommand) -> CommandOutcome {
     let command = command.as_str();
     let json = input.json;
-    let result = (|| -> Result<(Vec<SeedRecord>, Option<String>), CommandError> {
+    let result = (|| -> Result<(Vec<SeedRecord>, Option<String>, usize), CommandError> {
         let filters = Filters::from_input(input)
             .map_err(|message| CommandError::new(command, message, json))?;
         let store = ctx
@@ -292,11 +297,16 @@ pub fn query(ctx: &CommandContext, input: &QueryInput, command: QueryCommand) ->
         if input.respect_schedule {
             selected.retain(|record| !scheduled_out(record));
         }
+        // The limit runs last, after every filter: the pre-limit total
+        // is what the text footer reports when the cap cut rows
+        // (seeds-4cf6).
+        let total = selected.len();
+        selected.truncate(filters.limit);
         let owned: Vec<SeedRecord> = selected.into_iter().cloned().collect();
-        Ok((owned, query))
+        Ok((owned, query, total))
     })();
     match result {
-        Ok((records, query)) => {
+        Ok((records, query, total)) => {
             let mode = render::render_mode(input.format.as_deref());
             let mut out = String::new();
             if json {
@@ -318,7 +328,7 @@ pub fn query(ctx: &CommandContext, input: &QueryInput, command: QueryCommand) ->
                             .is_none_or(|blocker| blocker.status() != Some(Status::Closed))
                     })
                 };
-                let text = render::list_text(&records, mode, &unresolved, command);
+                let text = render::list_text(&records, mode, &unresolved, command, total);
                 out.push_str(&text);
             }
             CommandOutcome::ok(out)

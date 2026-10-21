@@ -92,7 +92,7 @@ fn build_plan_request(
                 .iter()
                 .find(|(slot, _)| slot == name)
                 .map(|(_, entries)| entries)
-                .map_or_default(|entries| {
+                .map(|entries| {
                     entries
                         .iter()
                         .map(|entry| {
@@ -104,7 +104,8 @@ fn build_plan_request(
                             })
                         })
                         .collect::<Vec<_>>()
-                });
+                })
+                .unwrap_or_default();
             section.insert("prior_art".to_owned(), Value::Array(entries));
             if let Some(min_length) = spec.min_length {
                 section.insert("min_length".to_owned(), json!(min_length));
@@ -234,7 +235,8 @@ pub(super) fn run(
     let seed_title = plan_request["seed"]
         .as_str()
         .and_then(|id| store.issue(id))
-        .map_or_default(|record| record.title().to_owned());
+        .map(|record| record.title().to_owned())
+        .unwrap_or_default();
     let mut out = String::new();
     let mut push = |line: &str| {
         out.push_str(line);

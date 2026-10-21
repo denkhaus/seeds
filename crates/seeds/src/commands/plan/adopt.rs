@@ -381,13 +381,14 @@ pub(super) fn run_adopt(
         let mut parent_blocked_by: Vec<String> = store.issues[parent_idx]
             .field("blockedBy")
             .and_then(Value::as_array)
-            .map_or_default(|items| {
+            .map(|items| {
                 items
                     .iter()
                     .filter_map(Value::as_str)
                     .map(String::from)
                     .collect()
-            });
+            })
+            .unwrap_or_default();
         for (seed_id, _) in &resolved {
             if !parent_blocked_by.contains(seed_id) {
                 parent_blocked_by.push(seed_id.clone());
@@ -412,13 +413,14 @@ pub(super) fn run_adopt(
         let prior_adopted: Vec<String> = store.plans[plan_idx]
             .field("adoptedChildren")
             .and_then(Value::as_array)
-            .map_or_default(|items| {
+            .map(|items| {
                 items
                     .iter()
                     .filter_map(Value::as_str)
                     .map(String::from)
                     .collect()
-            });
+            })
+            .unwrap_or_default();
         {
             let record = &mut store.plans[plan_idx];
             let fields = record.fields_mut();
@@ -554,14 +556,15 @@ pub(super) fn run_release(
             let kept: Vec<String> = parent
                 .field("blockedBy")
                 .and_then(Value::as_array)
-                .map_or_default(|items| {
+                .map(|items| {
                     items
                         .iter()
                         .filter_map(Value::as_str)
                         .filter(|id| !released.contains(&id.to_string()))
                         .map(String::from)
                         .collect()
-                });
+                })
+                .unwrap_or_default();
             parent.set_field("blockedBy", json!(kept));
             parent.set_field("updatedAt", json!(now));
         }
@@ -575,14 +578,15 @@ pub(super) fn run_release(
         let kept_adopted: Vec<String> = store.plans[plan_idx]
             .field("adoptedChildren")
             .and_then(Value::as_array)
-            .map_or_default(|items| {
+            .map(|items| {
                 items
                     .iter()
                     .filter_map(Value::as_str)
                     .filter(|id| !released.iter().any(|r| r == id))
                     .map(String::from)
                     .collect()
-            });
+            })
+            .unwrap_or_default();
         {
             let record = &mut store.plans[plan_idx];
             let fields = record.fields_mut();

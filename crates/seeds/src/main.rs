@@ -248,19 +248,21 @@ fn cmd_update(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let input = UpdateInput {
-        id:               parsed.positionals.first().cloned(),
-        status:           parsed.options.get("status").cloned(),
-        title:            parsed.options.get("title").cloned(),
-        assignee:         parsed.options.get("assignee").cloned(),
-        description:      parsed.options.get("description").cloned(),
-        kind:             parsed.options.get("type").cloned(),
-        priority:         parsed.options.get("priority").cloned(),
-        add_label:        parsed.options.get("add-label").cloned(),
-        remove_label:     parsed.options.get("remove-label").cloned(),
-        set_labels:       parsed.options.get("set-labels").cloned(),
-        extensions:       parsed.options.get("extensions").cloned(),
-        clear_extensions: parsed.flags.contains("clear-extensions"),
-        json:             json_mode(&parsed),
+        id:                     parsed.positionals.first().cloned(),
+        status:                 parsed.options.get("status").cloned(),
+        title:                  parsed.options.get("title").cloned(),
+        assignee:               parsed.options.get("assignee").cloned(),
+        description:            parsed.options.get("set-description").cloned(),
+        append_description:     parsed.options.get("append-description").cloned(),
+        replace_in_description: parsed.options.get("replace-in-description").cloned(),
+        kind:                   parsed.options.get("type").cloned(),
+        priority:               parsed.options.get("priority").cloned(),
+        add_label:              parsed.options.get("add-label").cloned(),
+        remove_label:           parsed.options.get("remove-label").cloned(),
+        set_labels:             parsed.options.get("set-labels").cloned(),
+        extensions:             parsed.options.get("extensions").cloned(),
+        clear_extensions:       parsed.flags.contains("clear-extensions"),
+        json:                   json_mode(&parsed),
     };
     report(&commands::update(&ctx(), &input))
 }
@@ -437,10 +439,53 @@ fn cmd_stats(args: &[String]) -> ExitCode {
     let Some(parsed) = parsed_or_help(args, args::STATS_SPEC, helptext::STATS) else {
         return ExitCode::FAILURE;
     };
+    let pace = match pace_options(&parsed) {
+        Ok(pace) => pace,
+        Err(message) => {
+            eprintln!("error: {message}");
+            return ExitCode::FAILURE;
+        }
+    };
     let input = StatsInput {
         json: json_mode(&parsed),
+        pace,
     };
     report(&commands::stats(&ctx(), &input))
+}
+
+/// Builds the pace options behind `--pace`: `None` when no pace flag
+/// or option was given (the parity surface), `Some` otherwise — any
+/// pace option implies `--pace`.
+fn pace_options(parsed: &Parsed) -> Result<Option<seeds::PaceOptions>, String> {
+    let requested = parsed.flags.contains("pace")
+        || parsed.options.contains_key("window")
+        || parsed.options.contains_key("min-closures")
+        || parsed.options.contains_key("exclude-label")
+        || parsed.options.contains_key("since");
+    if !requested {
+        return Ok(None);
+    }
+    let mut options = seeds::PaceOptions::default();
+    if let Some(text) = parsed.options.get("window") {
+        options.window_days = text
+            .parse()
+            .map_err(|_| format!("--window: expected whole days, got `{text}`"))?;
+    }
+    if let Some(text) = parsed.options.get("min-closures") {
+        options.min_closures = text
+            .parse()
+            .map_err(|_| format!("--min-closures: expected a number, got `{text}`"))?;
+    }
+    if let Some(text) = parsed.options.get("exclude-label") {
+        options.exclusion_labels = text
+            .split(',')
+            .map(str::trim)
+            .filter(|label| !label.is_empty())
+            .map(str::to_lowercase)
+            .collect();
+    }
+    options.since = parsed.options.get("since").cloned();
+    Ok(Some(options))
 }
 
 fn cmd_doctor(args: &[String]) -> ExitCode {
@@ -463,7 +508,7 @@ fn cmd_prime(args: &[String]) -> ExitCode {
         compact: parsed.flags.contains("compact"),
         json:    json_mode(&parsed),
     };
-    report(&commands::prime(&input))
+    report(&commands::prime(&ctx(), &input))
 }
 
 fn cmd_dedupe(args: &[String]) -> ExitCode {

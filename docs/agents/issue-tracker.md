@@ -7,11 +7,11 @@ Issues (explicitly unused, see `AGENTS.md`). Seed ids carry the prefix
 
 ## Conventions
 
-- **Create**: `seeds create --title "..." --type <task|bug|feature|epic> --priority <0-4> --desc "..."`. Filers file UNASSIGNED: never pass `--assignee` — new seeds land in the backlog; assignment is the operator's ownership switch.
+- **Create**: `seeds create --title "..." --type <task|bug|feature|epic> --priority <0-4> --description "..."`. Filers file UNASSIGNED: never pass `--assignee` — new seeds land in the backlog; assignment is the operator's ownership switch.
 - **Read one**: `seeds show <id> --format json` — the supported read path; never parse `.seeds/issues.jsonl` by hand.
 - **List / queue**: `seeds ready --assignee fabro --limit 200` (unblocked, line-assigned); `seeds list --format json --assignee fabro --limit 200` for the full picture. Always `--limit 200` — the default 50 silently truncates.
 - **Claim**: `seeds update <id> --status in_progress --assignee fabro`.
-- **Amend body**: `seeds update <id> --description "<full corrected body>"` (replaces wholesale — re-emit the complete body).
+- **Body verbs** (seeds-0297/seeds-4c65): `seeds update <id> --append-description "<text>"` extends the narrative (appends, one blank line between — never re-emit the whole body); `seeds update <id> --set-description "<text>"` replaces wholesale (amend only this way when you truly mean a rewrite); `seeds update <id> --replace-in-description '{"find": "...", "replace": "..."}'` corrects one exact span (fails loud on not-found/multiple). The old `--description`/`--desc`/`--body` aliases are gone from `update`.
 - **Labels**: `--labels a,b` on create; `seeds update <id> --set-labels a,b` relabels.
 - **Close**: never hand-close from a run — the deterministic Closeout step closes approved seeds; the planner's one exception is the superseded close with a mandatory `--reason`. Operator-surface sessions (no run) may close with a reason.
 - **Dependencies**: `seeds dep add <issue> <depends-on>` / `seeds dep remove <issue> <depends-on>` / `seeds dep list <issue>`.
@@ -40,4 +40,4 @@ The map is a single seed; child tickets are seeds linked by dependencies.
 - **Blocking**: `seeds dep add <child> <blocker>` (native tracker dependencies; `seeds ready` already excludes blocked seeds).
 - **Frontier query**: `seeds ready --limit 200` (open + unblocked), drop assigned ones; first in priority order wins.
 - **Claim**: `seeds update <id> --status in_progress --assignee <driver>`.
-- **Resolve**: append the answer to the body (`seeds update <id> --description`), then close with a reason (`seeds close <id> --reason "wayfinder: <summary>"` — operator-surface close, see above); append the context pointer to the map body.
+- **Resolve**: append the answer to the body (`seeds update <id> --append-description "<answer>"`), then close with a reason (`seeds close <id> --reason "wayfinder: <summary>"` — operator-surface close, see above); append the context pointer to the map body with `--append-description`.

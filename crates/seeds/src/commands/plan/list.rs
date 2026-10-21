@@ -153,7 +153,8 @@ pub(super) fn run_list(
         let outcome_part = record
             .field("outcome")
             .and_then(Value::as_str)
-            .map_or_default(|outcome| format!(" ({outcome})"));
+            .map(|outcome| format!(" ({outcome})"))
+            .unwrap_or_default();
         out.push_str(&format!(
             "{}  {}  rev {}{}  {}  seed={}  children={}{}  {}\n",
             record.id(),

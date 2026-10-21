@@ -256,8 +256,6 @@ Options:
   --priority <n>        Priority 0-4 or P0-P4 (default: \"2\")
   --assignee <name>     Assignee name
   --description <text>  Issue description
-  --desc <text>         Issue description (alias for --description)
-  --body <text>         Issue description (alias for --description)
   --labels <labels>     Comma-separated labels
   --json                Output as JSON
   -h, --help            display help for command";
@@ -346,21 +344,21 @@ Usage: sd update [options] <id>
 Update issue fields
 
 Options:
-  --status <status>        New status (open|in_progress|closed)
-  --title <text>           New title
-  --assignee <name>        New assignee
-  --description <text>     New description
-  --desc <text>            New description (alias for --description)
-  --body <text>            New description (alias for --description)
-  --type <type>            New type (task|bug|feature|epic)
-  --priority <n>           New priority 0-4 or P0-P4
-  --add-label <labels>     Add label(s) (comma-separated)
-  --remove-label <labels>  Remove label(s) (comma-separated)
-  --set-labels <labels>    Set labels (comma-separated, empty to clear)
-  --extensions <json>      Shallow-merge JSON object into Issue.extensions
-  --clear-extensions       Remove the extensions field
-  --json                   Output as JSON
-  -h, --help               display help for command";
+  --status <status>                 New status (open|in_progress|closed)
+  --title <text>                    New title
+  --assignee <name>                 New assignee
+  --set-description <text>          Replace the whole description
+  --append-description <text>       Append to the description (one blank line between)
+  --replace-in-description <json>   Replace one exact span: {\"find\": string, \"replace\": string}
+  --type <type>                     New type (task|bug|feature|epic)
+  --priority <n>                    New priority 0-4 or P0-P4
+  --add-label <labels>              Add label(s) (comma-separated)
+  --remove-label <labels>           Remove label(s) (comma-separated)
+  --set-labels <labels>             Set labels (comma-separated, empty to clear)
+  --extensions <json>               Shallow-merge JSON object into Issue.extensions
+  --clear-extensions                Remove the extensions field
+  --json                            Output as JSON
+  -h, --help                        display help for command";
 
 pub(crate) const CLOSE: &str = "\
 Usage: sd close [options] <id> [ids...]
@@ -507,6 +505,16 @@ Usage: sd stats [options]
 Project statistics
 
 Options:
+  --pace            Include pace metrics: closure rates, lead time, ETA
+                     to production readiness, and the weekly open/closed
+                     series (any pace option below implies --pace)
+  --window <days>   Pace observation window in days (default: 30)
+  --min-closures <n>  Minimum closures in the window before an ETA is
+                     offered (default: 5)
+  --exclude-label <labels>  Open seeds with these labels leave the pace
+                     target (comma-separated)
+  --since <date>    First week of the pace table, YYYY-MM-DD
+                     (default: full history)
   --format <mode>  Output format (markdown|compact|plain|ids|json)
   --json           Output as JSON (alias for --format json)
   -h, --help       display help for command";

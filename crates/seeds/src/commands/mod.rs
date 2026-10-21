@@ -122,6 +122,16 @@ impl CommandContext {
         let root = self.resolve()?;
         Store::open(root).map_err(|error| error.to_string())
     }
+
+    /// Opens the store under the writer lock (seeds-0d7b): every
+    /// mutating command loads, mutates, and saves inside one locked
+    /// session, so a concurrent seeds process can wait its turn but
+    /// never silently overwrite this session's changes. Read commands
+    /// keep the lock-free [`Self::open_store`].
+    fn open_store_exclusive(&self) -> Result<Store, String> {
+        let root = self.resolve()?;
+        Store::open_exclusive(root).map_err(|error| error.to_string())
+    }
 }
 
 /// Finds the `.seeds/` directory at or above the current directory.

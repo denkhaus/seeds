@@ -27,7 +27,8 @@ fn child_summary(plan: &PlanRecord, store: &Store) -> Vec<Value> {
     let adopted: Vec<&str> = plan
         .field("adoptedChildren")
         .and_then(Value::as_array)
-        .map_or_default(|items| items.iter().filter_map(Value::as_str).collect());
+        .map(|items| items.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
     plan.children()
         .into_iter()
         .map(|id| {
@@ -170,7 +171,8 @@ pub(super) fn run_show(store: &Store, id_arg: &str, json: bool) -> CommandOutcom
             .get("outcomeNote")
             .and_then(Value::as_str)
             .filter(|note| !note.is_empty())
-            .map_or_default(|note| format!(" — {note}"));
+            .map(|note| format!(" — {note}"))
+            .unwrap_or_default();
         push!(out, &format!("Outcome:  {outcome}{note}"));
     }
     let status = plan["status"].as_str().unwrap_or_default();
@@ -385,7 +387,8 @@ fn render_nested(out: &mut String, entry: &Value, indent: &str) {
     let name = plan
         .get("name")
         .and_then(Value::as_str)
-        .map_or_default(|name| format!("  {name}"));
+        .map(|name| format!("  {name}"))
+        .unwrap_or_default();
     push!(
         out,
         &format!(

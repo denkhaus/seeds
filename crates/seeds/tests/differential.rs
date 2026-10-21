@@ -569,22 +569,8 @@ fn matrix() -> Vec<Case> {
             command: "dep",
             args:    &["dep", "add", "tst-zzzz", "tst-0001", "--json"],
         },
-        // prime: static templates (exact text) and JSON
-        Case {
-            name:    "prime_default",
-            command: "prime",
-            args:    &["prime"],
-        },
-        Case {
-            name:    "prime_json",
-            command: "prime",
-            args:    &["prime", "--json"],
-        },
-        Case {
-            name:    "prime_compact_json",
-            command: "prime",
-            args:    &["prime", "--compact", "--json"],
-        },
+        // prime: covered by the tailored test (documented deviation —
+        // the examples name the live `seeds` CLI, README DEVIATIONS).
         // blocked: default, formats, JSON envelope (fixture:
         // tst-0006 blocked by open tst-0001; tst-0005's closed
         // blocker resolves and stays out).
@@ -736,12 +722,9 @@ fn matrix() -> Vec<Case> {
             command: "dep",
             args:    &["dep", "list", "tst-zzzz", "--json"],
         },
-        // stats: text and JSON (stable keys, encounter-order groups)
-        Case {
-            name:    "stats_default",
-            command: "stats",
-            args:    &["stats"],
-        },
+        // stats: JSON only (stable keys, encounter-order groups) —
+        // the text surface carries our open/closed split (seeds-4cf6,
+        // README DEVIATIONS) and lives in the tailored test below
         Case {
             name:    "stats_json",
             command: "stats",
@@ -976,6 +959,22 @@ fn matrix_covers_every_implemented_command() {
             "doctor",
             "differential_doctor_matches_sd",
         ),
+        (
+            // stats' By Priority/By Label rows carry the open/closed
+            // split (seeds-4cf6, README DEVIATIONS) where the
+            // reference prints the all-status total — the tailored
+            // test folds our split back to its sum.
+            "stats",
+            "differential_stats_matches_sd",
+        ),
+        (
+            // prime's template names the live `seeds` CLI instead of
+            // the retired `sd` binary (README DEVIATIONS) — the
+            // tailored test rewrites the reference's `sd ` command
+            // prefixes to `seeds ` and compares byte-for-byte.
+            "prime",
+            "differential_prime_matches_sd",
+        ),
     ];
     let cases = matrix();
     for command in IMPLEMENTED_COMMANDS {
@@ -1179,6 +1178,123 @@ fn differential_doctor_matches_sd() {
             strip(sd_text.trim()),
             strip(ours_text.trim()),
             "{case}: stdout diverged after vcs_manager normalization"
+        );
+        fs::remove_dir_all(&pair.reference_dir).ok();
+        fs::remove_dir_all(&pair.ours_dir).ok();
+    }
+}
+
+/// seeds-4cf6: our `By Priority`/`By Label` rows print
+/// `N open / M closed` where the reference prints the all-status
+/// total — fold the split back to `N + M` (the label/name column is
+/// padded before the counts, so the folded line matches the
+/// reference's layout byte-for-byte).
+fn fold_status_splits(text: &str) -> String {
+    text.lines()
+        .map(|line| {
+            let Some((head, tail)) = line.split_once(" open / ") else {
+                return line.to_owned();
+            };
+            let Some((padded, open)) = head.rsplit_once(' ') else {
+                return line.to_owned();
+            };
+            let Some(closed) = tail.strip_suffix(" closed") else {
+                return line.to_owned();
+            };
+            match (open.parse::<usize>(), closed.parse::<usize>()) {
+                (Ok(open), Ok(closed)) => format!("{padded} {}", open + closed),
+                _ => line.to_owned(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// stats text: our open/closed split against the reference's
+/// all-status totals (README DEVIATIONS, seeds-4cf6) — everything
+/// else must stay byte-identical. The JSON surfaces stay in the
+/// generic matrix (totals unchanged).
+#[test]
+fn differential_stats_matches_sd() {
+    let Some(reference) = reference() else {
+        skip_note();
+        return;
+    };
+    let case = "stats_text";
+    let pair = fixture_pair(case);
+    let sd = capture(&pair.reference_dir, &reference, &["stats"]);
+    let ours = capture(&pair.ours_dir, &our_binary(), &["stats"]);
+    assert_eq!(
+        sd.status.code(),
+        ours.status.code(),
+        "{case}: exit code diverged"
+    );
+    assert_eq!(
+        sd.stderr.is_empty(),
+        ours.stderr.is_empty(),
+        "{case}: stderr emptiness diverged"
+    );
+    let sd_text = String::from_utf8_lossy(&sd.stdout);
+    let ours_text = fold_status_splits(&String::from_utf8_lossy(&ours.stdout));
+    assert_eq!(
+        sd_text.trim(),
+        ours_text.trim(),
+        "{case}: stdout diverged after folding the status split back to its total"
+    );
+    fs::remove_dir_all(&pair.reference_dir).ok();
+    fs::remove_dir_all(&pair.ours_dir).ok();
+}
+/// prime: full, compact, and JSON surfaces with two documented
+/// deviations (README DEVIATIONS) — (1) the template's examples name
+/// the live `seeds` CLI, not the retired `sd` binary (nothing
+/// provides `sd` on PATH since the self-hosting cutover, seeds-3791),
+/// and (2) the round-trip pace line (`> **Pace**:` / the top-level
+/// `"pace"` key, seeds-8fc5) exists only on our side. Rewriting the
+/// reference's `sd ` command prefixes to `seeds ` and dropping our
+/// pace lines must yield byte-identical stdout on every surface.
+#[test]
+fn differential_prime_matches_sd() {
+    let Some(reference) = reference() else {
+        skip_note();
+        return;
+    };
+    for args in [
+        &["prime"][..],
+        &["prime", "--compact"][..],
+        &["prime", "--json"][..],
+        &["prime", "--compact", "--json"][..],
+    ] {
+        let case = format!("prime_{}", args[1..].join("_"));
+        let pair = fixture_pair(&case);
+        let sd = capture(&pair.reference_dir, &reference, args);
+        let ours = capture(&pair.ours_dir, &our_binary(), args);
+        assert_eq!(
+            sd.status.code(),
+            ours.status.code(),
+            "{case}: exit code diverged"
+        );
+        assert_eq!(
+            sd.stderr.is_empty(),
+            ours.stderr.is_empty(),
+            "{case}: stderr emptiness diverged"
+        );
+        let sd_text = String::from_utf8_lossy(&sd.stdout).replace("sd ", "seeds ");
+        let ours_text = String::from_utf8_lossy(&ours.stdout);
+        // Drop the additive pace line: a `> **Pace**:` template line,
+        // or the top-level `"pace"` envelope key (one pretty-printed
+        // line, placed before `content` so the rest stays byte-stable).
+        let mut ours_stripped = String::new();
+        for line in ours_text
+            .lines()
+            .filter(|line| !line.starts_with("> **Pace**: ") && !line.starts_with("  \"pace\": "))
+        {
+            ours_stripped.push_str(line);
+            ours_stripped.push('\n');
+        }
+        assert_eq!(
+            sd_text.trim(),
+            ours_stripped.trim(),
+            "{case}: stdout diverged after sd → seeds renaming and pace-line stripping"
         );
         fs::remove_dir_all(&pair.reference_dir).ok();
         fs::remove_dir_all(&pair.ours_dir).ok();

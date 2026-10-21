@@ -29,8 +29,6 @@ pub(crate) static CREATE_SPEC: &[OptSpec] = &[
     opt("priority"),
     opt("assignee"),
     opt("description"),
-    opt("desc"),
-    opt("body"),
     opt("labels"),
     flag("json"),
 ];
@@ -87,9 +85,9 @@ pub(crate) static UPDATE_SPEC: &[OptSpec] = &[
     opt("status"),
     opt("title"),
     opt("assignee"),
-    opt("description"),
-    opt("desc"),
-    opt("body"),
+    opt("set-description"),
+    opt("append-description"),
+    opt("replace-in-description"),
     opt("type"),
     opt("priority"),
     opt("add-label"),
@@ -110,7 +108,15 @@ pub(crate) static DEP_LIST_SPEC: &[OptSpec] = &[flag("json")];
 
 pub(crate) static BLOCKED_SPEC: &[OptSpec] = &[opt("format"), flag("json")];
 
-pub(crate) static STATS_SPEC: &[OptSpec] = &[opt("format"), flag("json")];
+pub(crate) static STATS_SPEC: &[OptSpec] = &[
+    flag("pace"),
+    opt("window"),
+    opt("min-closures"),
+    opt("exclude-label"),
+    opt("since"),
+    opt("format"),
+    flag("json"),
+];
 
 pub(crate) static DOCTOR_SPEC: &[OptSpec] = &[
     flag("fix"),
@@ -210,8 +216,8 @@ pub(crate) static CONFIG_SET_SPEC: &[OptSpec] = &[flag("json")];
 
 pub(crate) static CONFIG_UNSET_SPEC: &[OptSpec] = &[flag("json")];
 
-/// The parsed command line: positionals, value options (canonical long
-/// name → value, aliases folded), and boolean flags.
+/// The parsed command line: positionals, value options (long name →
+/// value, last occurrence wins), and boolean flags.
 #[derive(Debug, Default)]
 pub(crate) struct Parsed {
     /// Positional arguments in order.
@@ -220,14 +226,6 @@ pub(crate) struct Parsed {
     pub options:     HashMap<String, String>,
     /// Boolean flags by long name.
     pub flags:       HashSet<String>,
-}
-
-/// Canonicalizes an alias to its primary option name.
-fn canonical(long: &str) -> &str {
-    match long {
-        "desc" | "body" => "description",
-        other => other,
-    }
 }
 
 /// Parses `args` against `spec`.
@@ -264,7 +262,7 @@ pub(crate) fn parse(spec: &[OptSpec], args: &[String]) -> Result<Parsed, String>
                     index += 1;
                     next.clone()
                 };
-                parsed.options.insert(canonical(name).to_owned(), value);
+                parsed.options.insert(name.to_owned(), value);
             } else {
                 parsed.flags.insert(name.to_owned());
             }
@@ -303,16 +301,6 @@ mod tests {
         assert_eq!(parsed.options.get("title").map(String::as_str), Some("a b"));
         assert_eq!(parsed.options.get("limit").map(String::as_str), Some("3"));
         assert_eq!(parsed.positionals, vec!["positional"]);
-    }
-
-    #[test]
-    fn folds_description_aliases() {
-        let spec = &[opt("description"), opt("desc"), opt("body")];
-        let parsed = parse(spec, &argv(&["--desc", "one"])).expect("valid input");
-        assert_eq!(
-            parsed.options.get("description").map(String::as_str),
-            Some("one")
-        );
     }
 
     #[test]

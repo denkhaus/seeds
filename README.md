@@ -63,10 +63,41 @@ carrying its own expectation, never a silent split:
   against the reference; the section BODY names the live `seeds` CLI
   and this implementation's version/home instead of the retired `sd`
   reference wording.
+- **prime template content:** the session-context template (text and
+  JSON sections) keeps the reference's shape, section set, and exit
+  codes, but its examples name the live `seeds` CLI (`seeds ready`,
+  `seeds prime`, …) instead of the retired `sd` binary — nothing
+  provides `sd` on PATH since the self-hosting cutover (seeds-3791),
+  so `sd` examples would send agents at a command that does not exist.
+  Second additive deviation: every invocation carries the round-trip
+  pace line (seeds-8fc5) — `> **Pace**: …` under the anchor line of
+  each text template, and a top-level `pace` key (before `content`) in
+  the JSON envelope; the `content` mirror stays the static template.
+  Both are pinned by the tailored `differential_prime_matches_sd`,
+  which rewrites the reference's `sd ` command prefixes to `seeds `,
+  strips our pace lines, and compares stdout byte-for-byte on all four
+  surfaces.
 - **completions surface:** the shell scripts enumerate the implemented
   command surface only (the help-honesty rule above), not the
   reference's full list; the error surface (`unknown shell`, missing
   argument) is differential-pinned.
+- **stats status split:** the text rows of `By Priority` and `By Label`
+  print `N open / M closed` (open = non-closed: `open` +
+  `in_progress` — the live stock) where the reference prints the
+  all-status total — the sections read like inventory while carrying
+  history (seeds-4cf6). The JSON surface keeps the reference's total
+  counts; `By Type` and the status header block stay on totals too.
+  The tailored `differential_stats_matches_sd` folds our split back to
+  its sum and compares the rest byte-for-byte.
+- **query limit honesty:** when `--limit` truncates (default 50), the
+  text footer of `list`/`ready`/`search` counts `shown of total`
+  (`50 of 88 issue(s)`) instead of letting the rendered count pass as
+  the whole stock (seeds-4cf6). Without truncation the footer is
+  byte-identical to the reference; JSON `count` stays the rendered
+  count (the reference's meaning); `ids`/`compact` (no footer) keep
+  the reference's silence. The limit also runs after every filter now
+  (the reference slices last) — `search` no longer matches only inside
+  the first `--limit` records.
 - **config additive-fields writes:** `seeds config set/unset` preserve
   unknown top-level keys already present in `config.yaml` (and keep
   file order) instead of failing the reference's
@@ -99,6 +130,17 @@ carrying its own expectation, never a silent split:
 - **Atomic tracker writes:** every store save lands via
   temp-file+rename, so a crash can never leave a partial JSONL store
   observable; the reference rewrites files in place.
+- **Store writer lock (seeds-0d7b):** every mutating command wraps its
+  whole load→mutate→save cycle in an advisory exclusive lock on
+  `.seeds/.lock` (std `File::try_lock`, flock semantics), so two seeds
+  processes can never silently drop each other's records — the second
+  writer waits up to 5 s, then fails fast. The kernel releases the
+  lock on holder death (crash-safe: no stale-lockfile machinery);
+  `init`'s `.seeds/.gitignore` (`*.lock`) keeps the zero-byte lock
+  file out of version control, and read commands neither take nor
+  create it. The reference has no locking at all. Library embedders:
+  `Store::open_exclusive` is the locked session, `Store::open`/`save`
+  leave locking to the caller.
 - **show's `--json` vs `--format json` error quirk (pinned, not
   diverged):** for a single missing id the reference answers a failure
   envelope under `--json` but a plain stderr `Error: …` under
@@ -132,6 +174,15 @@ carrying its own expectation, never a silent split:
   behavior already matches, so this is pinned parity (differential +
   a native stable-keys test), not a divergence. Group maps preserve
   first-seen encounter order, as sd does.
+- **stats `--pace` (native addition, seeds-8fc5):** closure rates
+  (windowed + all-time), median lead time, the open target with its
+  `--exclude-label` list, an ETA to production readiness, and the
+  weekly ISO-created/closed/net/open series — reconstructed from
+  `createdAt`/`closedAt` snapshots under an injected clock, with a
+  null ETA plus reason whenever the window carries too few closures.
+  Counting rule and rejected alternatives: ADR-0002; terms:
+  `GLOSSARY.md`. The flag group is additive (`sd stats` without the
+  flags is unchanged, differentially pinned).
 - **plan (decomposition surface, seeds-de37):** all 13 subcommands
   (`templates`, `prompt`, `submit`, `show`, `validate`, `outcome`,
   `review`, `edit`, `create`, `adopt`, `reorder`, `release`, `list`)
@@ -145,6 +196,39 @@ carrying its own expectation, never a silent split:
   change; this build does not yet wire that (a plan's `status` changes
   only via submit/create writes); (2) `Invalid JSON in plan file:`
   error detail carries this build's serde parser wording, not Bun's.
+
+- **update description verbs (seeds-0297):** the description is the
+  one narrative field, so `update` names its mutations explicitly —
+  `--set-description <text>` (wholesale replace) and
+  `--append-description <text>` (appended after exactly one blank
+  line; trimmed both sides; both verbs together → hard error;
+  empty append → error). The reference's three set-aliases
+  (`--description`, `--desc`, `--body`) are REMOVED from `update`
+  and reduced to `--description` alone on `create` (initial
+  population has no history to destroy) — unknown flags fail loud,
+  by design: the format freeze protects `.seeds/`, not the CLI
+  surface, and a loud usage error is recoverable where a silent
+  replace was not. Text output gains a change-shape line
+  (`description: set 1126 -> 1900 chars` /
+  `description: appended +774 (total 1900)`) after the unchanged
+  `✓ Updated <id>` line; the JSON envelope stays untouched. The
+  library stays additive: `UpdateInput.description` keeps set
+  semantics, `UpdateInput.append_description` is new. CLI field
+  naming rule: narrative fields get mutation verbs, scalar
+  single-line fields stay bare (`--title`), collections keep
+  add/remove/set, objects keep merge/clear.
+
+- **update --replace-in-description (seeds-4c65):** span-level
+  correction joins the description verbs —
+  `--replace-in-description '{"find": "...", "replace": "..."}'`
+  replaces exactly one occurrence of an exact substring (the
+  `--extensions` JSON-carrier pattern; the "in" carries the
+  span-level scope). find-not-found (snippet in the error), multiple
+  occurrences (count in the error), empty find, and malformed
+  payloads fail loud; an empty `replace` deletes the span. Output:
+  `description: replaced span (1900 -> 1923 chars)`. Library: the
+  additive `UpdateInput.replace_in_description` takes the same raw
+  JSON text, parsed library-side.
 
 Format credit: [jayminwest/seeds](https://github.com/jayminwest/seeds) —
 this repository is an independent implementation of that format, not a fork.

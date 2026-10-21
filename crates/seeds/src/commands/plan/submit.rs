@@ -36,7 +36,8 @@ fn step_of(value: &Value) -> Step<'_> {
         blocks:        value
             .get("blocks")
             .and_then(Value::as_array)
-            .map_or_default(|items| items.iter().filter_map(Value::as_i64).collect::<Vec<_>>()),
+            .map(|items| items.iter().filter_map(Value::as_i64).collect::<Vec<_>>())
+            .unwrap_or_default(),
         plan_template: str_field("plan_template"),
         existing_seed: str_field("existing_seed"),
         labels:        value.get("labels").and_then(Value::as_array).map(|items| {
@@ -325,7 +326,8 @@ pub(super) fn run(
             Some(domain) => {
                 let title = store
                     .issue(seed_id)
-                    .map_or_default(|record| record.title().to_owned());
+                    .map(|record| record.title().to_owned())
+                    .unwrap_or_default();
                 match mulch::record_decision(&domain, &outcome.plan_id, &title, &approach, &cwd) {
                     Ok(Some(id)) => recorded_mulch = Some(id),
                     Ok(None) => {}
@@ -628,13 +630,14 @@ fn fresh_submit(
         let mut blocked_by: Vec<String> = parent
             .field("blockedBy")
             .and_then(Value::as_array)
-            .map_or_default(|items| {
+            .map(|items| {
                 items
                     .iter()
                     .filter_map(Value::as_str)
                     .map(String::from)
                     .collect()
-            });
+            })
+            .unwrap_or_default();
         for id in &final_child_ids {
             if !blocked_by.contains(id) {
                 blocked_by.push(id.clone());
@@ -868,7 +871,7 @@ fn apply_overwrite(
         let external: Vec<String> = parent
             .field("blockedBy")
             .and_then(Value::as_array)
-            .map_or_default(|items| {
+            .map(|items| {
                 items
                     .iter()
                     .filter_map(Value::as_str)
@@ -878,7 +881,8 @@ fn apply_overwrite(
                     })
                     .map(String::from)
                     .collect()
-            });
+            })
+            .unwrap_or_default();
         let mut blocked_by = external;
         blocked_by.extend(final_child_ids.iter().cloned());
         let fields = parent.fields_mut();
@@ -891,14 +895,15 @@ fn apply_overwrite(
     let surviving: Vec<String> = store.plans[plan_idx]
         .field("adoptedChildren")
         .and_then(Value::as_array)
-        .map_or_default(|items| {
+        .map(|items| {
             items
                 .iter()
                 .filter_map(Value::as_str)
                 .filter(|id| final_child_ids.iter().any(|c| c == id))
                 .map(String::from)
                 .collect()
-        });
+        })
+        .unwrap_or_default();
     let mut merged_adopted = surviving;
     for id in &adopted_external {
         if !merged_adopted.contains(id) {
