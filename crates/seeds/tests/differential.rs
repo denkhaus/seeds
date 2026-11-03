@@ -365,7 +365,8 @@ fn assert_output_parity(case: &str, sd: &Output, ours: &Output) {
 }
 
 /// Compares the resulting tracker files: same record sequence, equal
-/// field-for-field modulo volatile timestamps.
+/// field-for-field modulo volatile timestamps, and a config.yaml that
+/// ends with exactly one newline on both sides.
 fn assert_store_parity(case: &str, pair: &Pair) {
     let mut sd_records = store_records(&pair.reference_dir);
     let mut ours_records = store_records(&pair.ours_dir);
@@ -379,6 +380,21 @@ fn assert_store_parity(case: &str, pair: &Pair) {
         sd_records, ours_records,
         "{case}: resulting issues.jsonl diverged"
     );
+    // seeds-d2c5: both writers end config.yaml with exactly one
+    // newline — never the blank line that broke consuming repos'
+    // yamllint empty-lines gates (sd 0.5.15 writes none either, so
+    // this is parity, not deviation). Byte equality is deliberately
+    // NOT asserted: the reference's JS writer double-quotes
+    // `version: "1"` where serde_yaml single-quotes `'1'` — the same
+    // document in a different quote style.
+    for (side, dir) in [("sd", &pair.reference_dir), ("ours", &pair.ours_dir)] {
+        let config = fs::read_to_string(dir.join(".seeds/config.yaml"))
+            .unwrap_or_else(|error| panic!("{case}: {side} config.yaml: {error}"));
+        assert!(
+            config.ends_with('\n') && !config.ends_with("\n\n"),
+            "{case}: {side} config.yaml must end with exactly one newline: {config:?}"
+        );
+    }
 }
 
 /// Runs one argv through both binaries against fresh fixture pairs and

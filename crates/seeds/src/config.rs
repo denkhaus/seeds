@@ -88,10 +88,17 @@ impl Config {
         })
     }
 
-    /// Serializes the config to YAML text (no trailing newline).
+    /// Serializes the config to YAML text with no trailing newline:
+    /// serde_yaml already terminates its document with `\n`, and the
+    /// chomp hands the final newline to the writer — `Store::save`
+    /// appends exactly one, so a saved `config.yaml` never ends in a
+    /// blank line (seeds-d2c5).
     #[must_use]
     pub fn to_yaml(&self) -> String {
-        serde_yaml::to_string(self).expect("a config always serializes")
+        serde_yaml::to_string(self)
+            .expect("a config always serializes")
+            .trim_end_matches('\n')
+            .to_owned()
     }
 }
 
@@ -122,6 +129,18 @@ mod tests {
         assert_eq!(config.max_plan_depth, 3);
         assert_eq!(config.vcs_manager, VcsManager::Git);
         assert!(config.extra.is_empty());
+    }
+
+    // seeds-d2c5: to_yaml is chomped — the writer, not the renderer,
+    // owns the config file's single final newline. serde_yaml
+    // terminates its document with '\n'; leaving that in would make
+    // Store::save's format! wrapper add a second (a blank line).
+    #[test]
+    fn config_to_yaml_carries_no_trailing_newline() {
+        let config =
+            Config::parse("project: demo\n", std::path::Path::new("config.yaml")).expect("valid");
+        let yaml = config.to_yaml();
+        assert!(!yaml.ends_with('\n'), "to_yaml must be chomped: {yaml:?}");
     }
 
     #[test]

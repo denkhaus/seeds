@@ -94,6 +94,10 @@ impl Store {
     /// Returns [`Error`] on I/O failures.
     pub fn save(&self) -> Result<(), Error> {
         let config_path = self.root.join("config.yaml");
+        // to_yaml is chomped, so this format! supplies the file's
+        // single final newline (seeds-d2c5) — never a blank line at
+        // EOF, which broke consuming repos' yamllint empty-lines
+        // gates.
         write_file(&config_path, format!("{}\n", self.config.to_yaml()))?;
 
         save_jsonl(
@@ -296,6 +300,25 @@ mod tests {
         store.save().expect("second save");
         let issues = fs::read_to_string(root.join("issues.jsonl")).expect("issues.jsonl");
         assert_eq!(issues, "", "the rename replaced the file exactly");
+
+        fs::remove_dir_all(root.parent().expect("parent")).ok();
+    }
+
+    // seeds-d2c5: a store-saved config.yaml ends with exactly ONE
+    // newline — never the blank line that broke consuming repos'
+    // yamllint empty-lines gates (fabro-tofu incident). The bytes
+    // are pinned exactly: serde_yaml's document plus one final '\n'.
+    #[test]
+    fn save_writes_config_with_a_single_final_newline() {
+        let root = temp_store("config-eof");
+        let store = Store::open(&root).expect("store opens");
+        store.save().expect("config save");
+
+        let config = fs::read_to_string(root.join("config.yaml")).expect("config.yaml");
+        assert_eq!(
+            config, "project: tst\nversion: '1'\nmax_plan_depth: 3\n",
+            "exact bytes: the serde_yaml document plus one final newline"
+        );
 
         fs::remove_dir_all(root.parent().expect("parent")).ok();
     }
