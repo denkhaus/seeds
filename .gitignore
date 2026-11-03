@@ -2,3 +2,6 @@ target/
 .fabro/bin/
 .fabro/cook/
 .fabro/blobs/
+# Local operator configs, never committed (mise merges them next to
+# .mise.toml — e.g. the local-only seeds pin).
+.mise.local.toml
