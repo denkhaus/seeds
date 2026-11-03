@@ -22,8 +22,16 @@ _Avoid_: velocity, tempo, momentum
 
 **Production Readiness**:
 The target state in which no open seeds remain outside the configured
-exclusion list.
+exclusion list — scoped: inside a Surface scope, only seeds carrying
+that surface's label count toward (or against) it.
 _Avoid_: done, finished, release-ready
+
+**Surface**:
+A label that classifies a seed by the artifact it touches (`shipping`
+= changes the shipped artifact or its runtime behavior; `neutral` =
+tests, tooling, docs, unshipped code). The store's `surfaces` config
+key declares which labels form the relevance-scoped pace groups.
+_Avoid_: category, kind (the record's `type` field is taken)
 
 **ETA (project horizon)**:
 The projected point in time when Production Readiness is reached at the
@@ -43,3 +51,10 @@ _Avoid_: friction score, burn rate, drain deficit
 Net backlog reduction per week: closures minus creations inside the
 observation window; the ETA's denominator.
 _Avoid_: net velocity, throughput
+
+**Threat Mass**:
+The sum of priority weights over the seeds created inside the
+observation window of one Surface scope — incoming pressure, not
+backlog size. Fixed weights: P0=16, P1=8, P2=4, P3=1, P4=0.5; a seed
+without a priority weighs as P4.
+_Avoid_: severity score, risk points

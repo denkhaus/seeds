@@ -7,7 +7,7 @@
 use serde_json::{Value, json};
 
 use super::{CommandContext, CommandOutcome, envelope_pretty, push_line};
-use crate::{Pace, PaceOptions};
+use crate::{Pace, PaceOptions, SurfaceReport};
 
 const PRIME_FULL: &str = "\
 # Seeds Workflow Context
@@ -239,12 +239,29 @@ pub fn prime(ctx: &CommandContext, input: &PrimeInput) -> CommandOutcome {
 
 /// The compact pace line for `prime`: default window (30d), the open
 /// target, and the ETA — `None` when the store will not open or the
-/// metrics will not compute (prime must render regardless).
+/// metrics will not compute (prime must render regardless). When the
+/// store configures surfaces, the relevance-scoped groups ride along
+/// (seeds-b657): the queue-wide numbers alone read as health while
+/// gates keep refilling the queue. Unconfigured stores get no
+/// reminder here — the setup hint lives in `stats --pace`.
 fn pace_line(ctx: &CommandContext) -> Option<String> {
     let store = ctx.open_store().ok()?;
-    Pace::collect(&store.issues, &PaceOptions::default())
-        .ok()
-        .map(|pace| pace.line())
+    let pace = Pace::collect(&store.issues, &PaceOptions::default()).ok()?;
+    let mut line = pace.line();
+    if !store.config.surfaces.is_empty()
+        && let Ok(report) = SurfaceReport::collect(
+            &store.issues,
+            &store.config.surfaces,
+            &PaceOptions::default(),
+        )
+    {
+        let scoped = report.line();
+        if !scoped.is_empty() {
+            line.push_str(" · surfaces: ");
+            line.push_str(&scoped);
+        }
+    }
+    Some(line)
 }
 
 /// Inserts `> **Pace**: …` directly below `marker` in `template`;

@@ -462,19 +462,22 @@ fn cmd_stats(args: &[String]) -> ExitCode {
     let input = StatsInput {
         json: json_mode(&parsed),
         pace,
+        surface: parsed.options.get("surface").cloned(),
     };
     report(&commands::stats(&ctx(), &input))
 }
 
 /// Builds the pace options behind `--pace`: `None` when no pace flag
 /// or option was given (the parity surface), `Some` otherwise — any
-/// pace option implies `--pace`.
+/// pace option (including the `--surface` scope, seeds-b657) implies
+/// `--pace`.
 fn pace_options(parsed: &Parsed) -> Result<Option<seeds::PaceOptions>, String> {
     let requested = parsed.flags.contains("pace")
         || parsed.options.contains_key("window")
         || parsed.options.contains_key("min-closures")
         || parsed.options.contains_key("exclude-label")
-        || parsed.options.contains_key("since");
+        || parsed.options.contains_key("since")
+        || parsed.options.contains_key("surface");
     if !requested {
         return Ok(None);
     }

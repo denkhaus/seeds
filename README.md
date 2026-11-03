@@ -89,6 +89,18 @@ carrying its own expectation, never a silent split:
   counts; `By Type` and the status header block stay on totals too.
   The tailored `differential_stats_matches_sd` folds our split back to
   its sum and compares the rest byte-for-byte.
+- **pace surface layer (seeds-b657):** `stats --pace` gains a
+  relevance-scoped layer the reference does not have: the store's
+  `surfaces: [ … ]` config key renders one pace group per surface
+  label (scoped open-to-target, `k`, ETA, and Threat Mass — the sum
+  of fixed priority weights P0=16, P1=8, P2=4, P3=1, P4=0.5 over the
+  window's scoped creations) plus an `unclassified` count, next to
+  the untouched queue-wide baseline; `--surface <label>` scopes the
+  whole computation to one label, ad-hoc. `prime`'s pace line carries
+  the configured groups; the "not configured" setup hint lives in
+  `stats --pace` only. No verdict bands ride in the tracker — rollout
+  bars over consecutive gates are consumer policy (ADR-0002
+  amendment 5).
 - **query limit honesty:** when `--limit` truncates (default 50), the
   text footer of `list`/`ready`/`search` counts `shown of total`
   (`50 of 88 issue(s)`) instead of letting the rendered count pass as

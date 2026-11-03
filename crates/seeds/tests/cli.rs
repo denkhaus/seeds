@@ -2020,9 +2020,199 @@ fn stats_pace_options_imply_section_and_garbage_is_named() {
         "--min-closures",
         "--exclude-label",
         "--since",
+        "--surface",
     ] {
         assert!(text.contains(flag), "help lists {flag}");
     }
+}
+
+// ---------------------------------------------------------------------------
+// surface-scoped pace (seeds-b657)
+// ---------------------------------------------------------------------------
+
+/// ISO timestamp `days` before the system clock — surface fixtures
+/// must sit inside the pace window whenever the test runs.
+fn iso_days_ago(days: i64) -> String {
+    let now_ms = i64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_millis(),
+    )
+    .expect("clock fits");
+    let ms = now_ms - days * 86_400_000;
+    let secs = ms.div_euclid(1000);
+    let millis = ms.rem_euclid(1000);
+    let epoch_days = secs.div_euclid(86_400);
+    let secs_of_day = secs.rem_euclid(86_400);
+    // Civil date from days-since-epoch (Howard Hinnant's algorithm).
+    let z = epoch_days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}.{millis:03}Z",
+        secs_of_day / 3600,
+        (secs_of_day % 3600) / 60,
+        secs_of_day % 60
+    )
+}
+
+/// The surface fixture (seeds-b657): one closed and two open
+/// `shipping` findings (P1/P0/P2), one open `neutral` finding (P3),
+/// one open unlabeled seed — created inside a 30d window whenever the
+/// test runs.
+fn surface_records() -> Vec<Value> {
+    vec![
+        json!({
+            "id": "tst-0001", "title": "auth bypass", "status": "closed", "type": "bug",
+            "priority": 1, "createdAt": iso_days_ago(14), "updatedAt": iso_days_ago(13),
+            "closedAt": iso_days_ago(13), "labels": ["shipping"]
+        }),
+        json!({
+            "id": "tst-0002", "title": "open auth issue", "status": "open", "type": "bug",
+            "priority": 0, "createdAt": iso_days_ago(6), "updatedAt": iso_days_ago(6),
+            "labels": ["shipping"]
+        }),
+        json!({
+            "id": "tst-0003", "title": "new perf finding", "status": "open", "type": "bug",
+            "priority": 2, "createdAt": iso_days_ago(1), "updatedAt": iso_days_ago(1),
+            "labels": ["shipping"]
+        }),
+        json!({
+            "id": "tst-0004", "title": "test infra cleanup", "status": "open", "type": "task",
+            "priority": 3, "createdAt": iso_days_ago(2), "updatedAt": iso_days_ago(2),
+            "labels": ["neutral"]
+        }),
+        json!({
+            "id": "tst-0005", "title": "unlabeled legacy", "status": "open", "type": "task",
+            "priority": 2, "createdAt": iso_days_ago(8), "updatedAt": iso_days_ago(8)
+        }),
+    ]
+}
+
+fn write_surfaces_config(dir: &Path, surfaces: bool) {
+    let text = if surfaces {
+        "project: \"tst\"\nversion: \"1\"\nmax_plan_depth: 3\nsurfaces: [shipping, neutral]\n"
+    } else {
+        "project: \"tst\"\nversion: \"1\"\nmax_plan_depth: 3\n"
+    };
+    fs::write(dir.join(".seeds/config.yaml"), text).expect("config.yaml");
+}
+
+/// seeds-b657: the configured surface groups render next to the
+/// queue-wide baseline, `--surface` scopes the whole computation to
+/// one label (JSON carries `surface` + `threat_mass` inside `pace`),
+/// and an unconfigured store gets the setup hint instead.
+#[test]
+fn stats_pace_surfaces_group_scope_and_hint() {
+    let dir = temp_store("stats-surfaces");
+    write_records(&dir, &surface_records());
+    write_surfaces_config(&dir, true);
+
+    // Default: the queue-wide baseline stays, the groups ride along.
+    let output = run(&dir, &["stats", "--pace"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(
+        text.contains("\nPace\n"),
+        "queue-wide baseline stays: {text}"
+    );
+    assert!(text.contains("\nSurfaces\n"), "{text}");
+    assert!(
+        text.contains("shipping:         2 open to target"),
+        "{text}"
+    );
+    assert!(
+        text.contains("Threat Mass 28"),
+        "P1 8 + P0 16 + P2 4: {text}"
+    );
+    assert!(text.contains("unclassified:     1"), "{text}");
+
+    let value = stdout_json(&run(&dir, &["stats", "--pace", "--json"]));
+    assert_eq!(value["pace"]["open_to_target"], json!(4), "baseline intact");
+    assert_eq!(value["surfaces"]["shipping"]["open_to_target"], json!(2));
+    assert_eq!(value["surfaces"]["shipping"]["threat_mass"], json!(28.0));
+    assert_eq!(
+        value["surfaces"]["shipping"]["k"],
+        json!(0.33),
+        "k 1 closure / 3 creations"
+    );
+    assert_eq!(value["surfaces"]["neutral"]["threat_mass"], json!(1.0));
+    assert_eq!(value["surfaces"]["unclassified"], json!(1));
+
+    // Ad-hoc scope: the whole computation runs on the label; no
+    // queue-wide pace, no surfaces block.
+    let output = run(&dir, &["stats", "--pace", "--surface", "shipping"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(
+        text.contains("Pace (surface: shipping)\n"),
+        "scope named in the header: {text}"
+    );
+    assert!(!text.contains("\nSurfaces\n"), "no groups section: {text}");
+    assert!(text.contains("Threat Mass:        28"), "{text}");
+    assert!(text.contains("Open to target:     2"), "{text}");
+
+    let value = stdout_json(&run(&dir, &["stats", "--surface", "shipping", "--json"]));
+    assert_eq!(value["pace"]["surface"], json!("shipping"));
+    assert_eq!(value["pace"]["open_to_target"], json!(2));
+    assert_eq!(value["pace"]["threat_mass"], json!(28.0));
+    assert!(
+        value.get("surfaces").is_none(),
+        "ad-hoc scope carries no surfaces block"
+    );
+
+    // Unconfigured store: the setup hint, not silence.
+    write_surfaces_config(&dir, false);
+    let output = run(&dir, &["stats", "--pace"]);
+    let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(text.contains("\nSurfaces\n"), "{text}");
+    assert!(text.contains("not configured"), "{text}");
+    let value = stdout_json(&run(&dir, &["stats", "--pace", "--json"]));
+    let hint_line = text.lines().last().expect("hint line").trim().to_owned();
+    assert_eq!(
+        value["surfaces"]["hint"].as_str().map(str::to_owned),
+        Some(hint_line)
+    );
+}
+
+/// seeds-b657: `prime`'s pace line carries the configured groups
+/// (plus the unclassified tail) and stays silent when the store
+/// declares no surfaces.
+#[test]
+fn prime_pace_line_carries_surface_groups() {
+    let dir = temp_store("prime-surfaces");
+    write_records(&dir, &surface_records());
+    write_surfaces_config(&dir, true);
+
+    let output = run(&dir, &["prime"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    let line = text
+        .lines()
+        .find(|line| line.starts_with("> **Pace**"))
+        .expect("prime carries a pace line");
+    assert!(line.contains("surfaces: shipping"), "{line}");
+    assert!(line.contains("mass 28"), "{line}");
+    assert!(line.contains("1 unclassified"), "{line}");
+
+    write_surfaces_config(&dir, false);
+    let output = run(&dir, &["prime"]);
+    let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    let line = text
+        .lines()
+        .find(|line| line.starts_with("> **Pace**"))
+        .expect("prime carries a pace line");
+    assert!(
+        !line.contains("surfaces:"),
+        "silent when unconfigured: {line}"
+    );
 }
 
 // ---------------------------------------------------------------------------

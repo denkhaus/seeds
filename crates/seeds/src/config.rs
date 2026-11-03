@@ -69,6 +69,13 @@ pub struct Config {
         skip_serializing_if = "is_default_vcs_manager"
     )]
     pub vcs_manager:    VcsManager,
+    /// The store's surface labels for relevance-scoped pace metrics
+    /// (seeds-b657): `stats --pace` renders one pace group per
+    /// configured label plus an `unclassified` count, and `prime`
+    /// carries the groups in its pace line. Empty = no surface
+    /// grouping (stats then hints at the setup).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub surfaces:       Vec<String>,
     /// Every config key this crate does not model, preserved verbatim.
     #[serde(flatten)]
     pub extra:          Fields,
@@ -141,6 +148,34 @@ mod tests {
             Config::parse("project: demo\n", std::path::Path::new("config.yaml")).expect("valid");
         let yaml = config.to_yaml();
         assert!(!yaml.ends_with('\n'), "to_yaml must be chomped: {yaml:?}");
+    }
+
+    // seeds-b657: the store's surface labels ride in config.yaml as a
+    // plain list; an unset store round-trips without the key (byte
+    // stability of the rewrite), a set store keeps its labels.
+    #[test]
+    fn config_reads_and_preserves_surfaces() {
+        let config = Config::parse(
+            "project: demo\nsurfaces: [shipping, neutral]\n",
+            std::path::Path::new("config.yaml"),
+        )
+        .expect("valid");
+        assert_eq!(config.surfaces, vec![
+            "shipping".to_owned(),
+            "neutral".to_owned()
+        ]);
+
+        let plain =
+            Config::parse("project: demo\n", std::path::Path::new("config.yaml")).expect("valid");
+        assert_eq!(plain.surfaces, Vec::<String>::new());
+        assert!(
+            !plain.to_yaml().contains("surfaces"),
+            "unset surfaces stay absent from rewrites"
+        );
+
+        let rewritten = Config::parse(&config.to_yaml(), std::path::Path::new("config.yaml"))
+            .expect("rewritten config stays valid");
+        assert_eq!(rewritten.surfaces, config.surfaces);
     }
 
     #[test]

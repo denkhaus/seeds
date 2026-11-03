@@ -51,6 +51,26 @@ time-series comes from.
    ETA. Also added: median open age of non-closed seeds (`Open age
    (median)`), measurement only — no verdict bands in the tracker;
    bands are loop policy (fabro architect), not tracker policy.
+5. **[Amended 2026-11-03] The surface scope carries through every
+   number (seeds-b657).** Review gates refill the queue with
+   low-relevance findings at every cadence, so the queue-wide `k`
+   converges to 1 by construction and its ETA stays unreachable —
+   relevance, not count, was the missing dimension. A surface label
+   (declared per store via the `surfaces` config key) now scopes the
+   WHOLE computation: `--surface <label>` filters the record set
+   before every metric, so open-to-target, `k`, Drain Rate, and ETA
+   share one scope — amendment 4's numerator/denominator rule applied
+   to relevance. Without `--surface`, the queue-wide computation
+   stays the default baseline and each configured surface renders as
+   a group beside it, plus an `unclassified` count (open seeds
+   carrying no configured surface label) so scope filtering cannot
+   silently hide what was never classified. **Threat Mass** — the
+   sum of fixed priority weights (P0=16, P1=8, P2=4, P3=1, P4=0.5;
+   absent priority counts as P4) over the window's scoped creations —
+   is measurement only: like amendment 4's verdict-band rule, rollout
+   bars over two consecutive gates are consumer policy, never tracker
+   output. `prime` carries the configured groups in its pace line;
+   the setup hint lives in `stats --pace`.
 
 ## Considered Options
 

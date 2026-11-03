@@ -117,6 +117,7 @@ pub(crate) static STATS_SPEC: &[OptSpec] = &[
     opt("min-closures"),
     opt("exclude-label"),
     opt("since"),
+    opt("surface"),
     opt("format"),
     flag("json"),
 ];

@@ -37,5 +37,8 @@ pub use error::{Error, IdError, RecordError};
 pub use id::{PlanId, SeedId, TemplateId};
 pub use lock::WriterLock;
 pub use model::{Fields, PlanRecord, Priority, SeedRecord, SeedType, Status, TemplateRecord};
-pub use pace::{DEFAULT_MIN_CLOSURES, DEFAULT_WINDOW_DAYS, Pace, PaceOptions, WeekBucket};
+pub use pace::{
+    DEFAULT_MIN_CLOSURES, DEFAULT_WINDOW_DAYS, Pace, PaceOptions, SurfacePace, SurfaceReport,
+    THREAT_WEIGHTS, WeekBucket,
+};
 pub use store::Store;

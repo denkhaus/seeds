@@ -5,23 +5,34 @@ use serde_json::{Map, Value, json};
 use super::{
     CommandContext, CommandError, CommandOutcome, WriteFormat, envelope_pretty, push_line,
 };
-use crate::{Pace, PaceOptions, Status, WriterLock, doctor, render};
+use crate::{Pace, PaceOptions, Status, SurfacePace, SurfaceReport, WriterLock, doctor, render};
 
 /// Typed input for `stats`.
 #[derive(Clone, Debug, Default)]
 pub struct StatsInput {
     /// JSON envelope output.
-    pub json: bool,
+    pub json:    bool,
     /// `--pace`: the pace section (closure rates, lead time, ETA, week
     /// table); absent means the parity surface only.
-    pub pace: Option<PaceOptions>,
+    pub pace:    Option<PaceOptions>,
+    /// `--surface <label>` (seeds-b657): scope the pace to the
+    /// records carrying the label — an ad-hoc scope that works with
+    /// any label, configured or not; implies `--pace`.
+    pub surface: Option<String>,
 }
 
 /// `stats` — project statistics by status, type, priority, and label,
 /// plus the pace section behind `--pace` (seeds-8fc5).
+///
+/// The relevance-scoped surface layer (seeds-b657): without
+/// `--surface`, the queue-wide pace stays the baseline and the
+/// store's configured `surfaces` render as one group each plus an
+/// `unclassified` count; with `--surface <label>`, the whole
+/// computation runs scoped to that label instead. An unconfigured
+/// store gets the setup hint — here, not in `prime`.
 pub fn stats(ctx: &CommandContext, input: &StatsInput) -> CommandOutcome {
     let json = input.json;
-    let result = (|| -> Result<(render::Stats, Option<Pace>), CommandError> {
+    let result = (|| -> Result<(render::Stats, Option<PaceView>), CommandError> {
         let store = ctx
             .open_store()
             .map_err(|message| CommandError::new("stats", message, json))?;
@@ -31,12 +42,30 @@ pub fn stats(ctx: &CommandContext, input: &StatsInput) -> CommandOutcome {
                 .is_none_or(|blocker| blocker.status() != Some(Status::Closed))
         };
         let stats = render::Stats::collect(&store.issues, &unresolved);
-        let pace = input
-            .pace
-            .as_ref()
-            .map(|options| Pace::collect(&store.issues, options))
-            .transpose()
-            .map_err(|message| CommandError::new("stats", message, json))?;
+        let pace = match input.pace.as_ref() {
+            None => None,
+            Some(options) => {
+                let view = if let Some(label) = input.surface.as_deref() {
+                    PaceView::Scoped(
+                        SurfacePace::collect(&store.issues, label, options)
+                            .map_err(|message| CommandError::new("stats", message, json))?,
+                    )
+                } else {
+                    let pace = Pace::collect(&store.issues, options)
+                        .map_err(|message| CommandError::new("stats", message, json))?;
+                    let surfaces = if store.config.surfaces.is_empty() {
+                        SurfacesView::Hint
+                    } else {
+                        SurfacesView::Groups(
+                            SurfaceReport::collect(&store.issues, &store.config.surfaces, options)
+                                .map_err(|message| CommandError::new("stats", message, json))?,
+                        )
+                    };
+                    PaceView::Default { pace, surfaces }
+                };
+                Some(view)
+            }
+        };
         Ok((stats, pace))
     })();
     match result {
@@ -67,17 +96,45 @@ pub fn stats(ctx: &CommandContext, input: &StatsInput) -> CommandOutcome {
                 stats_map.insert("byPriority".to_owned(), Value::Object(by_priority));
                 stats_map.insert("byLabel".to_owned(), Value::Object(by_label));
                 let mut extra = vec![("stats", Value::Object(stats_map))];
-                if let Some(pace) = &pace {
-                    extra.push(("pace", pace.json_value()));
+                match &pace {
+                    Some(PaceView::Default { pace, surfaces }) => {
+                        extra.push(("pace", pace.json_value()));
+                        let surfaces = match surfaces {
+                            SurfacesView::Groups(report) => report.json_value(),
+                            SurfacesView::Hint => json!({ "hint": SURFACES_HINT }),
+                        };
+                        extra.push(("surfaces", surfaces));
+                    }
+                    Some(PaceView::Scoped(group)) => {
+                        extra.push(("pace", group.scoped_json_value()));
+                    }
+                    None => {}
                 }
                 let text = envelope_pretty("stats", &extra);
                 out.push_str(&text);
                 out.push('\n');
             } else {
                 out.push_str(&stats.text());
-                if let Some(pace) = &pace {
-                    out.push('\n');
-                    out.push_str(&pace.text());
+                match &pace {
+                    Some(PaceView::Default { pace, surfaces }) => {
+                        out.push('\n');
+                        out.push_str(&pace.text());
+                        out.push('\n');
+                        match surfaces {
+                            SurfacesView::Groups(report) => out.push_str(&report.text()),
+                            SurfacesView::Hint => {
+                                out.push_str("Surfaces\n");
+                                out.push_str("  ");
+                                out.push_str(SURFACES_HINT);
+                                out.push('\n');
+                            }
+                        }
+                    }
+                    Some(PaceView::Scoped(group)) => {
+                        out.push('\n');
+                        out.push_str(&group.text_section());
+                    }
+                    None => {}
                 }
             }
             CommandOutcome::ok(out)
@@ -85,6 +142,31 @@ pub fn stats(ctx: &CommandContext, input: &StatsInput) -> CommandOutcome {
         Err(error) => error.into_outcome(),
     }
 }
+
+/// The `--pace` output shape: the queue-wide baseline plus the
+/// configured surface layer, or one ad-hoc `--surface` scope standing
+/// alone.
+enum PaceView {
+    /// The queue-wide pace with the configured groups (or the setup
+    /// hint when the store declares no surfaces).
+    Default {
+        pace:     Pace,
+        surfaces: SurfacesView,
+    },
+    /// One ad-hoc scoped group (`--surface <label>`).
+    Scoped(SurfacePace),
+}
+
+/// The configured-surface layer of the default pace view.
+enum SurfacesView {
+    Groups(SurfaceReport),
+    Hint,
+}
+
+/// The setup reminder when the store declares no surfaces
+/// (seeds-b657): `stats --pace` is the operator surface, so the hint
+/// lives here — `prime` stays silent.
+const SURFACES_HINT: &str = "not configured — set 'surfaces: [ <label>, ... ]' in .seeds/config.yaml for relevance-scoped pace";
 
 /// Typed input for `doctor`.
 #[derive(Clone, Debug, Default)]

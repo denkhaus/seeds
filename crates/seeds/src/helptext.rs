@@ -528,6 +528,10 @@ Options:
                      target (comma-separated)
   --since <date>    First week of the pace table, YYYY-MM-DD
                      (default: full history)
+  --surface <label>  Scope the whole pace computation to the seeds
+                     carrying this label (ad-hoc; works with any
+                     label). Without it, the store's configured
+                     'surfaces' render as one pace group each
   --format <mode>  Output format (markdown|compact|plain|ids|json)
   --json           Output as JSON (alias for --format json)
   -h, --help       display help for command";

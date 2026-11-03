@@ -16,7 +16,7 @@
 
 use std::collections::BTreeMap;
 
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 
 use crate::{SeedRecord, Status, render, timeutil};
 
@@ -146,10 +146,7 @@ impl Pace {
         if options.window_days == 0 {
             return Err("--window: must be at least 1 day".to_owned());
         }
-        let now_text = options.now.clone().unwrap_or_else(timeutil::now_iso);
-        let now_ms = timeutil::parse_iso_millis(&now_text).ok_or_else(|| {
-            format!("invalid clock timestamp `{now_text}` (expected YYYY-MM-DDTHH:MM:SS.mmmZ)")
-        })?;
+        let now_ms = resolve_now_ms(options)?;
         let since_days = options
             .since
             .as_deref()
@@ -488,6 +485,252 @@ impl Pace {
     }
 }
 
+// ---------------------------------------------------------------------------
+// surface scoping (seeds-b657)
+// ---------------------------------------------------------------------------
+
+/// The Threat Mass priority weights (seeds-b657), indexed by priority
+/// level P0..P4: Critical findings weigh heaviest, backlog findings
+/// least. Fixed and documented, deliberately not configurable
+/// (operator decision 2026-11-03): the table extends brightctl's
+/// hand-measured calibration (P1=8, P2=4, P3=1, P4=0.5) with P0=16,
+/// so the measured waves stay comparable.
+pub const THREAT_WEIGHTS: [f64; 5] = [16.0, 8.0, 4.0, 1.0, 0.5];
+
+/// The resolved clock every collect path shares: the injected
+/// timestamp or the system clock.
+fn resolve_now_ms(options: &PaceOptions) -> Result<i64, String> {
+    let now_text = options.now.clone().unwrap_or_else(timeutil::now_iso);
+    timeutil::parse_iso_millis(&now_text).ok_or_else(|| {
+        format!("invalid clock timestamp `{now_text}` (expected YYYY-MM-DDTHH:MM:SS.mmmZ)")
+    })
+}
+
+/// One surface group of the relevance-scoped pace (seeds-b657): the
+/// pace over exactly the records carrying the surface label — one
+/// scope for numerator and denominator, the rule ADR-0002 amendment 4
+/// set — plus the Threat Mass of the window's creations.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SurfacePace {
+    /// The surface label, verbatim as configured.
+    pub label:       String,
+    /// The scoped pace aggregate.
+    pub pace:        Pace,
+    /// Sum of [`THREAT_WEIGHTS`] over the scoped records created
+    /// inside the window; a record without a priority counts as P4.
+    pub threat_mass: f64,
+}
+
+impl SurfacePace {
+    /// Collects one surface group from `records` at the clock
+    /// `options` carries. The label match is case-insensitive, like
+    /// the exclusion match.
+    ///
+    /// # Errors
+    ///
+    /// Returns the offending flag name and value when the options or
+    /// the injected clock do not parse (see [`Pace::collect`]).
+    pub fn collect(
+        records: &[SeedRecord],
+        label: &str,
+        options: &PaceOptions,
+    ) -> Result<Self, String> {
+        let scoped: Vec<SeedRecord> = records
+            .iter()
+            .filter(|record| {
+                record
+                    .labels()
+                    .iter()
+                    .any(|carried| carried.eq_ignore_ascii_case(label))
+            })
+            .cloned()
+            .collect();
+        let pace = Pace::collect(&scoped, options)?;
+        let threat_mass = threat_mass(&scoped, options)?;
+        Ok(Self {
+            label: label.to_owned(),
+            pace,
+            threat_mass,
+        })
+    }
+
+    /// The compact one-line form for `prime`'s pace line.
+    #[must_use]
+    pub fn line(&self) -> String {
+        let k = self
+            .pace
+            .k
+            .map_or_else(|| "n/a".to_owned(), |k| format!("{k:.2}"));
+        format!(
+            "{} {} open · k {k} · mass {}",
+            self.label, self.pace.open_to_target, self.threat_mass
+        )
+    }
+
+    /// One row of the text-mode `Surfaces` section.
+    #[must_use]
+    pub fn text(&self) -> String {
+        let k = self
+            .pace
+            .k
+            .map_or_else(|| "n/a".to_owned(), |k| format!("{k:.2}"));
+        format!(
+            "  {}{} open to target · k {k} · Threat Mass {} · ETA {}\n",
+            render::pad_field(&format!("{}:", self.label), 18),
+            self.pace.open_to_target,
+            self.threat_mass,
+            self.pace.eta.clone().unwrap_or_else(|| "n/a".to_owned()),
+        )
+    }
+
+    /// The group object of the `surfaces` JSON: the pace object plus
+    /// `threat_mass`.
+    #[must_use]
+    pub fn json_value(&self) -> Value {
+        let mut value = self.pace.json_value();
+        let map = value.as_object_mut().expect("the pace json is an object");
+        map.insert("threat_mass".to_owned(), json!(round1(self.threat_mass)));
+        value
+    }
+
+    /// The `pace` object of an ad-hoc `--surface` run: the scoped
+    /// pace plus `surface` (the label) and `threat_mass`.
+    #[must_use]
+    pub fn scoped_json_value(&self) -> Value {
+        let mut value = self.json_value();
+        let map = value.as_object_mut().expect("the pace json is an object");
+        map.insert("surface".to_owned(), json!(self.label));
+        value
+    }
+
+    /// The full text section of an ad-hoc `--surface` run: the scoped
+    /// pace block with the scope named in the header and the Threat
+    /// Mass line after the ETA.
+    #[must_use]
+    pub fn text_section(&self) -> String {
+        let mut out = self.pace.text();
+        if let Some(rest) = out.strip_prefix("Pace\n") {
+            out = format!("Pace (surface: {})\n{rest}", self.label);
+        }
+        out.push_str(&format!(
+            "  {}{}\n",
+            render::pad_field("Threat Mass:", 20),
+            self.threat_mass
+        ));
+        out
+    }
+}
+
+/// The relevance-scoped surface layer of `stats --pace` (seeds-b657):
+/// one group per configured surface label plus the `unclassified`
+/// count — open seeds carrying none of the configured labels. The
+/// count keeps the metrics honest: a scope is only a filter, and
+/// seeds that never got classified stay visible instead of silently
+/// vanishing from every group.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SurfaceReport {
+    /// One group per configured label, in configuration order.
+    pub groups:       Vec<SurfacePace>,
+    /// Open seeds carrying none of the configured surface labels.
+    pub unclassified: usize,
+}
+
+impl SurfaceReport {
+    /// Collects every configured surface group from `records` at the
+    /// clock `options` carries.
+    ///
+    /// # Errors
+    ///
+    /// Propagates the flags/clock errors of [`SurfacePace::collect`].
+    pub fn collect(
+        records: &[SeedRecord],
+        labels: &[String],
+        options: &PaceOptions,
+    ) -> Result<Self, String> {
+        let mut groups = Vec::with_capacity(labels.len());
+        for label in labels {
+            groups.push(SurfacePace::collect(records, label, options)?);
+        }
+        let unclassified = records
+            .iter()
+            .filter(|record| record.status() != Some(Status::Closed))
+            .filter(|record| {
+                !labels.iter().any(|label| {
+                    record
+                        .labels()
+                        .iter()
+                        .any(|carried| carried.eq_ignore_ascii_case(label))
+                })
+            })
+            .count();
+        Ok(Self {
+            groups,
+            unclassified,
+        })
+    }
+
+    /// The `surfaces` object of the `stats --json` envelope: one key
+    /// per group plus `unclassified`.
+    #[must_use]
+    pub fn json_value(&self) -> Value {
+        let mut map = Map::new();
+        for group in &self.groups {
+            map.insert(group.label.clone(), group.json_value());
+        }
+        map.insert("unclassified".to_owned(), json!(self.unclassified));
+        Value::Object(map)
+    }
+
+    /// The text-mode `Surfaces` section: one row per group plus the
+    /// `unclassified` row.
+    #[must_use]
+    pub fn text(&self) -> String {
+        let mut out = String::from("Surfaces\n");
+        for group in &self.groups {
+            out.push_str(&group.text());
+        }
+        out.push_str(&format!(
+            "  {}{}\n",
+            render::pad_field("unclassified:", 18),
+            self.unclassified
+        ));
+        out
+    }
+
+    /// The compact groups summary for `prime`'s pace line: every
+    /// group joined by ` | `, plus the unclassified tail when
+    /// non-zero.
+    #[must_use]
+    pub fn line(&self) -> String {
+        let mut parts: Vec<String> = self.groups.iter().map(SurfacePace::line).collect();
+        if self.unclassified > 0 {
+            parts.push(format!("{} unclassified", self.unclassified));
+        }
+        parts.join(" | ")
+    }
+}
+
+/// Sum of [`THREAT_WEIGHTS`] over the records created inside the
+/// window — the scope's incoming-pressure gauge (seeds-b657). A
+/// record without a priority counts as P4 (the display default).
+fn threat_mass(scoped: &[SeedRecord], options: &PaceOptions) -> Result<f64, String> {
+    let now_ms = resolve_now_ms(options)?;
+    let window_start = now_ms.saturating_sub(i64::from(options.window_days) * MILLIS_PER_DAY);
+    let mut mass = 0.0;
+    for record in scoped {
+        let Some(created_ms) = record.created_at().and_then(timeutil::parse_iso_millis) else {
+            continue;
+        };
+        if created_ms > window_start && created_ms <= now_ms {
+            let level = record
+                .priority()
+                .map_or(4_usize, |priority| usize::from(priority.get()));
+            mass += THREAT_WEIGHTS[level];
+        }
+    }
+    Ok(mass)
+}
+
 /// The median of a sorted non-empty-when-used slice: the middle value,
 /// or the mean of the two middle values.
 fn median(sorted: &[f64]) -> Option<f64> {
@@ -814,5 +1057,138 @@ mod tests {
         assert_eq!(iso.first(), Some(&"2026-W03"));
         let last = pace.weeks.last().expect("series non-empty");
         assert_eq!(last.open, 2, "running count survives truncation");
+    }
+
+    /// `made` plus a `priority` field (Threat Mass tests need it).
+    fn made_p(
+        id: &str,
+        created: &str,
+        closed: Option<&str>,
+        labels: &[&str],
+        priority: u8,
+    ) -> SeedRecord {
+        let mut fields = json!({
+            "id": id,
+            "title": format!("seed {id}"),
+            "createdAt": format!("{created}T00:00:00.000Z"),
+            "priority": priority,
+        });
+        let Value::Object(map) = &mut fields else {
+            unreachable!("fields is an object");
+        };
+        match closed {
+            Some(day) => {
+                map.insert("status".to_owned(), json!("closed"));
+                map.insert("closedAt".to_owned(), json!(format!("{day}T00:00:00.000Z")));
+            }
+            None => {
+                map.insert("status".to_owned(), json!("open"));
+            }
+        }
+        if !labels.is_empty() {
+            map.insert("labels".to_owned(), json!(labels));
+        }
+        seed(id, fields)
+    }
+
+    // seeds-b657: the surface scope carries ONE scope through every
+    // number — open count, creations, closures, k — and Threat Mass
+    // weights the window's creations by priority (P0 16, P1 8, P2 4,
+    // P3 1, P4 0.5; an absent priority counts as P4).
+    #[test]
+    fn surface_scope_carries_one_scope_through_every_number() {
+        let records = vec![
+            made_p(
+                "tst-0001",
+                "2026-01-05",
+                Some("2026-01-06"),
+                &["shipping"],
+                1,
+            ),
+            made_p("tst-0002", "2026-01-10", None, &["shipping"], 0),
+            made_p("tst-0003", "2026-01-20", None, &["neutral"], 2),
+            made("tst-0004", "2026-01-15", None, &[]),
+        ];
+        let options = PaceOptions {
+            now: Some(NOW.to_owned()),
+            ..PaceOptions::default()
+        };
+        let group = SurfacePace::collect(&records, "shipping", &options).expect("valid");
+        assert_eq!(group.pace.open_to_target, 1, "only the open shipping seed");
+        assert_eq!(group.pace.creations_in_window, 2);
+        assert_eq!(group.pace.closures_in_window, 1);
+        assert_eq!(group.pace.k, Some(0.5));
+        assert!((group.threat_mass - 24.0).abs() < 1e-9, "P1 8 + P0 16");
+
+        let report = SurfaceReport::collect(
+            &records,
+            &["shipping".to_owned(), "neutral".to_owned()],
+            &options,
+        )
+        .expect("valid");
+        assert_eq!(report.groups.len(), 2, "one group per configured label");
+        assert_eq!(
+            report.unclassified, 1,
+            "the unlabeled open seed stays visible"
+        );
+        assert!(
+            (report.groups[1].threat_mass - 4.0).abs() < 1e-9,
+            "neutral: one P2 creation"
+        );
+
+        // The label match is case-insensitive, like the exclusion
+        // match — configured vocabulary, not stored casing.
+        let upper = SurfacePace::collect(&records, "Shipping", &options).expect("valid");
+        assert_eq!(upper.pace.open_to_target, 1);
+    }
+
+    // seeds-b657: a scoped record without a priority weighs as P4
+    // (the display default) — 0.5, not zero.
+    #[test]
+    fn threat_mass_counts_absent_priority_as_backlog() {
+        let records = vec![made("tst-0001", "2026-01-20", None, &["shipping"])];
+        let options = PaceOptions {
+            now: Some(NOW.to_owned()),
+            ..PaceOptions::default()
+        };
+        let group = SurfacePace::collect(&records, "shipping", &options).expect("valid");
+        assert!((group.threat_mass - 0.5).abs() < 1e-9);
+    }
+
+    // seeds-b657: the renderers name their sections — the text block
+    // lists every group plus unclassified, the compact line joins the
+    // groups (and drops a zero unclassified tail).
+    #[test]
+    fn surface_report_renders_text_and_line() {
+        let records = vec![
+            made_p(
+                "tst-0001",
+                "2026-01-05",
+                Some("2026-01-06"),
+                &["shipping"],
+                1,
+            ),
+            made_p("tst-0002", "2026-01-10", None, &["shipping"], 0),
+            made_p("tst-0003", "2026-01-20", None, &["neutral"], 2),
+        ];
+        let options = PaceOptions {
+            now: Some(NOW.to_owned()),
+            ..PaceOptions::default()
+        };
+        let report = SurfaceReport::collect(
+            &records,
+            &["shipping".to_owned(), "neutral".to_owned()],
+            &options,
+        )
+        .expect("valid");
+        let text = report.text();
+        assert!(text.starts_with("Surfaces\n"), "{text}");
+        assert!(text.contains("shipping:"), "{text}");
+        assert!(text.contains("neutral:"), "{text}");
+        assert!(text.contains("unclassified:     0"), "{text}");
+        assert_eq!(
+            report.line(),
+            "shipping 1 open · k 0.50 · mass 24 | neutral 1 open · k 0.00 · mass 4"
+        );
     }
 }

@@ -82,8 +82,9 @@ fn write_fixture(dir: &Path) {
 fn pace_stats(dir: &Path, options: PaceOptions) -> String {
     let ctx = CommandContext::at(dir.join(".seeds"));
     let outcome = commands::stats(&ctx, &StatsInput {
-        json: true,
-        pace: Some(options),
+        json:    true,
+        pace:    Some(options),
+        surface: None,
     });
     assert!(outcome.success, "stats failed: {}", outcome.stderr);
     outcome.stdout
@@ -148,12 +149,13 @@ fn pace_text_section_carries_the_metrics_and_table() {
     write_fixture(&dir);
     let ctx = CommandContext::at(dir.join(".seeds"));
     let outcome = commands::stats(&ctx, &StatsInput {
-        json: false,
-        pace: Some(PaceOptions {
+        json:    false,
+        pace:    Some(PaceOptions {
             now: Some(NOW.to_owned()),
             exclusion_labels: vec!["backlog".to_owned()],
             ..PaceOptions::default()
         }),
+        surface: None,
     });
     assert!(outcome.success, "stats failed: {}", outcome.stderr);
     let text = outcome.stdout;
@@ -179,22 +181,24 @@ fn pace_flag_implies_section_and_window_garbage_is_named() {
     // Any pace option implies --pace.
     let ctx = CommandContext::at(dir.join(".seeds"));
     let outcome = commands::stats(&ctx, &StatsInput {
-        json: false,
-        pace: Some(PaceOptions {
+        json:    false,
+        pace:    Some(PaceOptions {
             window_days: 7,
             ..PaceOptions::default()
         }),
+        surface: None,
     });
     assert!(outcome.success);
     assert!(outcome.stdout.contains("Rate (7d):"));
 
     // Library-side semantic validation surfaces the offending flag.
     let bad = commands::stats(&ctx, &StatsInput {
-        json: false,
-        pace: Some(PaceOptions {
+        json:    false,
+        pace:    Some(PaceOptions {
             window_days: 0,
             ..PaceOptions::default()
         }),
+        surface: None,
     });
     assert!(!bad.success);
     assert!(bad.stderr.contains("--window"), "stderr: {}", bad.stderr);
