@@ -13,7 +13,7 @@ just = "1.58.0"
 bun = "1.4.0"
 "aqua:nushell/nushell" = "0.115.0"
 "aqua:BurntSushi/ripgrep" = "15.2.0"
-"cargo:seeds" = "0.11.0"
+"cargo:seeds" = "0.11.1"
 # Bootstrap phase remainder (ADR-0023): the jayminwest mulch CLI, the
 # read+write compatible expertise target, until the mulch phase replaces
 # it. The seeds CLI (@os-eco/seeds-cli) was dropped at the
