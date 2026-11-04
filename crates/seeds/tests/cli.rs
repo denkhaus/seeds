@@ -979,6 +979,115 @@ fn update_write_on_closed_record_strips_triage_labels() {
     assert_eq!(read_records(&dir)[0]["labels"], json!(["needs-triage"]));
 }
 
+// ---------------------------------------------------------------------------
+// label add/remove id-shaped word rejection (seeds-95a3)
+// ---------------------------------------------------------------------------
+
+/// `label add <id1> <id2> <labels...>` must not silently turn id2 into
+/// a label on id1: every label word that IS an issue id (in the store,
+/// or a foreign `<project>-<hex4>` shape) is rejected with a clear
+/// error and the store stays untouched. `remove` mirrors the rule.
+#[test]
+fn label_add_rejects_issue_ids_as_label_words() {
+    let dir = temp_store("label-add-id-words");
+    write_records(&dir, &standard());
+
+    // In-store id as a surplus positional.
+    let output = run(&dir, &["label", "add", "tst-0001", "tst-0002", "player"]);
+    assert_eq!(output.status.code(), Some(1));
+    let text = String::from_utf8(output.stderr.clone()).expect("utf-8");
+    assert!(
+        text.contains("'tst-0002' looks like an issue id"),
+        "stderr names the id-shaped word: {text}"
+    );
+    assert!(
+        text.contains("one issue id"),
+        "stderr states the one-issue contract: {text}"
+    );
+
+    // Foreign-project id shape (not in this store) is caught too.
+    let output = run(&dir, &["label", "add", "tst-0001", "brightctl-f442"]);
+    assert_eq!(output.status.code(), Some(1));
+
+    // The JSON envelope carries the same refusal.
+    let output = run(&dir, &["label", "add", "tst-0001", "tst-0002", "--json"]);
+    assert_eq!(output.status.code(), Some(1));
+    let value: Value = serde_json::from_slice(&output.stdout).expect("json envelope");
+    assert_eq!(value["success"], json!(false));
+
+    // Nothing was written: tst-0001 keeps its labels, no id-named
+    // labels anywhere.
+    let records = read_records(&dir);
+    let first = records
+        .iter()
+        .find(|r| r["id"] == "tst-0001")
+        .expect("tst-0001");
+    assert_eq!(first["labels"], json!(["bug", "ui"]));
+    for record in &records {
+        let labels: Vec<String> = record
+            .get("labels")
+            .and_then(Value::as_array)
+            .map(|labels| {
+                labels
+                    .iter()
+                    .filter_map(|value| value.as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default();
+        assert!(
+            !labels
+                .iter()
+                .any(|label| label == "tst-0002" || label == "brightctl-f442"),
+            "no id-named labels on {}: {:?}",
+            record["id"],
+            labels
+        );
+    }
+}
+
+/// `label remove` shares the footgun shape and the rejection rule.
+#[test]
+fn label_remove_rejects_issue_ids_as_label_words() {
+    let dir = temp_store("label-remove-id-words");
+    write_records(&dir, &standard());
+    let output = run(&dir, &["label", "remove", "tst-0001", "tst-0003", "bug"]);
+    assert_eq!(output.status.code(), Some(1));
+    let text = String::from_utf8(output.stderr.clone()).expect("utf-8");
+    assert!(
+        text.contains("'tst-0003' looks like an issue id"),
+        "stderr names the id-shaped word: {text}"
+    );
+    // The refusal left the record untouched.
+    let first = read_records(&dir)
+        .into_iter()
+        .find(|r| r["id"] == "tst-0001")
+        .expect("tst-0001");
+    assert_eq!(first["labels"], json!(["bug", "ui"]));
+}
+
+/// Ordinary label words (including hyphenated, numeric, and
+/// single-char ones) keep flowing through add and remove — only
+/// id-shaped words are refused.
+#[test]
+fn label_add_remove_still_accepts_ordinary_label_words() {
+    let dir = temp_store("label-ordinary-words");
+    write_records(&dir, &standard());
+    let output = run(&dir, &[
+        "label",
+        "add",
+        "tst-0002",
+        "ready-for-agent",
+        "p1",
+        "x",
+    ]);
+    assert_eq!(output.status.code(), Some(0), "{:?}", output.stderr);
+    let second = read_records(&dir)
+        .into_iter()
+        .find(|r| r["id"] == "tst-0002")
+        .expect("tst-0002");
+    assert_eq!(second["labels"], json!(["ready-for-agent", "p1", "x"]));
+}
+
 /// `close --comment` writes the closing remark in one call
 /// (seeds-1579): appended after one blank line to every closed record,
 /// reported by a single confirmation line in text mode, while the

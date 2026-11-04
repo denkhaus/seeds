@@ -32,6 +32,17 @@ future command inherits differential coverage by convention.
 Deliberate divergences from the reference — each documented here and
 carrying its own expectation, never a silent split:
 
+- **label id-word refusal (seeds-95a3):** `label add`/`label remove`
+  take exactly ONE issue id; the reference silently treats surplus
+  positionals as label words, so `label add <id1> <id2> <labels...>`
+  labeled id1 with id2 AS A LABEL. Ours refuses any label word that
+  is itself an issue id — one present in the store, or matching the
+  `<project>-<hex4>` generation shape (catches foreign ids like
+  `brightctl-f442` piped in from other trackers) — with a clear error
+  and no write. Ordinary label words (hyphenated, numeric,
+  single-char) flow unchanged; the differential battery's plain-word
+  cases stay byte-identical.
+
 - **Help honesty:** `seeds --help` lists only implemented commands.
   The full reference surface has graduated: `plan` (seeds-de37),
   `init` + the `config` group (seeds-c813), `onboard`/`completions`

@@ -3,7 +3,37 @@
 use serde_json::{Map, Value, json};
 
 use super::{CommandContext, CommandError, CommandOutcome, WriteFormat, render_write};
-use crate::{render, timeutil};
+use crate::{SeedId, Store, render, timeutil};
+
+/// Rejects label words that are really issue ids (seeds-95a3).
+///
+/// `label add <id1> <id2> <labels...>` takes exactly ONE issue id, so
+/// id2 used to land on id1 as a LABEL — silent store pollution,
+/// discovered only by `label list` afterwards. A word counts as
+/// id-shaped when it validates as a generation-side seed id
+/// (`<project>-<hex4>`, [`SeedId::try_new`]) or matches an id in the
+/// store (the read path accepts shapes the validator rejects, so the
+/// store lookup covers foreign and legacy ids too).
+fn reject_id_words(
+    store: &Store,
+    labels: &[String],
+    verb: &str,
+    json: bool,
+) -> Result<(), CommandError> {
+    for word in labels {
+        if SeedId::try_new(word).is_ok() || store.issue(word).is_some() {
+            return Err(CommandError::new(
+                "label",
+                format!(
+                    "'{word}' looks like an issue id, not a label — label {verb} takes exactly \
+                     one issue id; run it once per issue"
+                ),
+                json,
+            ));
+        }
+    }
+    Ok(())
+}
 
 /// Typed input for `label add`.
 #[derive(Clone, Debug, Default)]
@@ -37,7 +67,6 @@ pub fn label_add(ctx: &CommandContext, input: &LabelAddInput) -> CommandOutcome 
                 json,
             ));
         }
-        let labels = input.labels.clone();
         let mut store = ctx
             .open_store_exclusive()
             .map_err(|message| CommandError::new("label", message, json))?;
@@ -48,6 +77,8 @@ pub fn label_add(ctx: &CommandContext, input: &LabelAddInput) -> CommandOutcome 
                 json,
             ));
         }
+        reject_id_words(&store, &input.labels, "add", json)?;
+        let labels = input.labels.clone();
         let now = timeutil::now_iso();
         {
             let record = store.issue_mut(&id).expect("existence checked above");
@@ -124,6 +155,7 @@ pub fn label_remove(ctx: &CommandContext, input: &LabelRemoveInput) -> CommandOu
                 json,
             ));
         }
+        reject_id_words(&store, &labels, "remove", json)?;
         let now = timeutil::now_iso();
         {
             let record = store.issue_mut(&id).expect("existence checked above");
