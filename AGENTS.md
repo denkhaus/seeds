@@ -26,6 +26,13 @@ GitHub Releases artifact (`ARG SEEDS_VERSION` in
 `.fabro/Dockerfile.toolchain`, seeds-d54c) — bump the pin to move the
 image to a new release.
 
+**Operator note (2026-11-08): fabro runs are POSTPONED.** Loop-asset
+files (version pins, prompts, Dockerfile) stay maintained as plain
+file updates, but do NOT build or push the toolchain image
+(`just run-images` / `just image-release` / ghcr pushes are on hold)
+and do not start runs. The deferred image rebuild + sha repin is
+tracked in its own seed.
+
 ## Issue tracking (Seeds)
 
 Work is tracked in Seeds (the `seeds` binary, built from `crates/seeds`,
