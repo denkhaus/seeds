@@ -58,7 +58,7 @@ fn child_plans(plan: &PlanRecord, store: &Store, depth: u32, max_depth: u32) -> 
                 "plan_id": sub.id().as_str(),
                 "truncated": true,
                 "hint": format!(
-                    "depth limit reached — use `sd plan show {}` to drill in",
+                    "depth limit reached — use `seeds plan show {}` to drill in",
                     sub.id()
                 ),
             }));

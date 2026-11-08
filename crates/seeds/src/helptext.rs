@@ -13,7 +13,7 @@ pub(crate) fn global() -> String {
 }
 
 const GLOBAL_BODY: &str = "\
-Usage: sd <command> [options]
+Usage: seeds <command> [options]
 
 Commands (implemented in this build):
   create            Create a new issue
@@ -55,7 +55,7 @@ Options:
   --verbose         Extra diagnostic output
   --timing          Show command execution time
 
-Run 'sd <command> --help' for command-specific help.";
+Run 'seeds <command> --help' for command-specific help.";
 
 /// sd-0.5.15 surface commands this build does NOT implement yet (help
 /// honesty, seeds-25b5): `seeds --help` lists only implemented commands,
@@ -64,7 +64,7 @@ Run 'sd <command> --help' for command-specific help.";
 pub(crate) const PLANNED: &[&str] = &["migrate-from-beads"];
 
 pub(crate) const TPL: &str = "\"
-Usage: sd tpl [options] [command]
+Usage: seeds tpl [options] [command]
 
 Manage issue templates (molecules)
 
@@ -81,7 +81,7 @@ Commands:
   help [command]         display help for command";
 
 pub(crate) const TPL_CREATE: &str = "\"
-Usage: sd tpl create [options]
+Usage: seeds tpl create [options]
 
 Create a new template
 
@@ -91,7 +91,7 @@ Options:
   -h, --help     display help for command";
 
 pub(crate) const TPL_STEP: &str = "\"
-Usage: sd tpl step [options] [command]
+Usage: seeds tpl step [options] [command]
 
 Manage template steps
 
@@ -103,7 +103,7 @@ Commands:
   help [command]      display help for command";
 
 pub(crate) const TPL_STEP_ADD: &str = "\"
-Usage: sd tpl step add [options] <id>
+Usage: seeds tpl step add [options] <id>
 
 Add a step to a template
 
@@ -115,7 +115,7 @@ Options:
   -h, --help      display help for command";
 
 pub(crate) const TPL_LIST: &str = "\"
-Usage: sd tpl list [options]
+Usage: seeds tpl list [options]
 
 List all templates
 
@@ -124,7 +124,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const TPL_SHOW: &str = "\"
-Usage: sd tpl show [options] <id>
+Usage: seeds tpl show [options] <id>
 
 Show template with steps
 
@@ -133,7 +133,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const TPL_POUR: &str = "\"
-Usage: sd tpl pour [options] <id>
+Usage: seeds tpl pour [options] <id>
 
 Instantiate template into issues
 
@@ -143,7 +143,7 @@ Options:
   -h, --help       display help for command";
 
 pub(crate) const TPL_STATUS: &str = "\"
-Usage: sd tpl status [options] <id>
+Usage: seeds tpl status [options] <id>
 
 Show convoy status for a template
 
@@ -152,7 +152,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const UPGRADE: &str = "\
-Usage: sd upgrade [options]
+Usage: seeds upgrade [options]
 
 Upgrade seeds to the latest version from GitHub Releases
 
@@ -162,7 +162,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const ONBOARD: &str = "\
-Usage: sd onboard [options]
+Usage: seeds onboard [options]
 
 Add seeds section to CLAUDE.md / AGENTS.md
 
@@ -173,7 +173,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const COMPLETIONS: &str = "\
-Usage: sd completions [options] <shell>
+Usage: seeds completions [options] <shell>
 
 Output shell completion script
 
@@ -184,7 +184,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const INIT: &str = "\
-Usage: sd init [options]
+Usage: seeds init [options]
 
 Initialize .seeds/ in current directory
 
@@ -193,7 +193,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const CONFIG: &str = "\
-Usage: sd config [options] [command]
+Usage: seeds config [options] [command]
 
 Read, write, and inspect .seeds/config.yaml
 
@@ -209,7 +209,7 @@ Commands:
   help [command]                display help for command";
 
 pub(crate) const CONFIG_SCHEMA: &str = "\
-Usage: sd config schema [options]
+Usage: seeds config schema [options]
 
 Emit the JSON Schema for .seeds/config.yaml
 
@@ -218,7 +218,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const CONFIG_SHOW: &str = "\
-Usage: sd config show [options]
+Usage: seeds config show [options]
 
 Print the current config (or a value at --path)
 
@@ -228,7 +228,7 @@ Options:
   -h, --help     display help for command";
 
 pub(crate) const CONFIG_SET: &str = "\
-Usage: sd config set [options] <path> <value>
+Usage: seeds config set [options] <path> <value>
 
 Set a config value at <path>; <value> is YAML-parsed
 
@@ -237,7 +237,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const CONFIG_UNSET: &str = "\
-Usage: sd config unset [options] <path>
+Usage: seeds config unset [options] <path>
 
 Remove the config value at <path>
 
@@ -246,7 +246,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const CREATE: &str = "\
-Usage: sd create [options]
+Usage: seeds create [options]
 
 Create a new issue
 
@@ -262,7 +262,7 @@ Options:
   -h, --help            display help for command";
 
 pub(crate) const SHOW: &str = "\
-Usage: sd show [options] <id> [ids...]
+Usage: seeds show [options] <id> [ids...]
 
 Show one or more issues
 
@@ -272,7 +272,7 @@ Options:
   -h, --help       display help for command";
 
 pub(crate) const LIST: &str = "\
-Usage: sd list [options]
+Usage: seeds list [options]
 
 List issues with filters
 
@@ -294,7 +294,7 @@ Options:
   -h, --help            display help for command";
 
 pub(crate) const READY: &str = "\
-Usage: sd ready [options]
+Usage: seeds ready [options]
 
 Show open issues with no unresolved blockers
 
@@ -316,7 +316,7 @@ Options:
   -h, --help            display help for command";
 
 pub(crate) const SEARCH: &str = "\
-Usage: sd search [options] <query>
+Usage: seeds search [options] <query>
 
 Full-text search title + description
 
@@ -340,7 +340,7 @@ Options:
   -h, --help            display help for command";
 
 pub(crate) const UPDATE: &str = "\
-Usage: sd update [options] <id>
+Usage: seeds update [options] <id>
 
 Update issue fields
 
@@ -363,7 +363,7 @@ Options:
   -h, --help                        display help for command";
 
 pub(crate) const CLOSE: &str = "\
-Usage: sd close [options] <id> [ids...]
+Usage: seeds close [options] <id> [ids...]
 
 Close one or more issues
 
@@ -375,7 +375,7 @@ Options:
   -h, --help        display help for command";
 
 pub(crate) const DEP: &str = "\
-Usage: sd dep [options] [command]
+Usage: seeds dep [options] [command]
 
 Manage issue dependencies
 
@@ -389,7 +389,7 @@ Commands:
   help [command]                         display help for command";
 
 pub(crate) const DEP_ADD: &str = "\
-Usage: sd dep add [options] <issue> <depends-on>
+Usage: seeds dep add [options] <issue> <depends-on>
 
 Add a dependency (issue depends on depends-on)
 
@@ -399,7 +399,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const DEP_REMOVE: &str = "\
-Usage: sd dep remove [options] <issue> <depends-on>
+Usage: seeds dep remove [options] <issue> <depends-on>
 
 Remove a dependency
 
@@ -409,7 +409,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const DEP_LIST: &str = "\
-Usage: sd dep list [options] <issue>
+Usage: seeds dep list [options] <issue>
 
 Show dependencies for an issue
 
@@ -419,7 +419,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const BLOCKED: &str = "\
-Usage: sd blocked [options]
+Usage: seeds blocked [options]
 
 Show all blocked issues
 
@@ -429,7 +429,7 @@ Options:
   -h, --help       display help for command";
 
 pub(crate) const BLOCK: &str = "\
-Usage: sd block [options] <id>
+Usage: seeds block [options] <id>
 
 Add a blocker to an issue
 
@@ -443,7 +443,7 @@ Options:
   -h, --help         display help for command";
 
 pub(crate) const UNBLOCK: &str = "\
-Usage: sd unblock [options] <id>
+Usage: seeds unblock [options] <id>
 
 Remove blockers from an issue
 
@@ -458,7 +458,7 @@ Options:
   -h, --help           display help for command";
 
 pub(crate) const LABEL: &str = "\
-Usage: sd label [options] [command]
+Usage: seeds label [options] [command]
 
 Manage issue labels
 
@@ -473,7 +473,7 @@ Commands:
   help [command]                        display help for command";
 
 pub(crate) const LABEL_ADD: &str = "\
-Usage: sd label add [options] <issue> <labels...>
+Usage: seeds label add [options] <issue> <labels...>
 
 Add labels to an issue
 
@@ -483,7 +483,7 @@ Options:
   -h, --help       display help for command";
 
 pub(crate) const LABEL_REMOVE: &str = "\
-Usage: sd label remove [options] <issue> <labels...>
+Usage: seeds label remove [options] <issue> <labels...>
 
 Remove labels from an issue
 
@@ -493,7 +493,7 @@ Options:
   -h, --help       display help for command";
 
 pub(crate) const LABEL_LIST: &str = "\
-Usage: sd label list [options] <issue>
+Usage: seeds label list [options] <issue>
 
 List labels on an issue
 
@@ -503,7 +503,7 @@ Options:
   -h, --help       display help for command";
 
 pub(crate) const LABEL_LIST_ALL: &str = "\
-Usage: sd label list-all [options]
+Usage: seeds label list-all [options]
 
 List all labels used in the project
 
@@ -513,7 +513,7 @@ Options:
   -h, --help       display help for command";
 
 pub(crate) const STATS: &str = "\
-Usage: sd stats [options]
+Usage: seeds stats [options]
 
 Project statistics
 
@@ -537,7 +537,7 @@ Options:
   -h, --help       display help for command";
 
 pub(crate) const DOCTOR: &str = "\
-Usage: sd doctor [options]
+Usage: seeds doctor [options]
 
 Check project health and data integrity
 
@@ -551,7 +551,7 @@ Options:
   -h, --help       display help for command";
 
 pub(crate) const PRIME: &str = "\
-Usage: sd prime [options]
+Usage: seeds prime [options]
 
 Output AI agent context
 
@@ -562,7 +562,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const DEDUPE: &str = "\
-Usage: sd dedupe [options]
+Usage: seeds dedupe [options]
 
 Report and heal duplicate record ids in the tracker JSONL stores
 (issues, plans, templates) — a native seeds addition beyond sd parity.
@@ -577,7 +577,7 @@ Options:
   -h, --help           display help for command";
 
 pub(crate) const SYNC: &str = "\
-Usage: sd sync [options]
+Usage: seeds sync [options]
 
 Stage and commit .seeds/ changes
 
@@ -589,7 +589,7 @@ Options:
 
 /// `seeds plan` group help (sd 0.5.15 output, verbatim).
 pub(crate) const PLAN: &str = "\
-Usage: sd plan [options] [command]
+Usage: seeds plan [options] [command]
 
 Plan management
 
@@ -605,14 +605,14 @@ Commands:
   outcome [options] <id>                     Record a plan outcome (storage-only; not a state transition; accepts plan id or seed id)
   review [options] <id>                      Record a reviewer (informational; not a state transition; accepts plan id or seed id)
   edit [options] <id>                        Edit plan fields in place (accepts plan id or seed id); bumps revision
-  create [options] <seed-id>                 Create an adopt-only plan with zero spawned children (populate via 'sd plan adopt')
+  create [options] <seed-id>                 Create an adopt-only plan with zero spawned children (populate via 'seeds plan adopt')
   adopt [options] <plan-id> <seed-ids...>    Adopt existing open seeds into a plan (link-only; bumps plan revision)
   reorder [options] <plan-id> <seed-ids...>  Set the exact order of plan.children (must be a permutation of current children)
   release [options] <plan-id> <seed-ids...>  Release seeds from a plan (link-only; seeds stay open; bumps plan revision)
   list [options]                             List plans with optional filters";
 
 pub(crate) const PLAN_TEMPLATES: &str = "\
-Usage: sd plan templates [options]
+Usage: seeds plan templates [options]
 
 List available plan templates
 
@@ -621,7 +621,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const PLAN_PROMPT: &str = "\
-Usage: sd plan prompt [options] <seed-id>
+Usage: seeds plan prompt [options] <seed-id>
 
 Emit structured planning prompt JSON for a seed
 
@@ -632,7 +632,7 @@ Options:
   -h, --help         display help for command";
 
 pub(crate) const PLAN_SUBMIT: &str = "\
-Usage: sd plan submit [options] <seed-id>
+Usage: seeds plan submit [options] <seed-id>
 
 Validate a plan, spawn children, write plans.jsonl row
 
@@ -660,7 +660,7 @@ Plan file shape:
     }
   }
 
-The shape mirrors 'sd plan prompt': drop the plan_request wrapper, and
+The shape mirrors 'seeds plan prompt': drop the plan_request wrapper, and
 sections is an object keyed by name (not the array of section metadata
 that the prompt emits). Section names and value kinds match the template.
 
@@ -668,7 +668,7 @@ Plan name resolution:
   --name flag > plan JSON 'name' > parent seed title (fallback)";
 
 pub(crate) const PLAN_SHOW: &str = "\
-Usage: sd plan show [options] <id>
+Usage: seeds plan show [options] <id>
 
 Show a plan with sections, children, and status (accepts plan id or seed id)
 
@@ -677,7 +677,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const PLAN_VALIDATE: &str = "\
-Usage: sd plan validate [options] <id>
+Usage: seeds plan validate [options] <id>
 
 Re-run validation against the current template definition (accepts plan id or
 seed id)
@@ -687,7 +687,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const PLAN_OUTCOME: &str = "\
-Usage: sd plan outcome [options] <id>
+Usage: seeds plan outcome [options] <id>
 
 Record a plan outcome (storage-only; not a state transition; accepts plan id or
 seed id)
@@ -699,7 +699,7 @@ Options:
   -h, --help        display help for command";
 
 pub(crate) const PLAN_REVIEW: &str = "\
-Usage: sd plan review [options] <id>
+Usage: seeds plan review [options] <id>
 
 Record a reviewer (informational; not a state transition; accepts plan id or
 seed id)
@@ -710,7 +710,7 @@ Options:
   -h, --help   display help for command";
 
 pub(crate) const PLAN_EDIT: &str = "\
-Usage: sd plan edit [options] <id>
+Usage: seeds plan edit [options] <id>
 
 Edit plan fields in place (accepts plan id or seed id); bumps revision
 
@@ -730,9 +730,9 @@ Options:
   -h, --help                    display help for command";
 
 pub(crate) const PLAN_CREATE: &str = "\
-Usage: sd plan create [options] <seed-id>
+Usage: seeds plan create [options] <seed-id>
 
-Create an adopt-only plan with zero spawned children (populate via 'sd plan
+Create an adopt-only plan with zero spawned children (populate via 'seeds plan
 adopt')
 
 Options:
@@ -742,7 +742,7 @@ Options:
   -h, --help         display help for command";
 
 pub(crate) const PLAN_ADOPT: &str = "\
-Usage: sd plan adopt [options] <plan-id> <seed-ids...>
+Usage: seeds plan adopt [options] <plan-id> <seed-ids...>
 
 Adopt existing open seeds into a plan (link-only; bumps plan revision)
 
@@ -757,7 +757,7 @@ Options:
   -h, --help       display help for command";
 
 pub(crate) const PLAN_REORDER: &str = "\
-Usage: sd plan reorder [options] <plan-id> <seed-ids...>
+Usage: seeds plan reorder [options] <plan-id> <seed-ids...>
 
 Set the exact order of plan.children (must be a permutation of current children)
 
@@ -766,7 +766,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const PLAN_RELEASE: &str = "\
-Usage: sd plan release [options] <plan-id> <seed-ids...>
+Usage: seeds plan release [options] <plan-id> <seed-ids...>
 
 Release seeds from a plan (link-only; seeds stay open; bumps plan revision)
 
@@ -775,7 +775,7 @@ Options:
   -h, --help  display help for command";
 
 pub(crate) const PLAN_LIST: &str = "\
-Usage: sd plan list [options]
+Usage: seeds plan list [options]
 
 List plans with optional filters
 

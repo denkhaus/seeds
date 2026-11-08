@@ -56,14 +56,14 @@ pub fn label_add(ctx: &CommandContext, input: &LabelAddInput) -> CommandOutcome 
         let Some(id) = input.id.clone() else {
             return Err(CommandError::new(
                 "label",
-                "usage: sd label add <issue> <labels...>",
+                "usage: seeds label add <issue> <labels...>",
                 json,
             ));
         };
         if input.labels.is_empty() {
             return Err(CommandError::new(
                 "label",
-                "usage: sd label add <issue> <labels...>",
+                "usage: seeds label add <issue> <labels...>",
                 json,
             ));
         }
@@ -133,14 +133,14 @@ pub fn label_remove(ctx: &CommandContext, input: &LabelRemoveInput) -> CommandOu
         let Some(id) = input.id.clone() else {
             return Err(CommandError::new(
                 "label",
-                "usage: sd label remove <issue> <labels...>",
+                "usage: seeds label remove <issue> <labels...>",
                 json,
             ));
         };
         if input.labels.is_empty() {
             return Err(CommandError::new(
                 "label",
-                "usage: sd label remove <issue> <labels...>",
+                "usage: seeds label remove <issue> <labels...>",
                 json,
             ));
         }
@@ -211,7 +211,7 @@ pub fn label_list(ctx: &CommandContext, input: &LabelListInput) -> CommandOutcom
         let Some(id) = input.id.clone() else {
             return Err(CommandError::new(
                 "label",
-                "usage: sd label list <issue>",
+                "usage: seeds label list <issue>",
                 json,
             ));
         };

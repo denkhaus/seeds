@@ -37,7 +37,7 @@ pub(super) fn run_outcome(
     };
     let Some(idx) = plan_by_id(store, &plan_id).ok() else {
         return plan_error(
-            format!("Plan not found: {plan_id}. Run 'sd plan list' to see available plans."),
+            format!("Plan not found: {plan_id}. Run 'seeds plan list' to see available plans."),
             json,
         );
     };
@@ -120,7 +120,7 @@ pub(super) fn run_review(store: &mut Store, id_arg: &str, by: &str, json: bool) 
     };
     let Some(idx) = plan_by_id(store, &plan_id).ok() else {
         return plan_error(
-            format!("Plan not found: {plan_id}. Run 'sd plan list' to see available plans."),
+            format!("Plan not found: {plan_id}. Run 'seeds plan list' to see available plans."),
             json,
         );
     };
@@ -271,7 +271,7 @@ pub(super) fn run_edit(
 
     let Some(idx) = plan_by_id(store, &plan_id).ok() else {
         return plan_error(
-            format!("Plan not found: {plan_id}. Run 'sd plan list' to see available plans."),
+            format!("Plan not found: {plan_id}. Run 'seeds plan list' to see available plans."),
             json,
         );
     };
@@ -326,7 +326,7 @@ pub(super) fn run_edit(
                 };
                 return Err(format!(
                     "--section editing supports kind=text only (V1). Section '{section_name}' \
-                     is kind={kind_label}. Use 'sd plan submit --overwrite' for structural \
+                     is kind={kind_label}. Use 'seeds plan submit --overwrite' for structural \
                      edits."
                 ));
             }
@@ -359,7 +359,7 @@ pub(super) fn run_edit(
         if let Some(patch) = &step_patch {
             let Some(Value::Array(steps)) = next_sections.get_mut("steps") else {
                 return Err(format!(
-                    "Plan {plan_id} has no steps section to edit. Use 'sd plan submit \
+                    "Plan {plan_id} has no steps section to edit. Use 'seeds plan submit \
                      --overwrite' to add steps."
                 ));
             };

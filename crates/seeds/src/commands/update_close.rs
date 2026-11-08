@@ -158,7 +158,7 @@ pub fn update(ctx: &CommandContext, input: &UpdateInput) -> CommandOutcome {
     let result = (|| -> Result<(SeedRecord, Option<DescriptionShape>), CommandError> {
         let message_of = |text: String| CommandError::new("update", text, json);
         let Some(id) = input.id.clone() else {
-            return Err(message_of("usage: sd update <id>".to_owned()));
+            return Err(message_of("usage: seeds update <id>".to_owned()));
         };
         let verb_count = [
             input.description.is_some(),
@@ -375,7 +375,7 @@ pub fn close(ctx: &CommandContext, input: &CloseInput) -> CommandOutcome {
         if input.ids.is_empty() {
             return Err(CommandError::new(
                 "close",
-                "usage: sd close <id> [ids...]",
+                "usage: seeds close <id> [ids...]",
                 json,
             ));
         }

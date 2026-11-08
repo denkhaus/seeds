@@ -305,9 +305,9 @@ pub fn sync(ctx: &CommandContext, input: &SyncInput) -> CommandOutcome {
     let json = input.json;
     let result = (|| -> Result<SyncOutcome, CommandError> {
         let message_of = |text: String| CommandError::new("sync", text, json);
-        let seeds_dir = ctx
-            .resolve()
-            .map_err(|_| message_of("Not in a seeds project. Run `sd init` first.".to_owned()))?;
+        let seeds_dir = ctx.resolve().map_err(|_| {
+            message_of("Not in a seeds project. Run `seeds init` first.".to_owned())
+        })?;
         let Some(repo) = git_repo_root(seeds_dir.parent().unwrap_or(Path::new("."))) else {
             // The reference's observed behavior outside a git worktree.
             return Ok(SyncOutcome::NoChanges);

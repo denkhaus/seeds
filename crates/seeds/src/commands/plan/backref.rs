@@ -45,7 +45,7 @@ pub(crate) fn build_plan_backref(args: &BackrefArgs<'_>) -> String {
     }
     lines.push(String::new());
     lines.push(format!(
-        "Run `sd plan show {}` for the full plan (context, alternatives, sibling steps, \
+        "Run `seeds plan show {}` for the full plan (context, alternatives, sibling steps, \
          acceptance criteria).",
         args.plan_id
     ));

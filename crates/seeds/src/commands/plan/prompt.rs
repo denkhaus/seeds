@@ -13,7 +13,7 @@ const INSTRUCTIONS: &str = "Fill every section. Required fields are marked. Use 
  label>\", \"sections\": { \"<section-name>\": <value>, ... } } — drop the plan_request wrapper, \
  and sections in your reply is an object keyed by name (not the array of section metadata \
  above). The top-level `name` field is an optional short human-readable label (e.g. \
- \"Schema-driven config editor\"); if you omit it, sd plan submit derives one from the parent \
+ \"Schema-driven config editor\"); if you omit it, seeds plan submit derives one from the parent \
  seed title. Each step is shaped { title?, type?, priority?, blocks?: number[], labels?: \
  string[], plan_template?, existing_seed? }. In each step, `blocks` lists 1-based step indices \
  that this step blocks (step 1 is the first step, step N is the last); e.g. step 1 with `blocks: \
@@ -280,7 +280,7 @@ pub(super) fn run(
     push("");
     push("Pipe --json into a file the LLM fills, then run:");
     push(&format!(
-        "  sd plan submit {} --plan <file>",
+        "  seeds plan submit {} --plan <file>",
         plan_request["seed"].as_str().unwrap_or_default()
     ));
     crate::commands::CommandOutcome {

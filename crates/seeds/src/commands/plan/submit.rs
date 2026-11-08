@@ -347,7 +347,7 @@ pub(super) fn run(
     if !outcome.obsolete.is_empty() {
         for id in &outcome.obsolete {
             outcome.stderr.push_str(&format!(
-                "sd close {id} --reason \"obsoleted by plan {} revision {}\"\n",
+                "seeds close {id} --reason \"obsoleted by plan {} revision {}\"\n",
                 outcome.plan_id, outcome.revision
             ));
         }
@@ -420,12 +420,12 @@ pub(super) fn run(
     let reviewable =
         outcome.reviewed_by.is_none() && matches!(outcome.status.as_str(), "approved" | "active");
     outcome.stderr.push_str(&format!(
-        "\nNext:\n  sd plan show {}          # review the plan as a unit\n  sd ready                      # pick up the first child step\n",
+        "\nNext:\n  seeds plan show {}          # review the plan as a unit\n  seeds ready                      # pick up the first child step\n",
         outcome.plan_id
     ));
     if reviewable {
         outcome.stderr.push_str(&format!(
-            "  sd plan review {} --by <name>   # record approval (optional)\n",
+            "  seeds plan review {} --by <name>   # record approval (optional)\n",
             outcome.plan_id
         ));
     }

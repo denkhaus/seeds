@@ -317,6 +317,36 @@ fn parse_json(text: &str) -> Option<Value> {
     serde_json::from_str(text.trim()).ok()
 }
 
+/// Rewrites the reference's self-referential `sd ` command prefixes to
+/// `seeds ` before comparison: shipped strings name THIS binary (the
+/// seeds-3791 cutover law the prime battery pioneered), and the
+/// help-text promotion (seeds-9667) extended it from the prime
+/// template to every usage line, error hint, and plan scaffold —
+/// nothing provides `sd` on PATH, so unpromoted reference bytes would
+/// pin output telling users to run a retired binary.
+fn promote_reference(text: &str) -> String {
+    text.replace("sd ", "seeds ")
+}
+
+/// `promote_reference` for already-parsed JSON — store records carry
+/// the plan backref hint line inside seed descriptions.
+fn promote_reference_json(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            for (_, inner) in map {
+                promote_reference_json(inner);
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                promote_reference_json(item);
+            }
+        }
+        Value::String(text) => *text = promote_reference(text),
+        _ => {}
+    }
+}
+
 fn store_records(dir: &Path) -> Vec<Value> {
     let text = fs::read_to_string(dir.join(".seeds/issues.jsonl")).expect("issues.jsonl");
     text.lines()
@@ -346,7 +376,7 @@ fn assert_output_parity(case: &str, sd: &Output, ours: &Output) {
         String::from_utf8_lossy(&sd.stderr),
         String::from_utf8_lossy(&ours.stderr),
     );
-    let sd_text = String::from_utf8_lossy(&sd.stdout);
+    let sd_text = promote_reference(&String::from_utf8_lossy(&sd.stdout));
     let ours_text = String::from_utf8_lossy(&ours.stdout);
     match (parse_json(&sd_text), parse_json(&ours_text)) {
         (Some(mut sd_value), Some(mut mut_ours)) => {
@@ -372,6 +402,7 @@ fn assert_store_parity(case: &str, pair: &Pair) {
     let mut ours_records = store_records(&pair.ours_dir);
     for record in &mut sd_records {
         normalize_volatile(record);
+        promote_reference_json(record);
     }
     for record in &mut ours_records {
         normalize_volatile(record);
@@ -962,14 +993,18 @@ fn matrix_covers_every_implemented_command() {
         (
             // sync mutates git history, needs a committer identity, and
             // carries one documented deviation (untracked-dir expansion)
-            // — the tailored test pins parity per scenario.
+            // — the tailored test pins parity per scenario; its stderr
+            // comparison promotes the reference's `sd ` hints (the
+            // self-referential-strings deviation, seeds-9667).
             "sync",
             "differential_sync_matches_sd",
         ),
         (
             // Random pl-/tst- child ids and `now` stamps make a plain
             // argv comparison meaningless — the tailored test runs a
-            // full plan lifecycle sequence with ids normalized.
+            // full plan lifecycle sequence with ids normalized; the
+            // reference's `sd ` hint strings (stdout envelopes, backref
+            // descriptions) are promoted to `seeds ` (seeds-9667).
             "plan",
             "differential_plan_matches_sd",
         ),
@@ -1580,7 +1615,7 @@ fn differential_sync_matches_sd() {
     let ours = capture(&bare, &our_binary(), &["sync"]);
     assert_eq!(sd.status.code(), ours.status.code());
     assert_eq!(
-        String::from_utf8_lossy(&sd.stderr).trim(),
+        promote_reference(&String::from_utf8_lossy(&sd.stderr)).trim(),
         String::from_utf8_lossy(&ours.stderr).trim(),
         "not-in-a-project error diverged"
     );
@@ -1885,7 +1920,7 @@ fn differential_plan_matches_sd() {
             String::from_utf8_lossy(&sd.stderr),
             String::from_utf8_lossy(&ours.stderr),
         );
-        let sd_text = String::from_utf8_lossy(&sd.stdout);
+        let sd_text = promote_reference(&String::from_utf8_lossy(&sd.stdout));
         let ours_text = String::from_utf8_lossy(&ours.stdout);
         match (parse_json(&sd_text), parse_json(&ours_text)) {
             (Some(sd_value), Some(ours_value)) => {
@@ -1922,6 +1957,7 @@ fn differential_plan_matches_sd() {
         let mut ours_records = read(&pair.ours_dir);
         for record in &mut sd_records {
             normalize_ids(record, &mut sd_children, &mut sd_plans);
+            promote_reference_json(record);
         }
         for record in &mut ours_records {
             normalize_ids(record, &mut ours_children, &mut ours_plans);

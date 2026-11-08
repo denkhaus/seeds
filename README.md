@@ -88,6 +88,20 @@ carrying its own expectation, never a silent split:
   which rewrites the reference's `sd ` command prefixes to `seeds `,
   strips our pace lines, and compares stdout byte-for-byte on all four
   surfaces.
+- **self-referential command strings name `seeds` (seeds-9667):** the
+  prime-template law above, extended to the whole surface — every
+  `Usage:` header, `usage:` error, and follow-up hint (`Run 'seeds
+  plan list' …`, the plan `Next:` blocks, the backref line written
+  into seed descriptions, the `seeds close … --reason` obsoletion
+  hint, `seeds init` in the not-in-a-project error) names this binary,
+  because nothing provides `sd` on PATH since the cutover and
+  reference-worded hints would send users at a retired binary. The
+  differential battery promotes the reference's `sd ` command
+  prefixes to `seeds ` before every stdout/stderr/store comparison
+  (the rewrite the prime case pioneered, now in the shared comparison
+  helpers). Deliberate parity framing stays versioned and unpromoted:
+  `sd-0.5.15 read+write compatible` (`--version`), the
+  `beyond sd parity` notes on native additions.
 - **completions surface:** the shell scripts enumerate the implemented
   command surface only (the help-honesty rule above), not the
   reference's full list; the error surface (`unknown shell`, missing

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/jayminwest/seeds/config.schema.json",
   "title": "Seeds project config",
-  "description": "Schema for .seeds/config.yaml. Consumed by warren's schema-driven UI; emit via `sd config schema`.",
+  "description": "Schema for .seeds/config.yaml. Consumed by warren's schema-driven UI; emit via `seeds config schema`.",
   "type": "object",
   "required": [
     "project",
@@ -26,7 +26,7 @@
       "type": "integer",
       "minimum": 1,
       "title": "Max plan depth",
-      "description": "Display-only depth limit for `sd plan show` recursion through nested sub-plans.",
+      "description": "Display-only depth limit for `seeds plan show` recursion through nested sub-plans.",
       "default": 3
     },
     "plan_templates": {
@@ -180,7 +180,7 @@
         "description": {
           "type": "string",
           "title": "Description",
-          "description": "Human-readable summary shown in `sd plan templates`."
+          "description": "Human-readable summary shown in `seeds plan templates`."
         },
         "sections": {
           "type": "object",

@@ -320,12 +320,12 @@ pub(crate) fn resolve_plan_id(store: &Store, arg: &str) -> Result<String, PlanEr
     }
     let Some(seed) = store.issue(arg) else {
         return Err(format!(
-            "Plan not found: {arg}. Run 'sd plan list' to see available plans."
+            "Plan not found: {arg}. Run 'seeds plan list' to see available plans."
         ));
     };
     let Some(plan_id) = seed.field("plan_id").and_then(Value::as_str) else {
         return Err(format!(
-            "Seed {arg} has no plan. Submit one with 'sd plan submit {arg} --plan <file>'."
+            "Seed {arg} has no plan. Submit one with 'seeds plan submit {arg} --plan <file>'."
         ));
     };
     Ok(plan_id.to_owned())
@@ -338,7 +338,7 @@ pub(crate) fn plan_by_id(store: &Store, plan_id: &str) -> Result<usize, PlanErro
         .iter()
         .position(|record| record.id().as_str() == plan_id)
         .ok_or_else(|| {
-            format!("Plan not found: {plan_id}. Run 'sd plan list' to see available plans.")
+            format!("Plan not found: {plan_id}. Run 'seeds plan list' to see available plans.")
         })
 }
 

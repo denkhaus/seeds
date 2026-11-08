@@ -57,7 +57,7 @@ pub(super) fn run_create(
                 "aborted".to_owned(),
                 format!(
                     "✗ plan {} already exists for {seed_id} (status: {}, revision: {})\n  Adopt \
-                     seeds into it with 'sd plan adopt {} <seed-ids...>'.\n",
+                     seeds into it with 'seeds plan adopt {} <seed-ids...>'.\n",
                     existing.id(),
                     existing
                         .field("status")
@@ -139,7 +139,7 @@ pub(super) fn run_create(
         &format!("plan {plan_id} created (status: approved, adopt-only)"),
     );
     let stderr = format!(
-        "\nNext:\n  sd plan adopt {plan_id} <seed-ids...>   # populate children in order\n  sd \
+        "\nNext:\n  seeds plan adopt {plan_id} <seed-ids...>   # populate children in order\n  seeds \
          plan reorder {plan_id} <seed-ids...> # set the exact children order\n"
     );
     CommandOutcome {
@@ -275,7 +275,7 @@ pub(super) fn run_adopt(
     let result = (|| -> Result<(String, Vec<String>, u64), PlanError> {
         let Some(plan_idx) = plan_by_id(store, &plan_id).ok() else {
             return Err(format!(
-                "Plan not found: {plan_id}. Run 'sd plan list' to see available plans."
+                "Plan not found: {plan_id}. Run 'seeds plan list' to see available plans."
             ));
         };
         if let Some(step_index) = step_index {
@@ -496,7 +496,7 @@ pub(super) fn run_release(
     let result = (|| -> Result<(String, Vec<String>, u64), PlanError> {
         let Some(plan_idx) = plan_by_id(store, &plan_id).ok() else {
             return Err(format!(
-                "Plan not found: {plan_id}. Run 'sd plan list' to see available plans."
+                "Plan not found: {plan_id}. Run 'seeds plan list' to see available plans."
             ));
         };
         let parent_id = store.plans[plan_idx].seed().unwrap_or_default().to_owned();
@@ -656,7 +656,7 @@ pub(super) fn run_reorder(
     let result = (|| -> Result<(String, Vec<String>, u64), PlanError> {
         let Some(plan_idx) = plan_by_id(store, &plan_id).ok() else {
             return Err(format!(
-                "Plan not found: {plan_id}. Run 'sd plan list' to see available plans."
+                "Plan not found: {plan_id}. Run 'seeds plan list' to see available plans."
             ));
         };
         let current = store.plans[plan_idx].children();
@@ -668,7 +668,7 @@ pub(super) fn run_reorder(
         if !extra.is_empty() {
             let names = extra.join(", ");
             return Err(format!(
-                "{names} {} not {} of plan {plan_id}. Adopt first with 'sd plan adopt'.",
+                "{names} {} not {} of plan {plan_id}. Adopt first with 'seeds plan adopt'.",
                 if extra.len() == 1 { "is" } else { "are" },
                 if extra.len() == 1 {
                     "a child"
@@ -684,7 +684,7 @@ pub(super) fn run_reorder(
             .collect();
         if !missing.is_empty() {
             return Err(format!(
-                "reorder must list every child exactly once; missing: {}. Use 'sd plan \
+                "reorder must list every child exactly once; missing: {}. Use 'seeds plan \
                  release' to drop a child.",
                 missing.join(", ")
             ));

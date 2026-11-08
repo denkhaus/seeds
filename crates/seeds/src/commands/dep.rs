@@ -54,7 +54,7 @@ pub fn dep_add(ctx: &CommandContext, input: &DepAddInput) -> CommandOutcome {
         if input.ids.len() != 2 {
             return Err(CommandError::new(
                 "dep",
-                "usage: sd dep add <issue> <depends-on>",
+                "usage: seeds dep add <issue> <depends-on>",
                 json,
             ));
         }
@@ -129,7 +129,7 @@ pub fn dep_remove(ctx: &CommandContext, input: &DepRemoveInput) -> CommandOutcom
         if input.ids.len() != 2 {
             return Err(CommandError::new(
                 "dep",
-                "usage: sd dep remove <issue> <depends-on>",
+                "usage: seeds dep remove <issue> <depends-on>",
                 json,
             ));
         }
@@ -196,7 +196,11 @@ pub fn dep_list(ctx: &CommandContext, input: &DepListInput) -> CommandOutcome {
     let json = mode == WriteFormat::Json;
     let result = (|| -> Result<(crate::Store, SeedRecord), CommandError> {
         let Some(id) = input.id.clone() else {
-            return Err(CommandError::new("dep", "usage: sd dep list <issue>", json));
+            return Err(CommandError::new(
+                "dep",
+                "usage: seeds dep list <issue>",
+                json,
+            ));
         };
         let store = ctx
             .open_store()
@@ -331,7 +335,7 @@ pub fn block(ctx: &CommandContext, input: &BlockInput) -> CommandOutcome {
         };
         let Some(blocker_id) = input.by.clone() else {
             return Err(CommandError::stderr_only(
-                "Error: Usage: sd block <id> --by <blocker-id>",
+                "Error: Usage: seeds block <id> --by <blocker-id>",
             ));
         };
         let mut store = ctx
@@ -410,7 +414,7 @@ pub fn unblock(ctx: &CommandContext, input: &UnblockInput) -> CommandOutcome {
         let all = input.all;
         if from.is_none() && !all {
             return Err(CommandError::stderr_only(
-                "Error: Usage: sd unblock <id> [--from <blocker-id> | --all]",
+                "Error: Usage: seeds unblock <id> [--from <blocker-id> | --all]",
             ));
         }
         let mut store = ctx
