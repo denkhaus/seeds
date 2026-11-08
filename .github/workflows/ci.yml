@@ -23,6 +23,22 @@ jobs:
         run: |
           bun install --frozen-lockfile
           ./sd --version | grep -q '0.5.15' || { echo "gate FAIL: sd-0.5.15 reference did not answer correctly"; exit 1; }
+      - name: Provision the native mulch binary (coupling battery, fail-hard in gate context)
+        env:
+          # Bump with each mulch release the coupling must track
+          # (tag == version, strictly — same discipline as SEEDS_VERSION).
+          MULCH_VERSION: 0.1.0
+        run: |
+          set -eux
+          asset="mulch-${MULCH_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          base="https://github.com/denkhaus/mulch/releases/download/v${MULCH_VERSION}"
+          curl -fsSL -o "/tmp/${asset}" "${base}/${asset}"
+          curl -fsSL -o /tmp/SHASUMS.txt "${base}/SHASUMS.txt"
+          grep "  ${asset}\$" /tmp/SHASUMS.txt | (cd /tmp && sha256sum -c -)
+          tar -xzf "/tmp/${asset}" -C /tmp
+          /tmp/mulch --version | grep -q "${MULCH_VERSION}" || { echo "gate FAIL: mulch ${MULCH_VERSION} did not answer correctly"; exit 1; }
       - run: cargo +nightly-2026-09-22 fmt --check --all
       - run: cargo +nightly-2026-09-22 clippy --workspace --all-targets -- -D warnings
       - run: cargo nextest run --workspace
+        env:
+          SEEDS_MULCH: /tmp/mulch

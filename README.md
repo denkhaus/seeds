@@ -322,7 +322,12 @@ carrying its own expectation, never a silent split:
   `--record-decision` on `submit`) is implemented as real best-effort
   `mulch` shell-outs — the native Rust rewrite of the reference's `ml`
   (the cutover renamed the binary, seeds-26c3; sd shelled out to the
-  retired `ml`). Two deliberate divergences: (1) plan
+  retired `ml`). The coupling contract is pinned by
+  `tests/mulch_coupling.rs` against the real mulch binary (envelope
+  shapes plus both end-to-end flows; `SEEDS_MULCH` env override, PATH
+  fallback, skip-with-note when absent — CI provisions the pinned
+  release artifact and runs it fail-hard). Two deliberate divergences:
+  (1) plan
   status lifecycle recompute — sd's `update`/`close` recompute
   `approved → active → done` from child statuses on every status
   change; this build does not yet wire that (a plan's `status` changes
