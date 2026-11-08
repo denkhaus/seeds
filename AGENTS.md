@@ -17,8 +17,9 @@ the deciding record is ADR-0023 in denkhaus/fabro.
 - `just image` — build the run-sandbox toolchain image
 
 The Rust toolchain is owned by rustup (pinned `nightly-2026-09-22`);
-mise owns just/bun/nushell/ripgrep and (bootstrap phase) the jayminwest
-ml CLI. The tracker is this repo's own `seeds` binary (self-hosting
+mise owns just/bun/nushell/ripgrep and the native `mulch` binary
+(`cargo:mulch`, the Rust ml rewrite — self-hosting cutover). The tracker
+is this repo's own `seeds` binary (self-hosting
 cutover, seeds-3791): `cargo install --path crates/seeds` puts it on
 PATH via rustup's cargo bin; the toolchain image consumes the pinned
 GitHub Releases artifact (`ARG SEEDS_VERSION` in
@@ -47,8 +48,8 @@ git-native in `.seeds/`), not GitHub Issues. Seed ids carry the prefix
 
 ## Expertise (Mulch)
 
-- **Session start:** run `ml prime`.
-- Before finishing a task, record durable insights (`ml record <domain>
+- **Session start:** run `mulch prime`.
+- Before finishing a task, record durable insights (`mulch record <domain>
   --type <convention|pattern|failure|decision|reference|guide>
   --description "..."`); skip when nothing surfaced. Upserts by `--name`
   merge outcomes — amend the existing record instead of filing a second
@@ -66,7 +67,7 @@ them. Run PRs integrate into `main` — there is no upstream mirror.
 
 `.fabro/`, `.seeds/`, `.mulch/`, `scripts/`, and `justfile` are fs_hide
 bound for file tools in runs; the shell reads and writes them normally
-(grep, sed, cat, python3 heredocs), and `seeds`, `ml`, `just` keep
+(grep, sed, cat, python3 heredocs), and `seeds`, `mulch`, `just` keep
 working.
 
 ## Clone layout

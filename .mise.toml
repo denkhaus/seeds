@@ -14,12 +14,11 @@ bun = "1.4.0"
 "aqua:nushell/nushell" = "0.115.0"
 "aqua:BurntSushi/ripgrep" = "15.2.0"
 "cargo:seeds" = "0.11.1"
-# Bootstrap phase remainder (ADR-0023): the jayminwest mulch CLI, the
-# read+write compatible expertise target, until the mulch phase replaces
-# it. The seeds CLI (@os-eco/seeds-cli) was dropped at the
-# self-hosting cutover (seeds-3791); the sd-0.5.15 compat reference for
-# the round-trip suite lives in crates/seeds/tests/fixtures/sd-reference.
-"npm:@os-eco/mulch-cli" = "0.10.7"
+# The mulch self-hosting cutover (native Rust rewrite of the jayminwest
+# ml CLI): read+write drop-in compatible with @os-eco/mulch-cli 0.10.7,
+# binary `mulch` replaces `ml`. Same cutover pattern as cargo:seeds
+# (seeds-3791); bump with each mulch release (tag == version, strictly).
+"cargo:mulch" = "0.1.0"
 
 [settings.npm]
 # Non-TTY installs abort on the default backend's interactive approval
