@@ -94,11 +94,20 @@ impl Store {
     /// Returns [`Error`] on I/O failures.
     pub fn save(&self) -> Result<(), Error> {
         let config_path = self.root.join("config.yaml");
-        // to_yaml is chomped, so this format! supplies the file's
-        // single final newline (seeds-d2c5) — never a blank line at
-        // EOF, which broke consuming repos' yamllint empty-lines
-        // gates.
-        write_file(&config_path, format!("{}\n", self.config.to_yaml()))?;
+        // seeds-a84c: ONE serializer — the reference dumper — and store
+        // ops rewrite config.yaml ONLY on a logical content change. A
+        // parsed-equal on-disk file stays byte-untouched, so a store
+        // save never re-quotes or re-orders what `init`/`config set`
+        // (or the user) just wrote; the old unconditional rewrite
+        // ping-ponged quote styles across commands. Unreadable or
+        // logically-drifted bytes get restored through the one writer.
+        let on_disk = fs::read_to_string(&config_path).ok();
+        let logically_equal = on_disk.is_some_and(|text| {
+            Config::parse(&text, &config_path).is_ok_and(|parsed| parsed == self.config)
+        });
+        if !logically_equal {
+            write_file(&config_path, self.config.to_reference_yaml())?;
+        }
 
         save_jsonl(
             &self.root,
@@ -304,20 +313,57 @@ mod tests {
         fs::remove_dir_all(root.parent().expect("parent")).ok();
     }
 
-    // seeds-d2c5: a store-saved config.yaml ends with exactly ONE
-    // newline — never the blank line that broke consuming repos'
-    // yamllint empty-lines gates (fabro-tofu incident). The bytes
-    // are pinned exactly: serde_yaml's document plus one final '\n'.
+    // seeds-a84c: a store save leaves a parsed-equal config.yaml
+    // byte-untouched — whatever style wrote it. The reference-dumper
+    // bytes temp_store writes survive verbatim, and so do legacy
+    // serde-styled bytes (single quotes): the old unconditional
+    // rewrite flipped them back and forth across commands.
     #[test]
-    fn save_writes_config_with_a_single_final_newline() {
-        let root = temp_store("config-eof");
+    fn save_leaves_parsed_equal_config_bytes_untouched() {
+        let root = temp_store("config-preserve");
         let store = Store::open(&root).expect("store opens");
+        store.save().expect("save");
+        let config = fs::read_to_string(root.join("config.yaml")).expect("config.yaml");
+        assert_eq!(
+            config, "project: \"tst\"\nversion: \"1\"\n",
+            "reference-dumper bytes survive a store save untouched"
+        );
+
+        // Legacy-styled bytes (single-quoted version, explicit default
+        // depth) parse to the same logical config — they must survive
+        // too, never be re-quoted by a store op.
+        fs::write(
+            root.join("config.yaml"),
+            "project: tst\nversion: '1'\nmax_plan_depth: 3\n",
+        )
+        .expect("seed legacy bytes");
+        let store = Store::open(&root).expect("store reopens");
+        store.save().expect("second save");
+        let config = fs::read_to_string(root.join("config.yaml")).expect("config.yaml");
+        assert_eq!(
+            config, "project: tst\nversion: '1'\nmax_plan_depth: 3\n",
+            "parsed-equal legacy bytes survive a store save untouched"
+        );
+
+        fs::remove_dir_all(root.parent().expect("parent")).ok();
+    }
+
+    // seeds-a84c + seeds-d2c5: when the logical content DID change, the
+    // rewrite goes through the ONE serializer — the reference dumper
+    // (number-like strings double-quoted) — and ends with exactly one
+    // final newline, never the blank line that broke consuming repos'
+    // yamllint empty-lines gates.
+    #[test]
+    fn save_rewrites_config_through_the_one_serializer_on_change() {
+        let root = temp_store("config-rewrite");
+        let mut store = Store::open(&root).expect("store opens");
+        store.config.max_plan_depth = 9;
         store.save().expect("config save");
 
         let config = fs::read_to_string(root.join("config.yaml")).expect("config.yaml");
         assert_eq!(
-            config, "project: tst\nversion: '1'\nmax_plan_depth: 3\n",
-            "exact bytes: the serde_yaml document plus one final newline"
+            config, "project: tst\nversion: \"1\"\nmax_plan_depth: 9\n",
+            "exact bytes: the reference dumper's document, one final newline"
         );
 
         fs::remove_dir_all(root.parent().expect("parent")).ok();

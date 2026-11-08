@@ -1510,6 +1510,60 @@ fn differential_prime_matches_sd() {
     }
 }
 
+/// seeds-a84c (README DEVIATIONS): config.yaml has ONE serializer and
+/// store ops rewrite it only on a logical content change. The
+/// reference also writes one style, so the standard flow —
+/// `config set`, then a store op — leaves BYTE-IDENTICAL config files
+/// on both sides; ours achieves it by not touching parsed-equal bytes
+/// at all, which additionally preserves non-reference styling (user
+/// hand-edits) that the reference's rewrite would normalize away.
+#[test]
+fn differential_store_ops_keep_config_bytes_vs_sd() {
+    let Some(reference) = reference() else {
+        skip_note();
+        return;
+    };
+    let pair = fixture_pair("config_bytes");
+    for (dir, program) in [
+        (&pair.reference_dir, reference.as_path()),
+        (&pair.ours_dir, our_binary().as_path()),
+    ] {
+        let set = capture(dir, program, &["config", "set", "max_plan_depth", "2"]);
+        assert!(
+            set.status.success(),
+            "config set failed in {}: {}",
+            dir.display(),
+            String::from_utf8_lossy(&set.stderr)
+        );
+    }
+    let ours_before =
+        fs::read(pair.ours_dir.join(".seeds/config.yaml")).expect("ours config before");
+    for (dir, program) in [
+        (&pair.reference_dir, reference.as_path()),
+        (&pair.ours_dir, our_binary().as_path()),
+    ] {
+        let label = capture(dir, program, &["label", "add", "tst-0001", "probe"]);
+        assert!(
+            label.status.success(),
+            "label add failed in {}: {}",
+            dir.display(),
+            String::from_utf8_lossy(&label.stderr)
+        );
+    }
+    let ours_after = fs::read(pair.ours_dir.join(".seeds/config.yaml")).expect("ours config after");
+    assert_eq!(
+        ours_before, ours_after,
+        "a store op must leave parsed-equal config bytes untouched"
+    );
+    let sd_after = fs::read(pair.reference_dir.join(".seeds/config.yaml")).expect("sd config");
+    assert_eq!(
+        ours_after, sd_after,
+        "the one-serializer flow is byte-identical to the reference"
+    );
+    fs::remove_dir_all(&pair.reference_dir).ok();
+    fs::remove_dir_all(&pair.ours_dir).ok();
+}
+
 /// `sync` tailors the comparison (seeds-540e): it mutates git history,
 /// needs a committer identity, and carries one documented deviation —
 /// untracked directories are expanded to per-file entries. This test

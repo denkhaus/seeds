@@ -16,6 +16,7 @@ use serde_yaml::{Mapping, Value as Yaml};
 
 use super::{CommandContext, CommandError, CommandOutcome, envelope_pretty, push_line};
 use crate::WriterLock;
+use crate::config::{dump_inline_fallback, dump_mapping, dump_scalar, is_scalar, yaml_to_json};
 
 /// The reference's JSON Schema for `.seeds/config.yaml`, emitted
 /// verbatim by `config schema`.
@@ -517,126 +518,6 @@ fn get_path_mut<'a>(root: &'a mut Mapping, segments: &[String]) -> Option<&'a mu
     Some(current)
 }
 
-// ---------------------------------------------------------------------------
-// YAML rendering (the reference dumper's style)
-// ---------------------------------------------------------------------------
-
-/// Whether a value renders inline (no block structure).
-fn is_scalar(value: &Yaml) -> bool {
-    matches!(
-        value,
-        Yaml::Null | Yaml::Bool(_) | Yaml::Number(_) | Yaml::String(_)
-    )
-}
-
-/// Renders a mapping in block style at `indent` (no trailing-newline
-/// contract: callers append structure themselves).
-fn dump_mapping(mapping: &Mapping, indent: usize) -> String {
-    let pad = " ".repeat(indent);
-    let mut out = String::new();
-    for (key, value) in mapping {
-        out.push_str(&pad);
-        out.push_str(&dump_scalar(key));
-        out.push(':');
-        append_block_value(&mut out, value, indent);
-    }
-    out
-}
-
-/// Renders a sequence in block style, dashes at the parent's indent.
-fn dump_sequence(sequence: &[Yaml], indent: usize) -> String {
-    let pad = " ".repeat(indent);
-    let mut out = String::new();
-    for item in sequence {
-        out.push_str(&pad);
-        out.push('-');
-        match item {
-            value if is_scalar(value) => {
-                out.push(' ');
-                out.push_str(&dump_scalar(value));
-                out.push('\n');
-            }
-            Yaml::Mapping(mapping) if mapping.is_empty() => out.push_str(" {}\n"),
-            Yaml::Mapping(mapping) => {
-                out.push(' ');
-                let inner = dump_mapping(mapping, indent + 2);
-                // First key joins the dash line; the rest keep their pad.
-                out.push_str(inner.trim_start_matches(' '));
-            }
-            Yaml::Sequence(inner) if inner.is_empty() => out.push_str(" []\n"),
-            Yaml::Sequence(inner) => {
-                out.push('\n');
-                out.push_str(&dump_sequence(inner, indent + 2));
-            }
-            other => {
-                out.push(' ');
-                out.push_str(&dump_scalar(other));
-                out.push('\n');
-            }
-        }
-    }
-    out
-}
-
-/// Appends `: value` structure after a key, reference-style: scalars
-/// inline, empty collections inline, nested blocks on following lines.
-fn append_block_value(out: &mut String, value: &Yaml, indent: usize) {
-    match value {
-        value if is_scalar(value) => {
-            out.push(' ');
-            out.push_str(&dump_scalar(value));
-            out.push('\n');
-        }
-        Yaml::Mapping(mapping) if mapping.is_empty() => out.push_str(" {}\n"),
-        Yaml::Mapping(mapping) => {
-            out.push('\n');
-            out.push_str(&dump_mapping(mapping, indent + 2));
-        }
-        Yaml::Sequence(sequence) if sequence.is_empty() => out.push_str(" []\n"),
-        Yaml::Sequence(sequence) => {
-            out.push('\n');
-            out.push_str(&dump_sequence(sequence, indent));
-        }
-        other => {
-            out.push(' ');
-            out.push_str(&dump_scalar(other));
-            out.push('\n');
-        }
-    }
-}
-
-/// Renders one scalar: plain when YAML round-trips it as a string,
-/// double-quoted otherwise (the reference dumper's rule).
-fn dump_scalar(value: &Yaml) -> String {
-    match value {
-        Yaml::Null => "null".to_owned(),
-        Yaml::Bool(flag) => flag.to_string(),
-        Yaml::Number(number) => number.to_string(),
-        Yaml::String(text) => {
-            if renders_plain(text) {
-                text.clone()
-            } else {
-                format!("{text:?}")
-            }
-        }
-        other => dump_inline_fallback(other),
-    }
-}
-
-/// Whether `text` can be emitted unquoted and re-parsed as the same
-/// string (no embedded newlines, not number/bool/null-like).
-fn renders_plain(text: &str) -> bool {
-    !text.is_empty()
-        && !text.contains('\n')
-        && serde_yaml::from_str::<Yaml>(text)
-            .is_ok_and(|parsed| parsed == Yaml::String(text.to_owned()))
-}
-
-/// Non-scalar values reaching a scalar slot render as flow JSON.
-fn dump_inline_fallback(value: &Yaml) -> String {
-    serde_json::to_string(&yaml_to_json(value)).unwrap_or_else(|_| "null".to_owned())
-}
-
 /// Renders a path value for text output: scalars plain, collections as
 /// the reference prints them (sequences compact JSON, mappings YAML).
 fn render_value(value: &Yaml) -> String {
@@ -647,41 +528,6 @@ fn render_value(value: &Yaml) -> String {
             let dumped = dump_mapping(mapping, 0);
             dumped.trim_end_matches('\n').to_owned()
         }
-        other => dump_scalar(other),
-    }
-}
-
-/// Converts a YAML value to its JSON projection (mappings keep order).
-fn yaml_to_json(value: &Yaml) -> Value {
-    match value {
-        Yaml::Null => Value::Null,
-        Yaml::Bool(flag) => Value::Bool(*flag),
-        Yaml::Number(number) => number
-            .as_i64()
-            .map(Value::from)
-            .or_else(|| {
-                number
-                    .as_f64()
-                    .and_then(serde_json::Number::from_f64)
-                    .map(Value::Number)
-            })
-            .unwrap_or(Value::Null),
-        Yaml::String(text) => Value::String(text.clone()),
-        Yaml::Sequence(items) => Value::Array(items.iter().map(yaml_to_json).collect()),
-        Yaml::Mapping(mapping) => Value::Object(
-            mapping
-                .iter()
-                .map(|(key, value)| (mapping_key(key), yaml_to_json(value)))
-                .collect(),
-        ),
-        Yaml::Tagged(tagged) => yaml_to_json(&tagged.value),
-    }
-}
-
-/// The JSON object key for a YAML mapping key.
-fn mapping_key(key: &Yaml) -> String {
-    match key {
-        Yaml::String(text) => text.clone(),
         other => dump_scalar(other),
     }
 }

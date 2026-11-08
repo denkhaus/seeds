@@ -102,6 +102,22 @@ carrying its own expectation, never a silent split:
   helpers). Deliberate parity framing stays versioned and unpromoted:
   `sd-0.5.15 read+write compatible` (`--version`), the
   `beyond sd parity` notes on native additions.
+- **ONE config serializer; store ops never rewrite an unchanged
+  config (seeds-a84c):** `.seeds/config.yaml` renders through the
+  reference dumper everywhere — `init`, `config set`/`unset`, and
+  store saves (`version: "1"` double-quoted, exactly one final
+  newline, seeds-d2c5). The store's save path rewrites the file only
+  when its LOGICAL content changed: parsed-equal on-disk bytes stay
+  untouched, so a store op (`label add`, `close`, …) never re-quotes
+  or re-orders a config that `config set` or the user just wrote —
+  the pre-fix unconditional serde_yaml rewrite ping-ponged the quote
+  style across commands, breaking consuming repos' yamllint
+  empty-lines gates byte-flip by byte-flip. The reference also
+  writes one style, so the standard flow is byte-identical on both
+  sides; the deliberate divergence hides one layer deeper — ours
+  PRESERVES parsed-equal bytes of any styling, where the reference's
+  store-op rewrite normalizes them to its dumper. Pinned by
+  `differential_store_ops_keep_config_bytes_vs_sd`.
 - **completions surface:** the shell scripts enumerate the implemented
   command surface only (the help-honesty rule above), not the
   reference's full list; the error surface (`unknown shell`, missing
