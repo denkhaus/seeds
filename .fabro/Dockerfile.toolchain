@@ -70,15 +70,25 @@ RUN set -eux; \
     && just --version \
     && rg --version
 
-# Repo agent tooling: AGENTS.md asks agents to run `seeds prime` / `ml
-# prime` at session start. Mulch keeps the bootstrap-phase jayminwest CLI
-# (ADR-0023; read+write compatible target until the mulch phase),
-# installed through the mise bun into BUN_INSTALL. The seeds tracker CLI
-# was dropped here at the self-hosting cutover (seeds-3791): the tracker
-# is this repo's own Rust binary, built from source below.
-RUN mise exec -- bun install -g \
-        @os-eco/mulch-cli@0.10.7 \
-    && ml --version
+# Repo agent tooling: AGENTS.md asks agents to run `seeds prime` /
+# `mulch prime` at session start. The mulch self-hosting cutover
+# (seeds-26c3) ships the native Rust `mulch` binary - the jayminwest
+# `ml` CLI's rewrite, read+write drop-in - from its pinned GitHub
+# Releases artifact, same pattern as the tracker below: SHASUMS.txt
+# verified on top of TLS, musl-static, /usr/local/bin. The npm
+# @os-eco/mulch-cli install retired with the `ml` binary name.
+ARG MULCH_VERSION=0.1.0
+RUN set -eux; \
+    base="https://github.com/denkhaus/mulch/releases/download/v${MULCH_VERSION}"; \
+    asset="mulch-${MULCH_VERSION}-x86_64-unknown-linux-musl.tar.gz"; \
+    curl -fsSL -o "/tmp/${asset}" "${base}/${asset}"; \
+    curl -fsSL -o /tmp/SHASUMS.txt "${base}/SHASUMS.txt"; \
+    grep "  ${asset}\$" /tmp/SHASUMS.txt | (cd /tmp && sha256sum -c -); \
+    tar -xzf "/tmp/${asset}" -C /tmp; \
+    mv /tmp/mulch /usr/local/bin/mulch; \
+    chmod +x /usr/local/bin/mulch; \
+    mulch --version | grep -q "${MULCH_VERSION}"; \
+    rm -f "/tmp/${asset}" /tmp/SHASUMS.txt
 
 # sd-0.5.15 compat reference (seeds-a9e7): installed globally under the
 # mise bun as `sd-ref` — NEVER `sd` (the PATH `sd` name is retired at

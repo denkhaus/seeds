@@ -320,7 +320,9 @@ carrying its own expectation, never a silent split:
   `differential_plan_matches_sd` lifecycle case plus the read-only
   matrix cases. The mulch coupling (prior-art enrichment in `prompt`,
   `--record-decision` on `submit`) is implemented as real best-effort
-  `ml` shell-outs, same as sd. Two deliberate divergences: (1) plan
+  `mulch` shell-outs — the native Rust rewrite of the reference's `ml`
+  (the cutover renamed the binary, seeds-26c3; sd shelled out to the
+  retired `ml`). Two deliberate divergences: (1) plan
   status lifecycle recompute — sd's `update`/`close` recompute
   `approved → active → done` from child statuses on every status
   change; this build does not yet wire that (a plan's `status` changes

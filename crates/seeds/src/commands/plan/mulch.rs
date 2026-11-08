@@ -4,6 +4,10 @@
 //! Covers domain inference, per-section prior-art enrichment, and the
 //! opt-in outbound decision record. All paths are best-effort — any
 //! failure yields empty results, never an error.
+//!
+//! The shell-out target is the `mulch` binary: the native Rust rewrite
+//! of the jayminwest `ml` CLI (read+write drop-in, cargo:mulch — the
+//! cutover renamed the binary, seeds-26c3). sd shelled out to `ml`.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -31,11 +35,12 @@ fn types_for_section(name: &str, hint: Option<&str>) -> Vec<String> {
     .collect()
 }
 
-/// Resolves `ml` on PATH (sd's `Bun.which("ml")`).
-fn ml_binary() -> Option<PathBuf> {
+/// Resolves `mulch` on PATH (sd's `Bun.which("ml")` — the binary the
+/// native cutover renamed, seeds-26c3).
+fn mulch_binary() -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
     std::env::split_paths(&path)
-        .map(|dir| dir.join("ml"))
+        .map(|dir| dir.join("mulch"))
         .find(|candidate| candidate.is_file())
 }
 
@@ -50,8 +55,8 @@ pub(crate) fn infer_domain(
     if let Some(domain) = explicit.filter(|domain| !domain.is_empty()) {
         return Some(domain.to_owned());
     }
-    let ml = ml_binary()?;
-    let domains = list_mulch_domains(&ml, cwd)?;
+    let mulch = mulch_binary()?;
+    let domains = list_mulch_domains(&mulch, cwd)?;
     let domain_set: HashSet<&str> = domains.iter().map(String::as_str).collect();
     for label in seed.labels() {
         if domain_set.contains(label) {
@@ -83,8 +88,8 @@ pub(crate) fn infer_domain(
     None
 }
 
-fn list_mulch_domains(ml: &Path, cwd: &Path) -> Option<Vec<String>> {
-    let output = Command::new(ml)
+fn list_mulch_domains(mulch: &Path, cwd: &Path) -> Option<Vec<String>> {
+    let output = Command::new(mulch)
         .args(["--json", "status"])
         .current_dir(cwd)
         .output()
@@ -175,7 +180,7 @@ pub(crate) struct PriorArtEntry {
     pub relevance: f64,
 }
 
-/// Enriches sections with prior art from `ml --json query`. Sections
+/// Enriches sections with prior art from `mulch --json query`. Sections
 /// that do not map to a mulch record type stay empty.
 pub(crate) fn enrich_prior_art(
     domain: Option<&str>,
@@ -189,7 +194,7 @@ pub(crate) fn enrich_prior_art(
     let Some(domain) = domain else {
         return out;
     };
-    let Some(ml) = ml_binary() else {
+    let Some(mulch) = mulch_binary() else {
         return out;
     };
     for (name, hint) in sections {
@@ -199,7 +204,7 @@ pub(crate) fn enrich_prior_art(
         }
         let mut collected = Vec::new();
         for kind in &types {
-            collected.extend(query_mulch_records(&ml, domain, kind, cwd));
+            collected.extend(query_mulch_records(&mulch, domain, kind, cwd));
         }
         collected.truncate(PRIOR_ART_LIMIT);
         if let Some(slot) = out.iter_mut().find(|(slot, _)| slot == name) {
@@ -209,8 +214,8 @@ pub(crate) fn enrich_prior_art(
     out
 }
 
-fn query_mulch_records(ml: &Path, domain: &str, kind: &str, cwd: &Path) -> Vec<PriorArtEntry> {
-    let output = match Command::new(ml)
+fn query_mulch_records(mulch: &Path, domain: &str, kind: &str, cwd: &Path) -> Vec<PriorArtEntry> {
+    let output = match Command::new(mulch)
         .args(["--json", "query", domain, "--type", kind])
         .current_dir(cwd)
         .output()
@@ -250,7 +255,7 @@ fn query_mulch_records(ml: &Path, domain: &str, kind: &str, cwd: &Path) -> Vec<P
     out
 }
 
-/// sd's opt-in outbound write: `ml record <domain> --type decision
+/// sd's opt-in outbound write: `mulch record <domain> --type decision
 /// ...`. Never fails the submit; the `Err` text is the stderr warning.
 pub(crate) fn record_decision(
     domain: &str,
@@ -259,10 +264,10 @@ pub(crate) fn record_decision(
     approach: &str,
     cwd: &Path,
 ) -> Result<Option<String>, String> {
-    let Some(ml) = ml_binary() else {
-        return Err("ml not found on PATH; skipping --record-decision".to_owned());
+    let Some(mulch) = mulch_binary() else {
+        return Err("mulch not found on PATH; skipping --record-decision".to_owned());
     };
-    let output = Command::new(&ml)
+    let output = Command::new(&mulch)
         .args([
             "record",
             domain,
@@ -278,7 +283,7 @@ pub(crate) fn record_decision(
         ])
         .current_dir(cwd)
         .output()
-        .map_err(|error| format!("ml record threw: {error}"))?;
+        .map_err(|error| format!("mulch record threw: {error}"))?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let first = stderr.lines().next().unwrap_or_default();
@@ -287,7 +292,7 @@ pub(crate) fn record_decision(
         } else {
             format!(": {first}")
         };
-        return Err(format!("ml record failed{detail}"));
+        return Err(format!("mulch record failed{detail}"));
     }
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_owned();
     if stdout.is_empty() {
