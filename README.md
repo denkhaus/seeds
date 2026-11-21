@@ -84,10 +84,19 @@ carrying its own expectation, never a silent split:
   pace line (seeds-8fc5) — `> **Pace**: …` under the anchor line of
   each text template, and a top-level `pace` key (before `content`) in
   the JSON envelope; the `content` mirror stays the static template.
-  Both are pinned by the tailored `differential_prime_matches_sd`,
+  Third additive deviation (seeds-2e27): the close protocol's step 3
+  is language-neutral — `run this repo's quality gate` — where the
+  reference hardcodes its own bun stack (`bun test && bun run lint &&
+  bun run typecheck`) into every consuming repo's session context;
+  repos gate through just/cargo/npm/…, and an agent following the
+  primed checklist would run three commands that do not exist there.
+  `.seeds/config.yaml`'s `quality_gate` key (hand-edited like
+  `vcs_manager`/`surfaces`; absent = the neutral default) names the
+  repo's real gate command and replaces the placeholder on every
+  surface. All are pinned by the tailored `differential_prime_matches_sd`,
   which rewrites the reference's `sd ` command prefixes to `seeds `,
-  strips our pace lines, and compares stdout byte-for-byte on all four
-  surfaces.
+  its bun gate command to our neutral wording, strips our pace lines,
+  and compares stdout byte-for-byte on all four surfaces.
 - **self-referential command strings name `seeds` (seeds-9667):** the
   prime-template law above, extended to the whole surface — every
   `Usage:` header, `usage:` error, and follow-up hint (`Run 'seeds

@@ -1453,14 +1453,17 @@ fn differential_stats_matches_sd() {
     fs::remove_dir_all(&pair.reference_dir).ok();
     fs::remove_dir_all(&pair.ours_dir).ok();
 }
-/// prime: full, compact, and JSON surfaces with two documented
+/// prime: full, compact, and JSON surfaces with three documented
 /// deviations (README DEVIATIONS) — (1) the template's examples name
 /// the live `seeds` CLI, not the retired `sd` binary (nothing
 /// provides `sd` on PATH since the self-hosting cutover, seeds-3791),
-/// and (2) the round-trip pace line (`> **Pace**:` / the top-level
-/// `"pace"` key, seeds-8fc5) exists only on our side. Rewriting the
-/// reference's `sd ` command prefixes to `seeds ` and dropping our
-/// pace lines must yield byte-identical stdout on every surface.
+/// (2) the round-trip pace line (`> **Pace**:` / the top-level
+/// `"pace"` key, seeds-8fc5) exists only on our side, and (3) the
+/// close protocol's step 3 is language-neutral (seeds-2e27) where the
+/// reference hardcodes its bun stack. Rewriting the reference's `sd `
+/// command prefixes to `seeds `, its bun gate command to our neutral
+/// wording, and dropping our pace lines must yield byte-identical
+/// stdout on every surface.
 #[test]
 fn differential_prime_matches_sd() {
     let Some(reference) = reference() else {
@@ -1487,7 +1490,12 @@ fn differential_prime_matches_sd() {
             ours.stderr.is_empty(),
             "{case}: stderr emptiness diverged"
         );
-        let sd_text = String::from_utf8_lossy(&sd.stdout).replace("sd ", "seeds ");
+        let sd_text = String::from_utf8_lossy(&sd.stdout)
+            .replace("sd ", "seeds ")
+            .replace(
+                "bun test && bun run lint && bun run typecheck",
+                "run this repo's quality gate",
+            );
         let ours_text = String::from_utf8_lossy(&ours.stdout);
         // Drop the additive pace line: a `> **Pace**:` template line,
         // or the top-level `"pace"` envelope key (one pretty-printed

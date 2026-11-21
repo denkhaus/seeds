@@ -78,6 +78,14 @@ pub struct Config {
     /// grouping (stats then hints at the setup).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub surfaces:       Vec<String>,
+    /// The repo's own quality-gate command for `prime`'s close-protocol
+    /// step 3 (seeds-2e27): the reference hardcodes its bun stack into
+    /// every consuming repo's session context; this key names the
+    /// repo's real gate instead (`just devcycle quality-gate`,
+    /// `cargo nextest run && cargo clippy`, …). Absent = the
+    /// language-neutral default wording.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quality_gate:   Option<String>,
     /// Every config key this crate does not model, preserved verbatim.
     #[serde(flatten)]
     pub extra:          Fields,
@@ -357,6 +365,34 @@ mod tests {
         let rewritten = Config::parse(&config.to_yaml(), std::path::Path::new("config.yaml"))
             .expect("rewritten config stays valid");
         assert_eq!(rewritten.surfaces, config.surfaces);
+    }
+
+    // seeds-2e27: prime's close-protocol gate step is overridable via
+    // a plain string; an unset store round-trips without the key (byte
+    // stability of the rewrite), a set store keeps its command.
+    #[test]
+    fn config_reads_and_preserves_quality_gate() {
+        let config = Config::parse(
+            "project: demo\nquality_gate: just devcycle quality-gate\n",
+            std::path::Path::new("config.yaml"),
+        )
+        .expect("valid");
+        assert_eq!(
+            config.quality_gate.as_deref(),
+            Some("just devcycle quality-gate")
+        );
+
+        let plain =
+            Config::parse("project: demo\n", std::path::Path::new("config.yaml")).expect("valid");
+        assert_eq!(plain.quality_gate, None);
+        assert!(
+            !plain.to_yaml().contains("quality_gate"),
+            "unset quality_gate stays absent from rewrites"
+        );
+
+        let rewritten = Config::parse(&config.to_yaml(), std::path::Path::new("config.yaml"))
+            .expect("rewritten config stays valid");
+        assert_eq!(rewritten.quality_gate, config.quality_gate);
     }
 
     #[test]

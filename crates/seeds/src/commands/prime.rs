@@ -2,12 +2,15 @@
 //! template and its JSON sections, captured from the reference and
 //! renamed to the live `seeds` CLI (documented deviation, README
 //! DEVIATIONS — agents have no `sd` on PATH since the self-hosting
-//! cutover).
+//! cutover). Second documented deviation: the close protocol's step 3
+//! is language-neutral ("run this repo's quality gate"), overridable
+//! per repo via `.seeds/config.yaml`'s `quality_gate` (seeds-2e27) —
+//! the reference hardcodes its own bun stack there.
 
 use serde_json::{Value, json};
 
 use super::{CommandContext, CommandOutcome, envelope_pretty, push_line};
-use crate::{Pace, PaceOptions, SurfaceReport};
+use crate::{Pace, PaceOptions, Store, SurfaceReport};
 
 const PRIME_FULL: &str = "\
 # Seeds Workflow Context
@@ -21,7 +24,7 @@ const PRIME_FULL: &str = "\
 ```
 [ ] 1. Close completed issues:    seeds close <id1> <id2> ...
 [ ] 2. File issues for remaining:  seeds create --title \"...\"
-[ ] 3. Run quality gates:          bun test && bun run lint && bun run typecheck
+[ ] 3. Run quality gates:          run this repo's quality gate
 [ ] 4. Sync and push:              seeds sync && git push
 [ ] 5. Verify:                     git status (must show \"up to date with origin\")
 ```
@@ -155,13 +158,57 @@ const CONTEXT_RECOVERY: &str =
 /// The compact template's title line — its pace-line anchor.
 const COMPACT_TITLE: &str = "# Seeds Quick Reference";
 
+/// The close protocol's step-3 text before the gate command — the
+/// substitution anchor shared by the text template and the JSON
+/// sections (seeds-2e27).
+const GATE_STEP_LABEL: &str = "Run quality gates:";
+/// Step 3's language-neutral default wording (seeds-2e27): the
+/// reference hardcodes its own bun stack (`bun test && bun run lint &&
+/// bun run typecheck`) into every consuming repo's session context —
+/// repos gate through just/cargo/npm/…, and an agent following the
+/// primed checklist would run three commands that do not exist there.
+/// `.seeds/config.yaml`'s `quality_gate` key names the repo's real
+/// gate command and replaces this placeholder on every surface.
+const GATE_DEFAULT: &str = "run this repo's quality gate";
+
+/// The close protocol's step-3 text for `gate`: the configured command,
+/// or the language-neutral default. The ten-space pad keeps the
+/// checklist's command column aligned.
+fn gate_step(gate: Option<&str>) -> String {
+    format!(
+        "{GATE_STEP_LABEL}          {}",
+        gate.unwrap_or(GATE_DEFAULT)
+    )
+}
+
+/// Substitutes the close protocol's step-3 gate text in `template`.
+/// The neutral default IS the template's text — no substitution, the
+/// const bytes flow untouched.
+fn with_gate_step(template: &str, gate: Option<&str>) -> String {
+    match gate {
+        None => template.to_owned(),
+        Some(gate) => template.replace(
+            &format!("{GATE_STEP_LABEL}          {GATE_DEFAULT}"),
+            &gate_step(Some(gate)),
+        ),
+    }
+}
+
 /// `prime` — emits the session-context template (text or JSON) with
 /// the one-line pace summary of the open store (seeds-8fc5): a round
 /// trip starts by knowing where the project stands. The pace line is
 /// best-effort — a context without a readable store emits the
-/// reference-faithful template unchanged.
+/// reference-faithful template unchanged. A readable store also
+/// carries the `quality_gate` config override (seeds-2e27): the
+/// close protocol's step 3 then names the repo's real gate command.
 pub fn prime(ctx: &CommandContext, input: &PrimeInput) -> CommandOutcome {
-    let pace = pace_line(ctx);
+    // Best-effort: prime must render regardless — a store that will
+    // not open contributes neither pace line nor gate override.
+    let store = ctx.open_store().ok();
+    let gate = store
+        .as_ref()
+        .and_then(|store| store.config.quality_gate.as_deref());
+    let pace = store.as_ref().and_then(pace_line);
     let mut out = String::new();
     if input.json {
         let compact = input.compact;
@@ -183,7 +230,7 @@ pub fn prime(ctx: &CommandContext, input: &PrimeInput) -> CommandOutcome {
                     "steps": [
                         "Close completed issues:    seeds close <id1> <id2> ...",
                         "File issues for remaining:  seeds create --title \"...\"",
-                        "Run quality gates:          bun test && bun run lint && bun run typecheck",
+                        gate_step(gate),
                         "Sync and push:              seeds sync && git push",
                         "Verify:                     git status (must show \"up to date with origin\")"
                     ],
@@ -215,7 +262,14 @@ pub fn prime(ctx: &CommandContext, input: &PrimeInput) -> CommandOutcome {
         // pace line rides as its own top-level key BEFORE `content`, so
         // dropping that one line yields the reference envelope shape
         // (the tailored differential strips it).
-        let content = format!("{}\n", if compact { PRIME_COMPACT } else { PRIME_FULL });
+        let content = format!(
+            "{}\n",
+            if compact {
+                PRIME_COMPACT.to_owned()
+            } else {
+                with_gate_step(PRIME_FULL, gate)
+            }
+        );
         let mut extra = vec![("sections", sections)];
         if let Some(pace) = &pace {
             extra.push(("pace", json!(pace)));
@@ -231,21 +285,24 @@ pub fn prime(ctx: &CommandContext, input: &PrimeInput) -> CommandOutcome {
         // `--export` emits the default (full) template, like the reference.
         push_line(
             &mut out,
-            &with_pace_line(PRIME_FULL, CONTEXT_RECOVERY, pace.as_deref()),
+            &with_pace_line(
+                &with_gate_step(PRIME_FULL, gate),
+                CONTEXT_RECOVERY,
+                pace.as_deref(),
+            ),
         );
     }
     CommandOutcome::ok(out)
 }
 
 /// The compact pace line for `prime`: default window (30d), the open
-/// target, and the ETA — `None` when the store will not open or the
-/// metrics will not compute (prime must render regardless). When the
-/// store configures surfaces, the relevance-scoped groups ride along
-/// (seeds-b657): the queue-wide numbers alone read as health while
-/// gates keep refilling the queue. Unconfigured stores get no
-/// reminder here — the setup hint lives in `stats --pace`.
-fn pace_line(ctx: &CommandContext) -> Option<String> {
-    let store = ctx.open_store().ok()?;
+/// target, and the ETA — `None` when the metrics will not compute
+/// (prime must render regardless). When the store configures surfaces,
+/// the relevance-scoped groups ride along (seeds-b657): the queue-wide
+/// numbers alone read as health while gates keep refilling the queue.
+/// Unconfigured stores get no reminder here — the setup hint lives in
+/// `stats --pace`.
+fn pace_line(store: &Store) -> Option<String> {
     let pace = Pace::collect(&store.issues, &PaceOptions::default()).ok()?;
     let mut line = pace.line();
     if !store.config.surfaces.is_empty()

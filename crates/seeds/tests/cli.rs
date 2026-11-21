@@ -1475,6 +1475,73 @@ fn prime_outputs_context_compact_and_json() {
     );
 }
 
+/// seeds-2e27: the close protocol's step 3 is language-neutral by
+/// default — the reference's hardcoded bun stack would send agents at
+/// commands that do not exist in non-bun repos — and the store's
+/// `quality_gate` config key names the repo's real gate command on
+/// every surface (text template, JSON sections, `content` mirror).
+#[test]
+fn prime_quality_gate_neutral_default_and_config_override() {
+    let dir = temp_store("prime-gate");
+
+    // Neutral default: no bun anywhere.
+    let output = run(&dir, &["prime"]);
+    let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(
+        text.contains("Run quality gates:          run this repo's quality gate"),
+        "{text}"
+    );
+    assert!(!text.contains("bun "), "no hardcoded bun stack: {text}");
+
+    let value = stdout_json(&run(&dir, &["prime", "--json"]));
+    assert_eq!(
+        value["sections"]["closeProtocol"]["steps"][2],
+        json!("Run quality gates:          run this repo's quality gate")
+    );
+    let content = value["content"].as_str().expect("content mirror");
+    assert!(
+        content.contains("Run quality gates:          run this repo's quality gate"),
+        "{content}"
+    );
+    assert!(
+        !content.contains("bun "),
+        "content stays bun-free: {content}"
+    );
+
+    // Override: the repo's real gate command replaces the placeholder
+    // on every surface.
+    fs::write(
+        dir.join(".seeds/config.yaml"),
+        "project: \"tst\"\nversion: \"1\"\nmax_plan_depth: 3\nquality_gate: just devcycle quality-gate\n",
+    )
+    .expect("config.yaml");
+    let output = run(&dir, &["prime"]);
+    let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(
+        text.contains("Run quality gates:          just devcycle quality-gate"),
+        "{text}"
+    );
+    assert!(
+        !text.contains("run this repo's quality gate"),
+        "override replaces the placeholder: {text}"
+    );
+    let value = stdout_json(&run(&dir, &["prime", "--json"]));
+    assert_eq!(
+        value["sections"]["closeProtocol"]["steps"][2],
+        json!("Run quality gates:          just devcycle quality-gate")
+    );
+    let content = value["content"].as_str().expect("content mirror");
+    assert!(
+        content.contains("Run quality gates:          just devcycle quality-gate"),
+        "{content}"
+    );
+
+    // Compact has no close protocol — untouched either way.
+    let output = run(&dir, &["prime", "--compact"]);
+    let text = String::from_utf8(output.stdout.clone()).expect("utf-8");
+    assert!(!text.contains("quality gate"), "{text}");
+}
+
 // ---------------------------------------------------------------------------
 // help / version
 // ---------------------------------------------------------------------------
